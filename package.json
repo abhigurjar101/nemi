@@ -1,0 +1,68 @@
+{
+  "name": "nemi",
+  "version": "1.0.0",
+  "description": "NEMI — The Living AI Brain for your Desktop",
+  "main": "out/main/index.js",
+  "author": "NEMI Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron-vite dev",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "preview": "electron-vite preview",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "@react-three/drei": "^9.120.0",
+    "@react-three/fiber": "^8.17.0",
+    "@react-three/postprocessing": "^2.16.0",
+    "ai": "^7.0.93",
+    "electron-store": "^10.0.0",
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.460.0",
+    "marked": "^14.0.0",
+    "postprocessing": "^6.36.4",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.170.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.6.0",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.nemi.brain",
+    "productName": "NEMI",
+    "extraResources": [
+      "voice_server.py",
+      "rag_server.py"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.21.5": true,
+    "fsevents@2.3.3": true
+  }
+}

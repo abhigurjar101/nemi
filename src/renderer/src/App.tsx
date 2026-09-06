@@ -1,0 +1,1582 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import NemiBrain from './components/NemiBrain'
+import ChatPanel, { type Message } from './components/ChatPanel'
+import VoiceOrb from './components/VoiceOrb'
+import Sidebar, { type Conversation } from './components/Sidebar'
+import RagPanel from './components/RagPanel'
+import { HumanCompanionLayer, toConversationalScript } from './humanCompanion'
+import { isActivationPhrase, readinessBriefing, extractVoiceIntent } from './voiceActivation'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Sparkles, Mic, MessageSquare, Settings as SettingsIcon,
+  Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp
+} from 'lucide-react'
+import {
+  type ConversationSession,
+  type MemoryItem,
+  loadStoredConversations,
+  saveStoredConversations,
+  loadStoredMemories,
+  saveStoredMemories,
+  extractMemoriesFromText,
+  formatMemoriesForSystemPrompt,
+  generateConversationTitle,
+  uid as genUid,
+} from './chatMemory'
+import { playThoughtSpark, playActivationChime } from './humanCompanion/soundscape'
+
+declare global {
+  interface Window {
+    SpeechRecognition: SpeechRecognitionConstructor
+    webkitSpeechRecognition: SpeechRecognitionConstructor
+  }
+}
+
+function uid(): string {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+function newConversation(): Conversation {
+  return {
+    id: uid(),
+    title: 'New Conversation',
+    preview: '',
+    timestamp: new Date(),
+    pinned: false,
+    messageCount: 0,
+  }
+}
+
+// ── Voice names for display ──────────────────────────────────
+const KOKORO_VOICES: Record<string, string> = {
+  af_heart:    '❤️ Heart (Warm & Intimate Female)',
+  af_bella:    '✨ Bella (Smooth & Articulate Female)',
+  af_sarah:    '🌸 Sarah (Soft & Friendly Female)',
+  af_sky:      '☀️ Sky (Bright & Youthful Female)',
+  af_nicole:   '🌙 Nicole (Calm & Whispery Female)',
+  am_adam:     '🎙️ Adam (Clear & Confident Male)',
+  am_michael:  '☕ Michael (Warm & Conversational Male)',
+  bf_emma:     '🎩 Emma (Elegant British Female)',
+  bf_isabella: '🌿 Isabella (Gentle British Female)',
+  bm_george:   '🇬🇧 George (Classic British Male)',
+}
+
+const OLLAMA_PREFERRED = ['llama3.2', 'llama3.1', 'llama3']
+
+// ── Settings Panel ───────────────────────────────────────────
+function SettingsPanel({
+  isOpen, onClose,
+  modelMode, onModelModeChange,
+  nvidiaNimKey, onNvidiaNimKeyChange,
+  ollamaModels, ollamaModel, onOllamaModelChange,
+  ollamaRunning, voiceServerRunning, kokoro,
+  selectedVoice, onVoiceChange, onTestVoice,
+  voiceSpeed = 1.0,
+  onVoiceSpeedChange,
+  sttMode,
+  humanCompanionEnabled = true,
+  onToggleHumanCompanion,
+  nimReady,
+  onNimReadyChange,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  modelMode: 'ollama' | 'nvidia-nim'
+  onModelModeChange: (mode: 'ollama' | 'nvidia-nim') => void
+  nvidiaNimKey: string
+  onNvidiaNimKeyChange: (key: string) => void
+  ollamaModels: string[]
+  ollamaModel: string
+  onOllamaModelChange: (model: string) => void
+  ollamaRunning: boolean
+  voiceServerRunning: boolean
+  kokoro: boolean
+  selectedVoice: string
+  onVoiceChange: (voice: string) => void
+  onTestVoice: () => void
+  voiceSpeed?: number
+  onVoiceSpeedChange?: (speed: number) => void
+  sttMode: string
+  humanCompanionEnabled?: boolean
+  onToggleHumanCompanion?: (val: boolean) => void
+  nimReady: boolean
+  onNimReadyChange: (ready: boolean) => void
+}) {
+  const [localNvidiaNimKey, setLocalNvidiaNimKey] = useState(nvidiaNimKey)
+  const [nimStatus, setNimStatus] = useState<string>('')
+  const [nimTesting, setNimTesting] = useState(false)
+
+  useEffect(() => {
+    setLocalNvidiaNimKey(nvidiaNimKey)
+  }, [nvidiaNimKey])
+
+  const saveNimKey = async () => {
+    const cleanKey = localNvidiaNimKey.trim()
+    if (!cleanKey) {
+      onNimReadyChange(false)
+      setNimStatus('Enter an NVIDIA NIM API key first.')
+      return
+    }
+    try {
+      const saved = await window.nemi?.saveNvidiaNimKey(cleanKey)
+      if (!saved) {
+        onNimReadyChange(false)
+        setNimStatus('NVIDIA NIM key could not be saved.')
+        return
+      }
+      onNvidiaNimKeyChange(cleanKey)
+      onModelModeChange('nvidia-nim')
+      onNimReadyChange(false)
+      setNimStatus('NVIDIA NIM key saved. Test it to verify connectivity.')
+    } catch (error) {
+      onNimReadyChange(false)
+      setNimStatus(error instanceof Error ? error.message : 'NVIDIA NIM key could not be saved.')
+    }
+  }
+
+  const testNimKey = async () => {
+    const cleanKey = localNvidiaNimKey.trim()
+    if (!cleanKey) return
+    setNimTesting(true)
+    try {
+      const result = await window.nemi?.validateNvidiaNimKey(cleanKey)
+      const valid = result?.valid === true
+      onNimReadyChange(valid)
+      setNimStatus(valid ? (result.message || 'NVIDIA NIM connected') : (result?.error || 'NVIDIA NIM connection failed'))
+      if (valid) {
+        onNvidiaNimKeyChange(cleanKey)
+        onModelModeChange('nvidia-nim')
+      }
+    } catch (error) {
+      onNimReadyChange(false)
+      setNimStatus(error instanceof Error ? error.message : 'NVIDIA NIM connection failed.')
+    } finally {
+      setNimTesting(false)
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md"
+        >
+          <div className="absolute inset-0" onClick={onClose} />
+          <motion.div
+            initial={{ scale: 0.92, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.92, y: 20 }}
+            className="relative glass-panel p-8 w-[520px] space-y-5 z-10 border border-cyan-500/20 shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <div>
+              <h2 className="text-xl font-bold gradient-text mb-1 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-cyan-400" /> NEMI Configuration
+              </h2>
+              <p className="text-sm text-white/40">Power your living desktop AI brain</p>
+            </div>
+
+            {/* ── AI Engine ── */}
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">AI Engine</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onModelModeChange('ollama')}
+                  className={`p-3 rounded-xl border text-sm font-semibold flex flex-col items-start gap-1 transition-all cursor-pointer ${
+                    modelMode === 'ollama'
+                      ? 'bg-green-500/20 border-green-400/40 text-green-300'
+                      : 'bg-white/5 border-white/10 text-white/50 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Cpu className="w-4 h-4" /> <span>Ollama</span>
+                    <div className={`ml-auto w-2 h-2 rounded-full ${ollamaRunning ? 'bg-green-400' : 'bg-red-400'}`} />
+                  </div>
+                  <div className="text-[10px] font-normal opacity-60">Local offline</div>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Online AI</label>
+                <button
+                  type="button"
+                  onClick={() => onModelModeChange('nvidia-nim')}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${modelMode === 'nvidia-nim' ? 'border-cyan-400/50 bg-cyan-400/20 text-cyan-200' : 'border-white/10 bg-white/5 text-white/50'}`}
+                >
+                  Online
+                </button>
+              </div>
+              <input
+                type="password"
+                value={localNvidiaNimKey}
+                onChange={(event) => setLocalNvidiaNimKey(event.target.value)}
+                placeholder="nvapi-..."
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white/80 placeholder-white/20 focus:border-cyan-400/40 focus:outline-none"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => void saveNimKey()} disabled={!localNvidiaNimKey.trim()} className="flex-1 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">Save NIM Key</button>
+                <button type="button" onClick={() => void testNimKey()} disabled={nimTesting || !localNvidiaNimKey.trim()} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 disabled:opacity-40">{nimTesting ? 'Testing...' : 'Test'}</button>
+              </div>
+              {nimStatus && <p className={`text-xs ${nimReady ? 'text-green-300' : 'text-white/60'}`}>{nimReady ? '● ' : ''}{nimStatus}</p>}
+              <p className="text-[11px] text-white/35">Online requests use NVIDIA's NIM API. Ollama remains local and works without a key.</p>
+            </div>
+              {modelMode === 'ollama' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Ollama Model</label>
+                  {ollamaRunning && ollamaModels.length > 0 ? (
+                    <select
+                      value={ollamaModel}
+onChange={(e) => { onOllamaModelChange(e.target.value) }}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/80 text-sm focus:outline-none focus:border-green-400/40 cursor-pointer"
+                    >
+                      {ollamaModels.map((m) => (
+                        <option key={m} value={m} className="bg-slate-900">{m}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-400/20 text-red-300 text-xs">
+                      {ollamaRunning
+                        ? '⚠️ No models installed. Run: ollama pull llama3.2'
+                        : '❌ Ollama not running. Start with: ollama serve'}
+</div>
+                    )}
+                    <p className="text-xs text-white/35">Install models: <span className="font-mono text-green-400">ollama pull llama3.2</span></p>
+                </div>
+              )}
+
+            {/* ── Voice Settings ── */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Voice (TTS)</label>
+                <div className={`flex items-center gap-1.5 text-xs ${voiceServerRunning ? 'text-green-400' : 'text-yellow-400'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${voiceServerRunning ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                  {voiceServerRunning
+                    ? (kokoro ? 'Kokoro TTS ✨' : 'Voice Server (macOS fallback)')
+                    : 'macOS Samantha (fallback)'}
+                </div>
+              </div>
+              <select
+                value={selectedVoice}
+onChange={(e) => { onVoiceChange(e.target.value) }}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/80 text-sm focus:outline-none focus:border-purple-400/40 cursor-pointer"
+              >
+                {Object.entries(KOKORO_VOICES).map(([id, name]) => (
+                  <option key={id} value={id} className="bg-slate-900">{name}</option>
+                ))}
+              </select>
+              <button
+                onClick={onTestVoice}
+                className="w-full py-2 rounded-xl text-xs font-semibold bg-purple-500/20 border border-purple-400/30 text-purple-300 hover:bg-purple-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                Test Voice
+              </button>
+
+              {/* ── Voice Speed Controls ── */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/60">Voice Speed / Pace</span>
+                  <span className="text-cyan-300 font-mono text-[11px] font-semibold">
+                    {voiceSpeed}x {voiceSpeed === 1.0 ? '(Natural Human)' : ''}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { label: '0.85x Warm', value: 0.85 },
+                    { label: '1.0x Natural', value: 1.0 },
+                    { label: '1.1x Lively', value: 1.1 },
+                    { label: '1.2x Quick', value: 1.2 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => onVoiceSpeedChange?.(preset.value)}
+                      className={`py-1.5 rounded-lg text-[11px] font-medium border transition-all cursor-pointer ${
+                        voiceSpeed === preset.value
+                          ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300 shadow-[0_0_10px_rgba(0,212,255,0.2)]'
+                          : 'bg-white/5 border-white/10 text-white/50 hover:border-white/20 hover:text-white/80'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ── STT Status ── */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Speech Recognition (STT)</label>
+              <div className="p-3 rounded-xl bg-white/4 border border-white/10 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60">Browser WebSpeech API</span>
+                  <span className="text-green-400 font-semibold">✅ Primary</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60">Local Whisper (voice server)</span>
+                  <span className={sttMode !== 'none' ? 'text-green-400 font-semibold' : 'text-white/30'}>
+                    {sttMode !== 'none' ? `✅ ${sttMode}` : '⚠️ not installed'}
+                  </span>
+                </div>
+                <p className="text-white/30 pt-1">Install: <span className="font-mono text-amber-400">pip install faster-whisper</span></p>
+              </div>
+            </div>
+
+            {/* ── Human Companion Experience ── */}
+            <div className="space-y-2 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-white/80 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    Human Companion Experience
+                  </div>
+                  <p className="text-[11px] text-white/40 pt-0.5">
+                    Living presence, acoustic felt chimes & conversational voice
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onToggleHumanCompanion?.(!humanCompanionEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                    humanCompanionEnabled ? 'bg-cyan-500' : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      humanCompanionEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* ── Hotkeys ── */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Quick Hotkeys</label>
+              <div className="grid grid-cols-2 gap-2 text-xs text-white/60">
+                <div className="p-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between">
+                  <span>Voice Mode</span>
+                  <kbd className="font-mono text-cyan-400 font-semibold">⌘⇧Space</kbd>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between">
+                  <span>Chat Panel</span>
+                  <kbd className="font-mono text-purple-400 font-semibold">⌘⇧C</kbd>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 transition-opacity cursor-pointer text-white shadow-lg shadow-cyan-500/20"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-xl text-sm text-white/50 hover:text-white/80 border border-white/10 hover:bg-white/5 transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+export { defaultModelMode } from './modelRouting'
+import { defaultModelMode } from './modelRouting'
+
+function RagWindowApp() {
+  const [ollamaRunning, setOllamaRunning] = useState(false)
+  const [ollamaModel, setOllamaModel] = useState(() => localStorage.getItem('nemi_ollama_model') || 'llama3.2')
+  const [nvidiaNimKey, setNvidiaNimKey] = useState('')
+  const [modelMode] = useState<'ollama' | 'nvidia-nim'>(() =>
+    localStorage.getItem('nemi_model_mode') === 'nvidia-nim' ? 'nvidia-nim' : 'ollama'
+  )
+
+  useEffect(() => {
+    const refresh = async () => {
+      const result = await window.nemi?.checkOllama()
+      if (result) {
+        setOllamaRunning(result.running)
+        if (result.models.length > 0 && !result.models.includes(ollamaModel)) {
+          setOllamaModel(result.models[0])
+        }
+      }
+      const key = await window.nemi?.getNvidiaNimKey()
+      if (key) setNvidiaNimKey(key)
+    }
+    void refresh()
+  }, [ollamaModel])
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
+      <RagPanel
+        isVisible
+        onClose={() => { void window.nemi?.closeRagWindow() }}
+        onThinkingChange={() => {}}
+        ollamaRunning={ollamaRunning}
+        ollamaModel={ollamaModel}
+        modelMode={modelMode}
+        nvidiaNimKey={nvidiaNimKey}
+        fullScreen
+      />
+    </div>
+  )
+}
+
+// ── Main App ─────────────────────────────────────────────────
+export default function App() {
+  if (new URLSearchParams(window.location.search).get('view') === 'rag') {
+    return <RagWindowApp />
+  }
+
+  const [isListening, setIsListening] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [isWakeWordMode, setIsWakeWordMode] = useState(false)
+
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('nemi_chat_open')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const [conversations, setConversations] = useState<ConversationSession[]>([])
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [memories, setMemories] = useState<MemoryItem[]>([])
+  const [speakingMsgText, setSpeakingMsgText] = useState<string | null>(null)
+
+  // ── Load persistent conversations & long-term memories on launch ──
+  useEffect(() => {
+    const initStorage = async () => {
+      try {
+        const storedConvs = await loadStoredConversations()
+        setConversations(storedConvs)
+        if (storedConvs.length > 0) {
+          const active = storedConvs[0]
+          setActiveConvId(active.id)
+          setMessages(active.messages)
+        }
+        const storedMems = await loadStoredMemories()
+        setMemories(storedMems)
+      } catch (err) {
+        console.warn('Failed to load chat history and memory:', err)
+      }
+    }
+    void initStorage()
+  }, [])
+
+  const handleToggleChatOpen = useCallback((open: boolean) => {
+    setChatOpen(open)
+    localStorage.setItem('nemi_chat_open', String(open))
+  }, [])
+
+  const handleSelectConversation = useCallback((id: string) => {
+    setActiveConvId(id)
+    const found = conversations.find((c) => c.id === id)
+    if (found) {
+      setMessages(found.messages)
+    }
+  }, [conversations])
+
+  const handleNewConversation = useCallback(async () => {
+    const newConv: ConversationSession = {
+      id: genUid(),
+      title: 'New Conversation',
+      preview: '',
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      pinned: false,
+    }
+    setConversations((prev) => {
+      const updated = [newConv, ...prev]
+      void saveStoredConversations(updated)
+      return updated
+    })
+    setActiveConvId(newConv.id)
+    setMessages([])
+  }, [])
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    setConversations((prev) => {
+      const updated = prev.filter((c) => c.id !== id)
+      void saveStoredConversations(updated)
+      if (activeConvId === id) {
+        if (updated.length > 0) {
+          setActiveConvId(updated[0].id)
+          setMessages(updated[0].messages)
+        } else {
+          void handleNewConversation()
+        }
+      }
+      return updated
+    })
+  }, [activeConvId, handleNewConversation])
+
+  const handlePinConversation = useCallback(async (id: string) => {
+    setConversations((prev) => {
+      const updated = prev.map((c) => c.id === id ? { ...c, pinned: !c.pinned } : c)
+      void saveStoredConversations(updated)
+      return updated
+    })
+  }, [])
+
+  const handleAddMemory = useCallback(async (content: string, category?: MemoryItem['category']) => {
+    const newMem: MemoryItem = {
+      id: genUid(),
+      content,
+      category: category || 'general',
+      timestamp: Date.now(),
+      sourceConvId: activeConvId || undefined,
+    }
+    setMemories((prev) => {
+      const updated = [newMem, ...prev]
+      void saveStoredMemories(updated)
+      return updated
+    })
+  }, [activeConvId])
+
+  const handleDeleteMemory = useCallback(async (id: string) => {
+    setMemories((prev) => {
+      const updated = prev.filter((m) => m.id !== id)
+      void saveStoredMemories(updated)
+      return updated
+    })
+  }, [])
+
+  const handleClearMemories = useCallback(async () => {
+    setMemories([])
+    await saveStoredMemories([])
+  }, [])
+
+  // ── Model settings ──
+  const [modelMode, setModelMode] = useState<'ollama' | 'nvidia-nim'>(() =>
+    localStorage.getItem('nemi_model_mode') === 'nvidia-nim' ? 'nvidia-nim' : 'ollama'
+  )
+  const [nvidiaNimKey, setNvidiaNimKey] = useState('')
+  const [nvidiaNimReady, setNvidiaNimReady] = useState(false)
+  const [nimShowcaseVisible, setNimShowcaseVisible] = useState(false)
+  const [serviceStatuses, setServiceStatuses] = useState<ServiceStatusInfo[]>([])
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const [ollamaModel, setOllamaModel] = useState<string>(
+    () => localStorage.getItem('nemi_ollama_model') || 'llama3.2'
+  )
+  const [ollamaRunning, setOllamaRunning] = useState(false)
+
+  // ── Modular Human Companion Experience (can be toggled or easily removed) ──
+  const [humanCompanionEnabled, setHumanCompanionEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('nemi_human_companion')
+    return saved !== null ? saved === 'true' : true
+  })
+
+  // ── Voice settings ──
+  const [voiceServerRunning, setVoiceServerRunning] = useState(false)
+  const [kokoro, setKokoro] = useState(false)
+  const [sttMode, setSttMode] = useState('none')
+  const [selectedVoice, setSelectedVoice] = useState(
+    () => localStorage.getItem('nemi_voice') || 'af_heart'
+  )
+  const [voiceSpeed, setVoiceSpeed] = useState<number>(() => {
+    const saved = localStorage.getItem('nemi_voice_speed')
+    return saved !== null ? parseFloat(saved) || 1.0 : 1.0
+  })
+
+  const handleVoiceSpeedChange = useCallback((speed: number) => {
+    setVoiceSpeed(speed)
+    localStorage.setItem('nemi_voice_speed', speed.toString())
+  }, [])
+
+  // ── Refs ──
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const audioStreamRef = useRef<MediaStream | null>(null)
+  const nimInitialValidationRef = useRef(false)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const ttsAnalyserRef = useRef<AnalyserNode | null>(null)
+  const animFrameRef = useRef<number | null>(null)
+  const hasSpokenRef = useRef(false)
+  const synthRef = useRef(window.speechSynthesis)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const activeAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const activeAudioContextRef = useRef<AudioContext | null>(null)
+  const ollamaStreamRef = useRef<string>('')
+  const voiceSessionActivatedRef = useRef(false)
+  const shouldListenRef = useRef(false)
+  const toggleVoiceRef = useRef<() => void>(() => {})
+
+  // Non-allocating audio level accessor for 60fps zero-render visual reactivity (3D Brain & ripples)
+  // Measures active TTS output when speaking, or microphone input when listening
+  const audioDataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const isSpeakingRef = useRef(false)
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking
+  }, [isSpeaking])
+
+  const getAudioLevel = useCallback((): number => {
+    try {
+      const analyser = ttsAnalyserRef.current || analyserRef.current
+      if (analyser) {
+        if (!audioDataArrayRef.current || audioDataArrayRef.current.length !== analyser.frequencyBinCount) {
+          audioDataArrayRef.current = new Uint8Array(analyser.frequencyBinCount)
+        }
+        analyser.getByteFrequencyData(audioDataArrayRef.current)
+        let sum = 0
+        const len = audioDataArrayRef.current.length
+        for (let i = 0; i < len; i++) sum += audioDataArrayRef.current[i]
+        return Math.min(1.0, (sum / (len || 1)) / 128)
+      }
+      if (isSpeakingRef.current) {
+        return 0.25 + 0.12 * Math.sin(Date.now() / 140)
+      }
+      return 0
+    } catch {
+      return 0
+    }
+  }, [])
+
+  // ── Check managed services, Ollama & voice server on mount ──
+  useEffect(() => {
+    const checkServices = async () => {
+      try {
+        const statuses = await window.nemi?.getServiceStatus()
+        if (statuses) {
+          setServiceStatuses(statuses)
+        }
+      } catch { /* ignore */ }
+
+      try {
+        const result = await window.nemi?.checkOllama()
+        if (result) {
+          setOllamaRunning(result.running)
+          if (result.models.length > 0) {
+            setOllamaModels(result.models)
+            const saved = localStorage.getItem('nemi_ollama_model')
+            if (saved && result.models.includes(saved)) {
+              setOllamaModel(saved)
+            } else {
+              const best = result.models.find(m => OLLAMA_PREFERRED.some(p => m.startsWith(p))) || result.models[0]
+              if (best) setOllamaModel(best)
+            }
+          }
+        }
+      } catch { setOllamaRunning(false) }
+
+      try {
+        const savedNimKey = await window.nemi?.getNvidiaNimKey()
+        if (savedNimKey) {
+          setNvidiaNimKey(savedNimKey)
+          if (!nimInitialValidationRef.current) {
+            nimInitialValidationRef.current = true
+            const validation = await window.nemi?.validateNvidiaNimKey(savedNimKey)
+            setNvidiaNimReady(validation?.valid === true)
+          }
+        }
+      } catch { /* no online key configured */ }
+
+      try {
+        const vsResult = await window.nemi?.checkVoiceServer()
+        if (vsResult) {
+          setVoiceServerRunning(vsResult.running)
+          setKokoro(vsResult.kokoro)
+          setSttMode((vsResult as any).stt || 'none')
+        }
+      } catch { setVoiceServerRunning(false) }
+    }
+
+    checkServices()
+    const interval = setInterval(checkServices, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ── Listen for play-audio from the local voice process ──
+  useEffect(() => {
+    window.nemi?.on('play-audio', async (base64Audio: unknown) => {
+      if (typeof base64Audio !== 'string') return
+      try {
+        if (activeAudioSourceRef.current) {
+          try { activeAudioSourceRef.current.stop() } catch {}
+          activeAudioSourceRef.current = null
+        }
+        ttsAnalyserRef.current = null
+        if (activeAudioContextRef.current) {
+          try { void activeAudioContextRef.current.close() } catch {}
+          activeAudioContextRef.current = null
+        }
+        synthRef.current?.cancel()
+
+        const binary = atob(base64Audio)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext
+        const audioCtx = new AudioCtxClass()
+        activeAudioContextRef.current = audioCtx
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume()
+        }
+
+        const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0))
+        const source = audioCtx.createBufferSource()
+        source.buffer = audioBuffer
+
+        // Route TTS output through an AnalyserNode before destination for speech reactivity
+        const ttsAnalyser = audioCtx.createAnalyser()
+        ttsAnalyser.fftSize = 256
+        source.connect(ttsAnalyser)
+        ttsAnalyser.connect(audioCtx.destination)
+        ttsAnalyserRef.current = ttsAnalyser
+        activeAudioSourceRef.current = source
+
+        setIsSpeaking(true)
+        source.onended = () => {
+          setIsSpeaking(false)
+          activeAudioSourceRef.current = null
+          ttsAnalyserRef.current = null
+          try { void audioCtx.close() } catch {}
+          activeAudioContextRef.current = null
+        }
+        source.start(0)
+      } catch (err) {
+        console.error('Web Audio playback error:', err)
+        ttsAnalyserRef.current = null
+        setIsSpeaking(false)
+      }
+    })
+  }, [])
+
+  // ── IPC event listeners ──
+  useEffect(() => {
+    window.nemi?.on('toggle-voice', () => toggleVoiceRef.current())
+    window.nemi?.on('toggle-sidebar', () => setSidebarOpen((p) => !p))
+    window.nemi?.on('open-chat', () => setChatOpen(true))
+    window.nemi?.on('open-settings', () => setSettingsOpen(true))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Auto-open chat when typing on keyboard ──
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName.toLowerCase()
+      if (activeTag === 'input' || activeTag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) {
+        return
+      }
+      if (e.key.length === 1 && !e.repeat && !settingsOpen) {
+        if (!chatOpen) {
+          setChatOpen(true)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [chatOpen, settingsOpen])
+
+  const handleModelModeChange = (mode: 'ollama' | 'nvidia-nim') => {
+    setModelMode(mode)
+    localStorage.setItem('nemi_model_mode', mode)
+  }
+
+  const handleNvidiaNimKeyChange = useCallback((key: string) => {
+    setNvidiaNimKey(key)
+    setNvidiaNimReady(false)
+  }, [])
+
+  useEffect(() => {
+    if (modelMode !== 'nvidia-nim' || !nvidiaNimKey) {
+      setNimShowcaseVisible(false)
+      return
+    }
+    setNimShowcaseVisible(true)
+    const timeout = window.setTimeout(() => setNimShowcaseVisible(false), 8000)
+    return () => window.clearTimeout(timeout)
+  }, [modelMode, nvidiaNimKey])
+
+  const handleOllamaModelChange = (model: string) => {
+    setOllamaModel(model)
+    localStorage.setItem('nemi_ollama_model', model)
+  }
+
+  const handleVoiceChange = useCallback(async (voice: string) => {
+    setSelectedVoice(voice)
+    localStorage.setItem('nemi_voice', voice)
+    if (voiceServerRunning) await window.nemi?.setVoice(voice)
+  }, [voiceServerRunning])
+
+  const browserSpeak = useCallback((text: string) => {
+    if (!synthRef.current) return
+    synthRef.current.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    const voices = synthRef.current.getVoices()
+    const preferred = voices.find((v) =>
+      v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Serena')
+    )
+    if (preferred) utterance.voice = preferred
+    utterance.rate = 1.1
+    utterance.onstart = () => setIsSpeaking(true)
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+    synthRef.current.speak(utterance)
+  }, [])
+
+  // ── TTS: speak response through local voice or browser speech ──
+  const speakText = useCallback(async (text: string) => {
+    const snippet = humanCompanionEnabled
+      ? toConversationalScript(text)
+      : text
+          .replace(/```[\s\S]*?```/g, '')
+          .replace(/\|[^\n]+\|/g, '')
+          .replace(/[#*`_]/g, '')
+          .slice(0, 400)
+          .trim()
+    if (!snippet) return
+    if (activeAudioSourceRef.current) {
+      try { activeAudioSourceRef.current.stop() } catch {}
+      activeAudioSourceRef.current = null
+    }
+    ttsAnalyserRef.current = null
+    if (activeAudioContextRef.current) {
+      try { void activeAudioContextRef.current.close() } catch {}
+      activeAudioContextRef.current = null
+    }
+    currentAudioRef.current?.pause()
+    synthRef.current?.cancel()
+    setIsSpeaking(false)
+    if (voiceServerRunning) {
+      try {
+        const played = await window.nemi?.ttsSpeak(snippet, selectedVoice, voiceSpeed)
+        if (!played) {
+          browserSpeak(snippet)
+        }
+      } catch { browserSpeak(snippet) }
+    } else {
+      browserSpeak(snippet)
+    }
+  }, [humanCompanionEnabled, voiceServerRunning, selectedVoice, voiceSpeed, browserSpeak])
+
+  const handleTestVoice = useCallback(async () => {
+    await speakText("Hey there! I'm NEMI, your living desktop companion. I'm right here whenever you need me!")
+  }, [speakText])
+
+  const handleSpeakMessage = useCallback((text: string) => {
+    if (speakingMsgText === text) {
+      synthRef.current?.cancel()
+      currentAudioRef.current?.pause()
+      if (activeAudioSourceRef.current) {
+        try { activeAudioSourceRef.current.stop() } catch {}
+        activeAudioSourceRef.current = null
+      }
+      ttsAnalyserRef.current = null
+      setIsSpeaking(false)
+      setSpeakingMsgText(null)
+    } else {
+      setSpeakingMsgText(text)
+      void speakText(text)
+    }
+  }, [speakingMsgText, speakText])
+
+  // ── VOICE RECOGNITION (Local Whisper with browser fallback) ──────────────
+  const finishUtterance = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+  }, [])
+
+  const stopListening = useCallback(() => {
+    shouldListenRef.current = false
+    voiceSessionActivatedRef.current = false
+    finishUtterance()
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop())
+      audioStreamRef.current = null
+    }
+    if (audioContextRef.current) {
+      try { void audioContextRef.current.close() } catch {}
+      audioContextRef.current = null
+      analyserRef.current = null
+    }
+    setIsListening(false)
+  }, [finishUtterance])
+
+  const handleVoiceTranscript = useCallback((transcribedText: string) => {
+    const intent = extractVoiceIntent(transcribedText)
+    if (voiceSessionActivatedRef.current) {
+      if (intent.isWakeOnly) {
+        setTranscript('✨ NEMI is ready. What would you like to do?')
+        const isRagReady = serviceStatuses.find(s => s.name === 'RAG')?.state === 'ready'
+        void speakText(readinessBriefing({
+          ollama: ollamaRunning,
+          voice: voiceServerRunning,
+          rag: isRagReady ?? true,
+        }))
+      } else {
+        const finalQuery = intent.query || transcribedText
+        setTranscript(finalQuery)
+        void sendToAI(finalQuery)
+      }
+    } else if (intent.hasWakeWord) {
+      voiceSessionActivatedRef.current = true
+      if (intent.query) {
+        setTranscript(intent.query)
+        void sendToAI(intent.query)
+      } else {
+        setTranscript('✨ NEMI is ready. What would you like to do?')
+        const isRagReady = serviceStatuses.find(s => s.name === 'RAG')?.state === 'ready'
+        void speakText(readinessBriefing({
+          ollama: ollamaRunning,
+          voice: voiceServerRunning,
+          rag: isRagReady ?? true,
+        }))
+      }
+    } else {
+      setTranscript('Say “Hey NEMI” to begin')
+      setTimeout(() => {
+        if (shouldListenRef.current) startListening(false)
+      }, 2000)
+    }
+  }, [ollamaRunning, serviceStatuses, speakText, voiceServerRunning])
+
+  const startBrowserRecognition = useCallback(() => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Recognition) return false
+
+    const recognition = new Recognition()
+    recognitionRef.current = recognition
+    recognition.lang = 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+    recognition.onstart = () => {
+      setIsListening(true)
+      setTranscript('🎤 Listening...')
+    }
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const result = event.results[event.results.length - 1]
+      const text = result[0]?.transcript?.trim() || ''
+      if (text) setTranscript(text)
+      if (result.isFinal && text) {
+        recognition.stop()
+        recognitionRef.current = null
+        setIsListening(false)
+        handleVoiceTranscript(text)
+      }
+    }
+    recognition.onerror = (event: any) => {
+      recognitionRef.current = null
+      setIsListening(false)
+      setTranscript(event?.error === 'not-allowed' ? 'Microphone permission is required.' : 'Voice recognition was unavailable.')
+    }
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null
+        setIsListening(false)
+      }
+    }
+    try {
+      recognition.start()
+      return true
+    } catch {
+      recognitionRef.current = null
+      return false
+    }
+  }, [handleVoiceTranscript])
+
+  const startListeningWhisper = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioStreamRef.current = stream
+
+      const audioCtx = new window.AudioContext()
+      audioContextRef.current = audioCtx
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const mediaRecorder = new MediaRecorder(stream, { mimeType })
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstart = () => {
+        setIsListening(true)
+        setTranscript('🎤 Listening...')
+        hasSpokenRef.current = false
+      }
+
+      mediaRecorder.onstop = async () => {
+        setIsListening(false)
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+        if (audioContextRef.current) {
+          try { void audioContextRef.current.close() } catch {}
+          audioContextRef.current = null
+        }
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach((track) => track.stop())
+          audioStreamRef.current = null
+        }
+
+        const blob = new Blob(audioChunksRef.current, { type: mimeType })
+        if (blob.size < 600) {
+          setTranscript('')
+          return
+        }
+
+        let transcribedText = ''
+
+        // 1. Try local voice server Whisper
+        if (voiceServerRunning && sttMode !== 'none') {
+          setTranscript('🔄 Transcribing...')
+          try {
+            const arrayBuf = await blob.arrayBuffer()
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)))
+            const result = await window.nemi?.voiceTranscribe(base64, mimeType)
+            transcribedText = result?.text?.trim() || ''
+          } catch (e) {
+            console.warn('Local Whisper transcribe error:', e)
+          }
+        }
+
+        if (transcribedText) {
+          handleVoiceTranscript(transcribedText)
+        } else {
+          if (hasSpokenRef.current) {
+            setTranscript('⚠️ Could not transcribe. Try speaking clearly.')
+            setTimeout(() => setTranscript(''), 2500)
+          } else {
+            setTranscript('')
+          }
+        }
+      }
+
+      mediaRecorder.start(250)
+
+      let silenceStart = Date.now()
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      const detectSilence = () => {
+        if (!analyserRef.current || mediaRecorder.state !== 'recording') return
+        analyserRef.current.getByteFrequencyData(dataArray)
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+        const average = sum / dataArray.length
+        if (average > 4) {
+          hasSpokenRef.current = true
+          silenceStart = Date.now()
+          setTranscript('🎤 Recording...')
+        } else if (hasSpokenRef.current && Date.now() - silenceStart > 1500) {
+          finishUtterance()
+          return
+        } else if (!hasSpokenRef.current && Date.now() - silenceStart > 9000) {
+          // No speech detected after 9s
+          finishUtterance()
+          return
+        }
+        animFrameRef.current = requestAnimationFrame(detectSilence)
+      }
+      detectSilence()
+    } catch (err) {
+      console.warn('Microphone access denied:', err)
+      setTranscript('❌ Microphone access denied. Please allow microphone permissions.')
+      setTimeout(() => setTranscript(''), 3000)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishUtterance, handleVoiceTranscript, sttMode, voiceServerRunning])
+
+  const startListening = useCallback(async (isDirectIntent = true) => {
+    if (activeAudioSourceRef.current) {
+      try { activeAudioSourceRef.current.stop() } catch {}
+      activeAudioSourceRef.current = null
+    }
+    ttsAnalyserRef.current = null
+    if (activeAudioContextRef.current) {
+      try { void activeAudioContextRef.current.close() } catch {}
+      activeAudioContextRef.current = null
+    }
+    synthRef.current?.cancel()
+    currentAudioRef.current?.pause()
+    setIsSpeaking(false)
+    shouldListenRef.current = true
+    voiceSessionActivatedRef.current = isDirectIntent
+
+    try {
+      const permissionGranted = await window.nemi?.requestMicPermission()
+      if (permissionGranted === false) {
+        throw new Error('Microphone permission is required.')
+      }
+    } catch (error) {
+      console.warn('Microphone permission request failed:', error)
+      shouldListenRef.current = false
+      setTranscript('Allow microphone access in System Settings.')
+      setTimeout(() => setTranscript(''), 3000)
+      return
+    }
+
+    // The local recorder is the reliable Electron path when Whisper is running.
+    // Browser SpeechRecognition can report a false error inside Electron even
+    // after microphone permission has been granted.
+    if (voiceServerRunning && sttMode !== 'none') {
+      await startListeningWhisper()
+      return
+    }
+
+    if (!startBrowserRecognition()) {
+      setTranscript('Start the local voice service to enable dictation.')
+      shouldListenRef.current = false
+      setTimeout(() => setTranscript(''), 3000)
+    }
+  }, [startBrowserRecognition, startListeningWhisper, sttMode, voiceServerRunning])
+
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      stopListening()
+      setTranscript('')
+    } else {
+      startListening(true)
+    }
+  }, [isListening, startListening, stopListening])
+  toggleVoiceRef.current = toggleVoice
+
+  useEffect(() => {
+    if (isWakeWordMode) {
+      // Delay to let browser UI load and permissions request if needed
+      const t = setTimeout(() => startListening(false), 1500)
+      return () => {
+        clearTimeout(t)
+        stopListening()
+      }
+    }
+  }, [isWakeWordMode, startListening, stopListening])
+
+  // ── Auto-restart Voice loop after speaking ──
+  useEffect(() => {
+    if (shouldListenRef.current && !isThinking && !isSpeaking && !isListening) {
+      const t = setTimeout(() => {
+        if (shouldListenRef.current && !isThinking && !isSpeaking && !isListening) {
+          startListening(voiceSessionActivatedRef.current)
+        }
+      }, 500)
+      return () => clearTimeout(t)
+    }
+  }, [isThinking, isSpeaking, isListening, startListening])
+
+
+
+  // ── AI ENGINE ────────────────────────────────────────────────
+  const sendToAI = useCallback(async (userText: string) => {
+    if (!userText.trim()) return
+
+    const userMsg: Message = { id: genUid(), role: 'user', content: userText, timestamp: new Date() }
+    setMessages((prev) => [...prev, userMsg])
+    setTranscript('')
+    setIsThinking(true)
+    setChatOpen(true)
+
+    const assistantMsgId = genUid()
+    const assistantMsg: Message = {
+      id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date(), streaming: true,
+    }
+    setMessages((prev) => [...prev, assistantMsg])
+
+    // 1. Extract learned facts/memories from userText automatically
+    const detectedMemories = extractMemoriesFromText(userText, activeConvId || undefined)
+    if (detectedMemories.length > 0) {
+      setMemories((prev) => {
+        const merged = [...detectedMemories, ...prev]
+        void saveStoredMemories(merged)
+        return merged
+      })
+    }
+
+    try {
+      playThoughtSpark()
+    } catch {}
+
+    const runtimeContext = `
+  NEMI Runtime Status:
+  - NVIDIA NIM API key: ${nvidiaNimKey ? 'configured' : 'not configured'}
+  - NVIDIA NIM connection: ${nvidiaNimReady ? 'validated and available' : 'not validated in this session'}
+  - The NVIDIA endpoint is managed internally by NEMI; do not ask the user to enter or change an endpoint URL.
+  - You are the assistant running inside NEMI, not a separate external support agent. Do not claim that you have no relationship to NEMI or that NEMI's backend is inaccessible. Be precise: you can explain the current runtime status, while settings changes must be made through the NEMI UI.
+  `
+
+    const systemPrompt = humanCompanionEnabled
+      ? `You are NEMI — the user's living desktop AI companion.
+Personality & Conversational Style:
+- Speak like a brilliant, warm, empathetic, and attentive human collaborator and genuine friend, never like a dry search engine or corporate chatbot.
+- Be naturally conversational and expressive. Use natural conversational contractions (I'm, you're, we'll, don't, it's, let's).
+- Active Listening: Acknowledge the user's prompt or situation naturally before answering (e.g., "I've got you," "That makes total sense," "Great question — let's break that down," "Sure thing!").
+- Conversational Conciseness: Explain core concepts intuitively and conversationally first. Avoid unnecessary preamble ("As an AI...") or robotic monologues. If the answer requires technical code, complex math, or tabular data, explain the core intuition verbally and place the clean code or table in the chat notes.
+- Stay curious, encouraging, and collaborative. Offer natural next steps or follow-ups when helpful.`
+      : 'You are NEMI, an ultra-fast, world-class AI desktop assistant. Keep answers structured, elegant, concise, and helpful.'
+
+  const completeSystemPrompt = systemPrompt + runtimeContext
+
+    // ── Seamless RAG knowledge base context retrieval ──
+    let ragAugmentation = ''
+    try {
+      const isRagReady = serviceStatuses.find((s) => s.name === 'RAG')?.state === 'ready'
+      if (isRagReady) {
+        const ragRes = await window.nemi?.ragQuery(userText, 3)
+        const chunks = (ragRes as any)?.chunks
+        if (Array.isArray(chunks) && chunks.length > 0) {
+          const relevant = chunks
+            .filter((c: any) => {
+              const score = typeof c.similarity === 'number' ? c.similarity : (typeof c.score === 'number' ? c.score : 1)
+              return score > 0.15
+            })
+            .map((c: any) => `[Source: ${c.doc_name || 'Knowledge Base'}]\n${c.text}`)
+            .join('\n\n')
+          if (relevant) {
+            ragAugmentation = `\n\n=== RELEVANT CONTEXT FROM USER'S KNOWLEDGE BASE (RAG) ===\n${relevant}\n=== END KNOWLEDGE BASE CONTEXT ===\nUse the above knowledge base context to answer accurately if relevant.`
+          }
+        }
+      }
+    } catch { /* proceed without RAG context if query failed */ }
+
+    // ── Memory context augmentation ──
+    const memoryAugmentation = formatMemoriesForSystemPrompt(memories)
+
+    const historyMessages = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }))
+    const allMessages = [
+      { role: 'system', content: completeSystemPrompt + memoryAugmentation + ragAugmentation },
+      ...historyMessages,
+      { role: 'user', content: userText },
+    ]
+
+    const recordAssistantResponse = (finalText: string) => {
+      const updatedMessages: Message[] = [...messages, userMsg, { ...assistantMsg, content: finalText, streaming: false }]
+      setMessages(updatedMessages)
+
+      setConversations((prev) => {
+        let found = false
+        const updated = prev.map((c) => {
+          if (c.id === (activeConvId || c.id)) {
+            found = true
+            const isDefault = c.title === 'New Conversation' || c.title === 'Welcome to NEMI'
+            const title = isDefault ? generateConversationTitle(userText) : c.title
+            return {
+              ...c,
+              title,
+              preview: finalText.slice(0, 80).replace(/\n/g, ' '),
+              updatedAt: Date.now(),
+              messages: updatedMessages,
+            }
+          }
+          return c
+        })
+
+        if (!found) {
+          const newSession: ConversationSession = {
+            id: activeConvId || genUid(),
+            title: generateConversationTitle(userText),
+            preview: finalText.slice(0, 80).replace(/\n/g, ' '),
+            messages: updatedMessages,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            pinned: false,
+          }
+          updated.unshift(newSession)
+          if (!activeConvId) setActiveConvId(newSession.id)
+        }
+
+        void saveStoredConversations(updated)
+        return updated
+      })
+
+      void speakText(finalText)
+      try {
+        playActivationChime()
+      } catch {}
+    }
+
+    try {
+      if (modelMode === 'nvidia-nim') {
+        const activeNvidiaNimKey = nvidiaNimKey || await window.nemi?.getNvidiaNimKey() || ''
+        if (!activeNvidiaNimKey) {
+          throw new Error('NVIDIA NIM API key is not configured. Open Settings to add it.')
+        }
+        if (!nvidiaNimKey) setNvidiaNimKey(activeNvidiaNimKey)
+        const response = await window.nemi?.chat({
+          provider: 'nvidia-nim',
+          model: 'nvidia/nemotron-3-super-120b-a12b',
+          apiKey: activeNvidiaNimKey,
+          messages: allMessages,
+        })
+        if (response?.error) {
+          if (ollamaRunning) {
+            const fallbackText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
+            recordAssistantResponse(fallbackText || `NVIDIA is unavailable: ${response.error}`)
+          } else {
+            throw new Error(response.error)
+          }
+        } else {
+          recordAssistantResponse(response?.text || '')
+        }
+      } else if (!ollamaRunning) {
+        throw new Error('Ollama is not running. Start it with `ollama serve`.')
+        }
+      if (modelMode === 'ollama') {
+        ollamaStreamRef.current = ''
+        const chunkHandler = (chunk: unknown) => {
+          if (typeof chunk === 'string') {
+            ollamaStreamRef.current += chunk
+            const current = ollamaStreamRef.current
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, content: current, streaming: true } : m))
+            )
+          }
+        }
+        window.nemi?.on('ollama-stream-chunk', chunkHandler)
+        const fullText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
+        window.nemi?.off('ollama-stream-chunk', chunkHandler)
+        const finalText = fullText || ollamaStreamRef.current
+        recordAssistantResponse(finalText)
+      }
+    } catch (err) {
+      console.error(err)
+      const errMessage = `❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}\n\n${modelMode === 'nvidia-nim' ? 'Check the NVIDIA NIM key in Settings.' : 'Make sure Ollama is running: `ollama serve`'}`
+      recordAssistantResponse(errMessage)
+    } finally {
+      setIsThinking(false)
+    }
+  }, [messages, modelMode, ollamaRunning, ollamaModel, nvidiaNimKey, speakText, memories, activeConvId, conversations])
+
+  const handleClearChat = useCallback(() => {
+    setMessages([])
+    if (activeConvId) {
+      setConversations((prev) => {
+        const updated = prev.map((c) => {
+          if (c.id === activeConvId) return { ...c, messages: [], preview: '' }
+          return c
+        })
+        void saveStoredConversations(updated)
+        return updated
+      })
+    }
+  }, [activeConvId])
+
+  const handleStop = useCallback(() => {
+    stopListening()
+    synthRef.current?.cancel()
+    currentAudioRef.current?.pause()
+    if (activeAudioSourceRef.current) {
+      activeAudioSourceRef.current.stop()
+      activeAudioSourceRef.current = null
+    }
+    ttsAnalyserRef.current = null
+    if (activeAudioContextRef.current) {
+      activeAudioContextRef.current.close()
+      activeAudioContextRef.current = null
+    }
+    setIsSpeaking(false)
+    setTranscript('')
+  }, [])
+
+  return (
+    <div className={`relative w-screen h-screen overflow-hidden bg-slate-950 flex flex-col select-none ${modelMode === 'nvidia-nim' ? 'nim-active' : ''}`}>
+
+      {/* ── macOS Title Bar ── */}
+      <header className="h-10 flex items-center justify-between px-20 border-b border-white/5 bg-slate-900/60 backdrop-blur-lg z-50 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
+          <span className="text-xs font-bold tracking-[0.25em] gradient-text">NEMI</span>
+        </div>
+
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* ── RAG BUTTON ── */}
+          <button
+            onClick={() => { void window.nemi?.openRagWindow(); setChatOpen(false) }}
+            className="px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25 transition-all"
+            title="Open Advanced RAG workspace"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Advanced RAG</span>
+          </button>
+
+          <button
+            onClick={() => setChatOpen((p) => !p)}
+            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+              chatOpen ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'text-white/40 hover:text-white/80'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Chat</span>
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+            title="Settings"
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ── Main Canvas ── */}
+      <div className="flex-1 relative overflow-hidden">
+        {nimShowcaseVisible && (
+          <div className="nim-showcase" aria-hidden="true">
+            <div className="nim-showcase-frame" />
+            <div className="nim-showcase-content">
+              <span className="nim-showcase-overline">NVIDIA NIM ONLINE</span>
+              <strong>NEMI</strong>
+              <span className="nim-showcase-line">Neural interface activated</span>
+              <span className="nim-showcase-credit">LOCAL UI / ONLINE INFERENCE</span>
+            </div>
+          </div>
+        )}
+
+        <NemiBrain
+          isListening={isListening}
+          isThinking={isThinking}
+          isSpeaking={isSpeaking}
+          onBrainClick={toggleVoice}
+          companionEnabled={humanCompanionEnabled}
+          audioLevel={getAudioLevel}
+          nimActive={modelMode === 'nvidia-nim'}
+        />
+
+        {/* ── Modular Human Companion Layer (Living presence, chimes, acoustic ripples) ── */}
+        {humanCompanionEnabled && (
+          <HumanCompanionLayer
+            enabled={humanCompanionEnabled}
+            isListening={isListening}
+            isThinking={isThinking}
+            isSpeaking={isSpeaking}
+            getAudioLevel={getAudioLevel}
+          />
+        )}
+
+        <Sidebar
+          conversations={conversations.map((c) => {
+            return {
+              id: c.id,
+              title: c.title,
+              preview: c.preview,
+              timestamp: new Date(c.updatedAt),
+              pinned: !!c.pinned,
+              messageCount: c.messages?.length || 0
+            }
+          })}
+          activeConversationId={activeConvId}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((p) => !p)}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onPinConversation={handlePinConversation}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+
+        {/* ── Persistent Floating Chat Trigger (when chat is closed) ── */}
+        {!chatOpen && (
+          <motion.button
+            initial={{ opacity: 0, y: 16, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.9 }}
+            onClick={() => handleToggleChatOpen(true)}
+            className="fixed right-6 bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-cyan-400/30 text-white shadow-[0_4px_24px_rgba(0,212,255,0.25)] flex items-center gap-2 cursor-pointer group hover:border-cyan-400/60 transition-all"
+            title="Open NEMI Chat (⌘⇧C)"
+          >
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
+            <span className="text-xs font-semibold tracking-wide text-white/90 group-hover:text-white">Chat with NEMI</span>
+            {memories.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                🧠 {memories.length}
+              </span>
+            )}
+            <kbd className="text-[10px] text-white/30 font-mono px-1 py-0.5 rounded bg-white/5 border border-white/10">⌘⇧C</kbd>
+          </motion.button>
+        )}
+
+        <ChatPanel
+          messages={messages}
+          isVisible={chatOpen}
+          isThinking={isThinking}
+          isSpeaking={isSpeaking}
+          onClose={() => handleToggleChatOpen(false)}
+          onSend={(text) => void sendToAI(text)}
+          onClear={handleClearChat}
+          onSpeakMessage={handleSpeakMessage}
+          isSpeakingText={speakingMsgText}
+          memories={memories}
+          onAddMemory={handleAddMemory}
+          onDeleteMemory={handleDeleteMemory}
+          onClearMemories={handleClearMemories}
+          conversations={conversations}
+          activeConversationId={activeConvId || undefined}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          isListening={isListening}
+          onToggleVoice={toggleVoice}
+          modelBadge={modelMode === 'nvidia-nim' ? 'NVIDIA NIM' : ollamaModel.split(':')[0]}
+        />
+
+        <VoiceOrb
+          isListening={isListening}
+          isThinking={isThinking}
+          isSpeaking={isSpeaking}
+          transcript={transcript}
+          onToggle={toggleVoice}
+          onStop={handleStop}
+          nimActive={modelMode === 'nvidia-nim'}
+        />
+      </div>
+
+      {/* Settings Modal */}
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        modelMode={modelMode}
+        onModelModeChange={handleModelModeChange}
+        nvidiaNimKey={nvidiaNimKey}
+        onNvidiaNimKeyChange={handleNvidiaNimKeyChange}
+        ollamaModels={ollamaModels}
+        ollamaModel={ollamaModel}
+        onOllamaModelChange={handleOllamaModelChange}
+        ollamaRunning={ollamaRunning}
+        voiceServerRunning={voiceServerRunning}
+        kokoro={kokoro}
+        selectedVoice={selectedVoice}
+        onVoiceChange={handleVoiceChange}
+        onTestVoice={handleTestVoice}
+        voiceSpeed={voiceSpeed}
+        onVoiceSpeedChange={handleVoiceSpeedChange}
+        sttMode={sttMode}
+        humanCompanionEnabled={humanCompanionEnabled}
+        onToggleHumanCompanion={(enabled: boolean) => {
+          setHumanCompanionEnabled(enabled)
+          localStorage.setItem('nemi_human_companion', String(enabled))
+        }}
+        nimReady={nvidiaNimReady}
+        onNimReadyChange={setNvidiaNimReady}
+      />
+    </div>
+  )
+}

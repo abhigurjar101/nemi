@@ -1,0 +1,661 @@
+import React, { useRef, useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  X,
+  RotateCcw,
+  ChevronDown,
+  Brain,
+  Clock,
+  Plus,
+  Mic,
+  MicOff,
+  Sparkles,
+  Search,
+  Trash2,
+  Tag,
+  ArrowLeft,
+  Pin,
+  Send,
+  Minimize2,
+  Maximize2,
+} from 'lucide-react'
+import MessageBubble from './MessageBubble'
+import type { MemoryItem, ConversationSession } from '../chatMemory'
+
+export interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  streaming?: boolean
+}
+
+export interface ChatPanelProps {
+  messages: Message[]
+  isVisible: boolean
+  isThinking: boolean
+  isSpeaking?: boolean
+  onClose: () => void
+  onSend: (text: string) => void
+  onClear: () => void
+  onSpeakMessage?: (text: string) => void
+  isSpeakingText?: string | null
+  // Memory integration
+  memories?: MemoryItem[]
+  onAddMemory?: (content: string, category?: MemoryItem['category']) => void
+  onDeleteMemory?: (id: string) => void
+  onClearMemories?: () => void
+  // Conversation session management
+  conversations?: ConversationSession[]
+  activeConversationId?: string
+  onSelectConversation?: (id: string) => void
+  onNewConversation?: () => void
+  onDeleteConversation?: (id: string) => void
+  // Voice dictation
+  isListening?: boolean
+  onToggleVoice?: () => void
+  modelBadge?: string
+}
+
+type TabMode = 'chat' | 'memory' | 'history'
+
+export default function ChatPanel({
+  messages,
+  isVisible,
+  isThinking,
+  isSpeaking = false,
+  onClose,
+  onSend,
+  onClear,
+  onSpeakMessage,
+  isSpeakingText,
+  memories = [],
+  onAddMemory,
+  onDeleteMemory,
+  onClearMemories,
+  conversations = [],
+  activeConversationId,
+  onSelectConversation,
+  onNewConversation,
+  onDeleteConversation,
+  isListening = false,
+  onToggleVoice,
+  modelBadge = 'NEURAL',
+}: ChatPanelProps) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [input, setInput] = useState('')
+  const [atBottom, setAtBottom] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabMode>('chat')
+  const [isMinimized, setIsMinimized] = useState(false)
+
+  // Memory manager local state
+  const [memorySearch, setMemorySearch] = useState('')
+  const [newMemContent, setNewMemContent] = useState('')
+  const [newMemCategory, setNewMemCategory] = useState<MemoryItem['category']>('preference')
+
+  // History search
+  const [historySearch, setHistorySearch] = useState('')
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    if (atBottom && activeTab === 'chat' && !isMinimized) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, atBottom, activeTab, isMinimized])
+
+  // Auto-focus input when panel opens or returns to chat tab
+  useEffect(() => {
+    if (isVisible && activeTab === 'chat' && !isMinimized) {
+      const t = setTimeout(() => inputRef.current?.focus(), 100)
+      return () => clearTimeout(t)
+    }
+  }, [isVisible, activeTab, isMinimized])
+
+  const handleSend = () => {
+    const text = input.trim()
+    if (!text || isThinking) return
+    setInput('')
+    if (inputRef.current) {
+      inputRef.current.style.height = '38px'
+    }
+    onSend(text)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const handleCreateMemory = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMemContent.trim() || !onAddMemory) return
+    onAddMemory(newMemContent.trim(), newMemCategory)
+    setNewMemContent('')
+  }
+
+  const activeConv = conversations.find((c) => c.id === activeConversationId)
+  const convTitle = activeConv?.title || 'Chat with NEMI'
+
+  // Filtered memories
+  const filteredMemories = memories.filter((m) =>
+    m.content.toLowerCase().includes(memorySearch.toLowerCase()) ||
+    m.category.toLowerCase().includes(memorySearch.toLowerCase())
+  )
+
+  // Filtered conversations
+  const filteredConversations = conversations.filter((c) =>
+    c.title.toLowerCase().includes(historySearch.toLowerCase()) ||
+    c.preview.toLowerCase().includes(historySearch.toLowerCase())
+  )
+
+  const quickStarters = [
+    '🧠 What do you remember about me?',
+    '⚡ What are your key capabilities?',
+    '💡 Help me brainstorm ideas',
+    '📁 How does the RAG search work?',
+  ]
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 30, scale: 0.94 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+          className={`
+            fixed right-6 bottom-6 z-40 flex flex-col
+            ${isMinimized ? 'w-[240px] h-[46px]' : 'w-[300px] h-[420px] max-h-[68vh]'}
+            transition-all duration-300 ease-out
+          `}
+          onMouseEnter={() => window.nemi?.enterInteractiveMode()}
+        >
+          {/* ── MINIMALIST GLASS CONTAINER ── */}
+          <div className="
+            relative w-full h-full flex flex-col rounded-2xl overflow-hidden
+            bg-slate-950/85 backdrop-blur-2xl border border-white/10
+            shadow-[0_16px_48px_rgba(0,0,0,0.75)] select-none
+          ">
+            {/* Ambient subtle glow background */}
+            <div className="absolute top-0 right-1/4 w-40 h-20 bg-cyan-500/10 blur-3xl pointer-events-none rounded-full" />
+            <div className="absolute bottom-0 left-1/4 w-40 h-20 bg-purple-500/10 blur-3xl pointer-events-none rounded-full" />
+
+            {/* ── HEADER ── */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/8 bg-white/3 z-10">
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Dynamic Status Dot */}
+                <div className="relative flex items-center justify-center">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      isThinking
+                        ? 'bg-purple-400 animate-pulse'
+                        : isSpeaking
+                        ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                        : 'bg-cyan-400 shadow-[0_0_6px_#00d4ff]'
+                    }`}
+                  />
+                  {isThinking && (
+                    <div className="absolute inset-0 rounded-full bg-purple-400/40 animate-ping" />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-[10px] font-bold text-white/70 tracking-wider">NEMI</span>
+                  <span className="text-[9px] text-white/25 truncate max-w-[90px] font-medium">
+                    {activeTab === 'memory' ? 'Memory Vault' : activeTab === 'history' ? 'History' : convTitle}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1">
+                {/* Memory Vault Toggle */}
+                <button
+                  onClick={() => {
+                    if (isMinimized) setIsMinimized(false)
+                    setActiveTab(activeTab === 'memory' ? 'chat' : 'memory')
+                  }}
+                  className={`
+                    px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer
+                    ${activeTab === 'memory'
+                      ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
+                      : 'bg-white/5 hover:bg-white/10 text-white/50 border border-white/5'
+                    }
+                  `}
+                  title="View NEMI Chat Memory"
+                >
+                  <Brain className="w-3 h-3 text-purple-400" />
+                  <span>{memories.length}</span>
+                </button>
+
+                {/* History Switcher Toggle */}
+                <button
+                  onClick={() => {
+                    if (isMinimized) setIsMinimized(false)
+                    setActiveTab(activeTab === 'history' ? 'chat' : 'history')
+                  }}
+                  className={`
+                    p-1.5 rounded-xl transition-all cursor-pointer
+                    ${activeTab === 'history'
+                      ? 'bg-cyan-500/20 text-cyan-300'
+                      : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+                    }
+                  `}
+                  title="Past Conversations"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                </button>
+
+                {/* New Chat */}
+                {onNewConversation && (
+                  <button
+                    onClick={() => {
+                      onNewConversation()
+                      setActiveTab('chat')
+                    }}
+                    className="p-1.5 rounded-xl text-white/40 hover:text-cyan-300 hover:bg-white/5 transition-all cursor-pointer"
+                    title="New conversation"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Minimize Toggle */}
+                <button
+                  onClick={() => setIsMinimized(!isMinimized)}
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                  title={isMinimized ? 'Expand' : 'Minimize'}
+                >
+                  {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* If Minimized, only header is rendered */}
+            {!isMinimized && (
+              <>
+                {/* ── TAB 1: CHAT VIEW ── */}
+                {activeTab === 'chat' && (
+                  <>
+                    <div
+                      className="flex-1 overflow-y-auto py-2.5 px-2.5 space-y-2.5 nemi-scroll z-10"
+                      onScroll={(e) => {
+                        const el = e.currentTarget
+                        setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 40)
+                      }}
+                    >
+                      {/* Empty state with interactive prompt starters */}
+                      {messages.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-full gap-2.5 py-6 px-2 text-center opacity-85">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-600/20 border border-cyan-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(0,212,255,0.2)]">
+                            <Sparkles className="w-5 h-5 text-cyan-300" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-semibold text-white/90">Chat with NEMI</h4>
+                            <p className="text-[11px] text-white/40 mt-0.5">
+                              Persistent memory & real-time desktop intelligence
+                            </p>
+                          </div>
+
+                          {/* Quick starters chips */}
+                          <div className="flex flex-col gap-1.5 w-full mt-2">
+                            {quickStarters.map((starter, i) => (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  onSend(starter.replace(/^[^\w]+/, '').trim())
+                                }}
+                                className="px-3 py-1.5 rounded-xl text-left text-[11px] bg-white/5 hover:bg-white/10 border border-white/5 text-white/70 hover:text-white transition-all cursor-pointer"
+                              >
+                                {starter}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {messages.map((msg) => (
+                        <MessageBubble
+                          key={msg.id}
+                          message={msg}
+                          onSpeak={onSpeakMessage}
+                          onRemember={(content) => onAddMemory && onAddMemory(content, 'general')}
+                          isSpeakingThis={isSpeakingText === msg.content}
+                        />
+                      ))}
+
+                      {/* Thinking shimmer */}
+                      {isThinking && messages[messages.length - 1]?.role === 'user' && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-start gap-2"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center shadow-[0_0_8px_rgba(168,85,247,0.4)]">
+                            <span className="text-[10px] font-bold text-white">N</span>
+                          </div>
+                          <div className="rounded-2xl rounded-tl-xs px-3.5 py-2.5 bg-slate-900/60 border border-purple-400/20 flex items-center gap-1.5">
+                            {[0, 1, 2].map((i) => (
+                              <motion.div
+                                key={i}
+                                className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                                animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                                transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.2 }}
+                              />
+                            ))}
+                            <span className="text-[10px] text-purple-300 font-mono ml-1">Thinking...</span>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <div ref={bottomRef} />
+                    </div>
+
+                    {/* Scroll to bottom floating button */}
+                    <AnimatePresence>
+                      {!atBottom && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          onClick={() => {
+                            setAtBottom(true)
+                            bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+                          }}
+                          className="absolute bottom-16 right-4 bg-slate-800/90 rounded-full p-1.5 border border-white/10 shadow-lg text-white/70 hover:text-white cursor-pointer z-20"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
+
+                    {/* ── INPUT BAR ── */}
+                    <div className="border-t border-white/8 p-2 bg-white/2 z-10">
+                      <div className="relative flex items-end gap-1.5 bg-white/5 rounded-2xl p-1 border border-white/8 focus-within:border-cyan-400/30 transition-colors">
+                        <textarea
+                          ref={inputRef}
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder={isListening ? 'Listening via microphone...' : 'Chat with NEMI...'}
+                          rows={1}
+                          className="
+                            flex-1 bg-transparent px-2.5 py-1.5
+                            text-xs text-white/95 placeholder-white/25
+                            border-none focus:outline-none resize-none
+                            max-h-24 overflow-y-auto nemi-scroll
+                          "
+                          style={{ minHeight: '34px' }}
+                          onInput={(e) => {
+                            const el = e.currentTarget
+                            el.style.height = 'auto'
+                            el.style.height = Math.min(el.scrollHeight, 96) + 'px'
+                          }}
+                        />
+
+                        {/* Voice Dictation Button */}
+                        {onToggleVoice && (
+                          <button
+                            type="button"
+                            onClick={onToggleVoice}
+                            className={`p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
+                              isListening
+                                ? 'bg-red-500 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]'
+                                : 'text-white/35 hover:text-cyan-300 hover:bg-white/5'
+                            }`}
+                            title={isListening ? 'Stop listening' : 'Dictate with mic'}
+                          >
+                            {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+
+                        {/* Send button */}
+                        <button
+                          type="button"
+                          onClick={handleSend}
+                          disabled={!input.trim() || isThinking}
+                          className={`
+                            p-2 rounded-xl flex items-center justify-center flex-shrink-0 transition-all
+                            ${input.trim() && !isThinking
+                              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-[0_0_12px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
+                              : 'text-white/20 cursor-not-allowed'
+                            }
+                          `}
+                          title="Send message (Enter)"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Footer micro-indicators */}
+                      <div className="flex items-center justify-between px-2 pt-1.5 text-[9px] text-white/30">
+                        <span className="flex items-center gap-1 font-mono">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                          {modelBadge}
+                        </span>
+                        <span>{memories.length > 0 ? `🧠 ${memories.length} memories loaded` : 'Memory active'}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── TAB 2: MEMORY VAULT DRAWER ── */}
+                {activeTab === 'memory' && (
+                  <div className="flex-1 flex flex-col p-3 overflow-hidden z-10 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setActiveTab('chat')}
+                        className="flex items-center gap-1 text-xs text-white/50 hover:text-white cursor-pointer transition-colors"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back to Chat
+                      </button>
+                      {onClearMemories && memories.length > 0 && (
+                        <button
+                          onClick={onClearMemories}
+                          className="text-[10px] text-red-400/70 hover:text-red-300 transition-colors cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Search Memory */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30" />
+                      <input
+                        type="text"
+                        value={memorySearch}
+                        onChange={(e) => setMemorySearch(e.target.value)}
+                        placeholder="Search learned memories..."
+                        className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-white/5 border border-white/8 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-purple-400/40"
+                      />
+                    </div>
+
+                    {/* Add Memory Form */}
+                    <form onSubmit={handleCreateMemory} className="space-y-1.5 pt-1">
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={newMemContent}
+                          onChange={(e) => setNewMemContent(e.target.value)}
+                          placeholder="Add new memory fact..."
+                          className="flex-1 px-2.5 py-1 text-xs bg-white/5 border border-white/8 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-purple-400/40"
+                        />
+                        <select
+                          value={newMemCategory}
+                          onChange={(e) => setNewMemCategory(e.target.value as any)}
+                          className="px-2 py-1 text-[10px] bg-slate-900 border border-white/10 rounded-xl text-white/80 focus:outline-none"
+                        >
+                          <option value="preference">Preference</option>
+                          <option value="project">Project</option>
+                          <option value="personal">Personal</option>
+                          <option value="general">Fact</option>
+                        </select>
+                        <button
+                          type="submit"
+                          disabled={!newMemContent.trim()}
+                          className="px-2.5 py-1 rounded-xl bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-400/30 text-xs font-semibold disabled:opacity-30 cursor-pointer"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Memories List */}
+                    <div className="flex-1 overflow-y-auto space-y-1.5 nemi-scroll pr-1">
+                      {filteredMemories.length === 0 ? (
+                        <div className="text-center py-8 text-white/30 text-xs">
+                          No memories found.<br />NEMI remembers facts automatically as you chat, or add one above!
+                        </div>
+                      ) : (
+                        filteredMemories.map((mem) => (
+                          <div
+                            key={mem.id}
+                            className="p-2 rounded-xl bg-white/4 hover:bg-white/7 border border-white/5 flex items-start justify-between gap-2 group transition-all"
+                          >
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`
+                                  px-1.5 py-0.2 rounded text-[9px] font-mono uppercase tracking-wider
+                                  ${mem.category === 'preference' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-400/20' : ''}
+                                  ${mem.category === 'project' ? 'bg-purple-500/10 text-purple-300 border border-purple-400/20' : ''}
+                                  ${mem.category === 'personal' ? 'bg-amber-500/10 text-amber-300 border border-amber-400/20' : ''}
+                                  ${mem.category === 'general' ? 'bg-white/10 text-white/60' : ''}
+                                `}>
+                                  {mem.category}
+                                </span>
+                              </div>
+                              <p className="text-xs text-white/85 leading-snug break-words">
+                                {mem.content}
+                              </p>
+                            </div>
+
+                            {onDeleteMemory && (
+                              <button
+                                onClick={() => onDeleteMemory(mem.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-white/30 hover:text-red-400 transition-opacity cursor-pointer"
+                                title="Forget this memory"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 3: CONVERSATION HISTORY DRAWER ── */}
+                {activeTab === 'history' && (
+                  <div className="flex-1 flex flex-col p-3 overflow-hidden z-10 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setActiveTab('chat')}
+                        className="flex items-center gap-1 text-xs text-white/50 hover:text-white cursor-pointer transition-colors"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back to Chat
+                      </button>
+                      {onNewConversation && (
+                        <button
+                          onClick={() => {
+                            onNewConversation()
+                            setActiveTab('chat')
+                          }}
+                          className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 cursor-pointer font-medium"
+                        >
+                          <Plus className="w-3 h-3" /> New Chat
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Search Conversations */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30" />
+                      <input
+                        type="text"
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        placeholder="Search conversations..."
+                        className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-white/5 border border-white/8 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-cyan-400/40"
+                      />
+                    </div>
+
+                    {/* Conversations List */}
+                    <div className="flex-1 overflow-y-auto space-y-1.5 nemi-scroll pr-1">
+                      {filteredConversations.length === 0 ? (
+                        <div className="text-center py-8 text-white/30 text-xs">
+                          No conversations found.
+                        </div>
+                      ) : (
+                        filteredConversations.map((conv) => {
+                          const isCurrent = conv.id === activeConversationId
+                          return (
+                            <div
+                              key={conv.id}
+                              onClick={() => {
+                                onSelectConversation?.(conv.id)
+                                setActiveTab('chat')
+                              }}
+                              className={`
+                                p-2.5 rounded-xl border flex items-center justify-between gap-2 group cursor-pointer transition-all
+                                ${isCurrent
+                                  ? 'bg-cyan-500/15 border-cyan-400/30'
+                                  : 'bg-white/4 hover:bg-white/8 border-white/5'
+                                }
+                              `}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                  <h5 className={`text-xs font-semibold truncate ${isCurrent ? 'text-cyan-300' : 'text-white/80'}`}>
+                                    {conv.title}
+                                  </h5>
+                                  <span className="text-[9px] text-white/25 font-mono">
+                                    {new Date(conv.updatedAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-white/35 truncate mt-0.5">
+                                  {conv.preview || 'No messages yet'}
+                                </p>
+                              </div>
+
+                              {onDeleteConversation && conversations.length > 1 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onDeleteConversation(conv.id)
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-white/30 hover:text-red-400 transition-opacity"
+                                  title="Delete conversation"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}

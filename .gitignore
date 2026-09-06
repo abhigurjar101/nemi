@@ -1,0 +1,25 @@
+# Local secrets and environment files
+.nemi_api_key.txt
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated output
+node_modules/
+venv/
+out/
+dist/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS and editor files
+.DS_Store
+.vscode/
+.agents/
+
+# Local RAG data and runtime state
+rag_data/
+*.sqlite
+*.db

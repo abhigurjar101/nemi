@@ -1,0 +1,5 @@
+export { default as HumanCompanionLayer } from './HumanCompanionLayer'
+export type { HumanCompanionLayerProps } from './HumanCompanionLayer'
+export { toConversationalScript } from './conversationalSpeech'
+export * from './soundscape'
+export * from './companionMotion'
