@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir neo4j
+
+COPY rag_server.py /app/rag_server.py
+
+ENV NEMI_RAG_HOST=0.0.0.0
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 5003
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5003/health', timeout=3)"
+
+CMD ["python", "rag_server.py", "5003", "/data"]

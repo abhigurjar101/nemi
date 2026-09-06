@@ -1044,7 +1044,7 @@ class RAGHandler(BaseHTTPRequestHandler):
 # ─────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────
-def run_server(port: int = 5003):
+def run_server(port: int = 5003, host: str | None = None):
     print(f"\n{'='*55}", flush=True)
     print(f"  🧠  NEMI RAG Server", flush=True)
     print(f"  📡  http://localhost:{port}", flush=True)
@@ -1052,7 +1052,8 @@ def run_server(port: int = 5003):
     print(f"  📦  Chunk size: {CHUNK_SIZE} words | Overlap: {CHUNK_OVERLAP}", flush=True)
     print(f"{'='*55}\n", flush=True)
 
-    server = NemiRAGServer(('127.0.0.1', port), RAGHandler)
+    bind_host = host or os.environ.get('NEMI_RAG_HOST', '127.0.0.1')
+    server = NemiRAGServer((bind_host, port), RAGHandler)
     def stop_server(_signum, _frame):
         threading.Thread(target=server.shutdown, daemon=True).start()
 
