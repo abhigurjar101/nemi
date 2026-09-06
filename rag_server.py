@@ -223,11 +223,11 @@ class GraphStore:
             with self.driver.session() as session:
                 node_records = session.run(
                     '''MATCH (node:NemiEntity)
-                    WHERE $query = '' OR toLower(node.name) CONTAINS $query OR toLower(node.type) CONTAINS $query
+                    WHERE $search_query = '' OR toLower(node.name) CONTAINS $search_query OR toLower(node.type) CONTAINS $search_query
                     RETURN node.id AS id, node.name AS name, node.canonical_name AS canonical_name,
                            node.type AS type, node.doc_id AS doc_id, node.doc_name AS doc_name
-                    LIMIT $limit''',
-                    query=query.lower(), limit=limit,
+                    LIMIT $result_limit''',
+                    search_query=query.lower(), result_limit=limit,
                 )
                 nodes = [dict(record) for record in node_records]
                 node_ids = [node['id'] for node in nodes]
