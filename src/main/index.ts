@@ -192,7 +192,12 @@ function closeRagWindow(): void {
   if (ragWindow && !ragWindow.isDestroyed()) {
     const windowToClose = ragWindow
     ragWindow = null
-    windowToClose.hide()
+    // Reveal the already-loaded main window before closing the child so macOS
+    // never exposes the child window's black background during the handoff.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
     // Let Electron unload the renderer cleanly so in-flight RAG IPC requests
     // and the renderer's polling timers can finish their teardown sequence.
     windowToClose.close()
