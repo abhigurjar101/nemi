@@ -134,6 +134,24 @@ class TestFullSystemRagServer(unittest.TestCase):
         self.assertGreater(len(chunks), 0)
         self.assertIn('OmniRoute', chunks[0].get('text', ''))
 
+    def test_query_prompt_combines_vector_and_graph_evidence(self):
+        status, upload_res = execute_rag_http('POST', '/upload', {
+            'doc_id': 'graph-grounding-doc',
+            'name': 'graph-grounding.txt',
+            'text': 'NEMI uses Neo4j for Graph RAG.',
+        })
+        self.assertEqual(status, 200)
+        self.assertGreater(upload_res.get('chunks', 0), 0)
+
+        status, query_res = execute_rag_http('POST', '/query', {
+            'query': 'What does NEMI use for Graph RAG?',
+            'top_k': 1,
+        })
+        self.assertEqual(status, 200)
+        self.assertIn('GRAPH RELATIONSHIP EVIDENCE', query_res.get('augmented_prompt', ''))
+        self.assertIn('NEMI', query_res.get('augmented_prompt', ''))
+        self.assertIn('Neo4j', query_res.get('augmented_prompt', ''))
+
     def test_http_docs_listing_and_deletion(self):
         execute_rag_http('POST', '/upload', {
             'doc_id': 'doc-a', 'name': 'Doc A', 'text': 'Alpha content test'
