@@ -20,7 +20,7 @@ import {
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
-  FolderGit2
+  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff
 } from 'lucide-react'
 import BotIcon from './components/BotIcon'
 import AuthModal, { type UserProfile } from './components/AuthModal'
@@ -592,6 +592,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedBotId, setSelectedBotId] = useState<string>('orchestrator')
   const [botDropdownOpen, setBotDropdownOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
 
@@ -829,6 +830,8 @@ export default function App() {
   const voiceSessionActivatedRef = useRef(false)
   const shouldListenRef = useRef(false)
   const toggleVoiceRef = useRef<() => void>(() => {})
+  const latestTranscriptRef = useRef<string>('')
+  const processedTranscriptRef = useRef<boolean>(false)
 
   // Non-allocating audio level accessor for 60fps zero-render visual reactivity (3D Brain & ripples)
   // Measures active TTS output when speaking, or microphone input when listening
@@ -1063,21 +1066,46 @@ export default function App() {
     if (voiceServerRunning) await window.nemi?.setVoice(voice)
   }, [voiceServerRunning])
 
+  const primeMobileAudio = useCallback(() => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.resume()
+        const silentUtterance = new SpeechSynthesisUtterance(' ')
+        silentUtterance.volume = 0.01
+        window.speechSynthesis.speak(silentUtterance)
+      }
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtx) {
+        const tempCtx = new AudioCtx()
+        if (tempCtx.state === 'suspended') {
+          void tempCtx.resume()
+        }
+      }
+    } catch {}
+  }, [])
+
   const browserSpeak = useCallback((text: string) => {
     if (!synthRef.current) return
-    synthRef.current.cancel()
+    try {
+      synthRef.current.cancel()
+      synthRef.current.resume()
+    } catch {}
     const utterance = new SpeechSynthesisUtterance(text)
     const voices = synthRef.current.getVoices()
     const preferred = voices.find((v) =>
       v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Serena')
     )
     if (preferred) utterance.voice = preferred
-    utterance.rate = 1.1
+    utterance.rate = voiceSpeed || 1.05
     utterance.onstart = () => setIsSpeaking(true)
     utterance.onend = () => setIsSpeaking(false)
     utterance.onerror = () => setIsSpeaking(false)
-    synthRef.current.speak(utterance)
-  }, [])
+    try {
+      synthRef.current.speak(utterance)
+    } catch {
+      setIsSpeaking(false)
+    }
+  }, [voiceSpeed])
 
   // ── TTS: speak response through local voice or browser speech ──
   const speakText = useCallback(async (text: string) => {
@@ -1164,7 +1192,11 @@ export default function App() {
   }, [finishUtterance])
 
   const handleVoiceTranscript = useCallback((transcribedText: string) => {
-    const intent = extractVoiceIntent(transcribedText)
+    const raw = (transcribedText || '').trim()
+    if (!raw) return
+
+    const intent = extractVoiceIntent(raw)
+    // If voice session was explicitly activated OR wake word detected:
     if (voiceSessionActivatedRef.current) {
       if (intent.isWakeOnly) {
         setTranscript('NEMI is ready. What would you like to do?')
@@ -1175,7 +1207,7 @@ export default function App() {
           rag: isRagReady ?? true,
         }))
       } else {
-        const finalQuery = intent.query || transcribedText
+        const finalQuery = intent.query || raw
         setTranscript(finalQuery)
         void sendToAI(finalQuery)
       }
@@ -1194,16 +1226,37 @@ export default function App() {
         }))
       }
     } else {
-      setTranscript('Say “Hey NEMI” to begin')
-      setTimeout(() => {
-        if (shouldListenRef.current) startListening(false)
-      }, 2000)
+      // Direct intent fallback: user tapped voice button and spoke query directly
+      setTranscript(raw)
+      void sendToAI(raw)
     }
-  }, [ollamaRunning, serviceStatuses, speakText, voiceServerRunning])
+  }, [ollamaRunning, serviceStatuses, speakText, voiceServerRunning, sendToAI])
+
+  const handleSendVoiceNow = useCallback(() => {
+    const text = (latestTranscriptRef.current || transcript || '').trim()
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+      recognitionRef.current = null
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch {}
+    }
+    setIsListening(false)
+    if (text && !processedTranscriptRef.current) {
+      processedTranscriptRef.current = true
+      handleVoiceTranscript(text)
+    }
+  }, [handleVoiceTranscript, transcript])
 
   const startBrowserRecognition = useCallback(() => {
+    primeMobileAudio()
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!Recognition) return false
+
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch {}
+      recognitionRef.current = null
+    }
 
     const recognition = new Recognition()
     recognitionRef.current = recognition
@@ -1211,40 +1264,79 @@ export default function App() {
     recognition.continuous = false
     recognition.interimResults = true
     recognition.maxAlternatives = 1
+    latestTranscriptRef.current = ''
+    processedTranscriptRef.current = false
+
     recognition.onstart = () => {
       setIsListening(true)
-      setTranscript('Listening...')
+      setTranscript('Listening... speak now')
     }
+
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const result = event.results[event.results.length - 1]
-      const text = result[0]?.transcript?.trim() || ''
-      if (text) setTranscript(text)
-      if (result.isFinal && text) {
+      let interim = ''
+      let final = ''
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i]
+        const text = item[0]?.transcript || ''
+        if (item.isFinal) {
+          final += text
+        } else {
+          interim += text
+        }
+      }
+      const activeText = (final || interim || '').trim()
+      if (activeText) {
+        latestTranscriptRef.current = activeText
+        setTranscript(activeText)
+      }
+
+      if (final.trim() && !processedTranscriptRef.current) {
+        processedTranscriptRef.current = true
         recognition.stop()
         recognitionRef.current = null
         setIsListening(false)
-        handleVoiceTranscript(text)
+        handleVoiceTranscript(final.trim())
       }
     }
+
     recognition.onerror = (event: any) => {
+      const err = event?.error
+      if (err === 'no-speech') {
+        // Normal pause on mobile
+        return
+      }
+      if (err === 'aborted') {
+        recognitionRef.current = null
+        setIsListening(false)
+        return
+      }
       recognitionRef.current = null
       setIsListening(false)
-      setTranscript(event?.error === 'not-allowed' ? 'Microphone permission is required.' : 'Voice recognition was unavailable.')
+      setTranscript(err === 'not-allowed' ? 'Microphone permission required.' : 'Voice recognition stopped.')
+      setTimeout(() => setTranscript(''), 2500)
     }
+
     recognition.onend = () => {
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null
         setIsListening(false)
+        const captured = latestTranscriptRef.current.trim()
+        if (captured && !processedTranscriptRef.current) {
+          processedTranscriptRef.current = true
+          handleVoiceTranscript(captured)
+        }
       }
     }
+
     try {
       recognition.start()
       return true
-    } catch {
+    } catch (err) {
+      console.warn('Speech recognition start error:', err)
       recognitionRef.current = null
       return false
     }
-  }, [handleVoiceTranscript])
+  }, [handleVoiceTranscript, primeMobileAudio])
 
   const startListeningWhisper = useCallback(async () => {
     try {
@@ -1398,13 +1490,14 @@ export default function App() {
   }, [startBrowserRecognition, startListeningWhisper, sttMode, voiceServerRunning])
 
   const toggleVoice = useCallback(() => {
+    primeMobileAudio()
     if (isListening) {
       stopListening()
       setTranscript('')
     } else {
       startListening(true)
     }
-  }, [isListening, startListening, stopListening])
+  }, [isListening, primeMobileAudio, startListening, stopListening])
   toggleVoiceRef.current = toggleVoice
 
   useEffect(() => {
@@ -2047,11 +2140,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               onClick={() => setBotDropdownOpen((p) => !p)}
               aria-label={`Current bot: ${activeBot.name}. Click to switch bot`}
               aria-expanded={botDropdownOpen}
-              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
+              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-white/[0.04] border border-white/10 text-white/80 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               title="Switch Active Bot"
             >
-              <BotIcon botId={activeBot.id} iconName={activeBot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
-              <span className="font-medium text-[11px] truncate max-w-[90px] sm:max-w-none">{activeBot.name}</span>
+              <BotIcon botId={activeBot.id} iconName={activeBot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-cyan-300 flex-shrink-0" />
+              <span className="font-medium text-[11px] truncate max-w-[80px] sm:max-w-none">{activeBot.name}</span>
               <span className="text-[10px] text-white/40">▾</span>
             </button>
 
@@ -2061,7 +2154,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   initial={{ opacity: 0, y: 6, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.95 }}
-                  className="absolute left-0 top-8 w-64 p-1 rounded-xl bg-slate-950/95 backdrop-blur-2xl border border-purple-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.85)] z-50 space-y-0.5"
+                  className="absolute left-0 top-8 w-64 p-1 rounded-xl bg-slate-950/95 backdrop-blur-2xl border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.85)] z-50 space-y-0.5"
                 >
                   <div className="px-2.5 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-b border-white/5">
                     Select Autonomous Agent
@@ -2079,15 +2172,15 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                           setChatOpen(true)
                         }}
                         className={`
-                          w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50
+                          w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50
                           ${bot.id === selectedBotId
-                            ? 'bg-purple-600/30 text-white border border-purple-400/40'
+                            ? 'bg-cyan-500/15 text-white border border-cyan-400/30'
                             : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
                           }
                         `}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <BotIcon botId={bot.id} iconName={bot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+                          <BotIcon botId={bot.id} iconName={bot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-cyan-300 flex-shrink-0" />
                           <span className="font-medium truncate">{bot.name}</span>
                         </div>
                         <span className="text-[9px] text-white/30 font-mono flex-shrink-0">
@@ -2102,24 +2195,25 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* ── BOT FLEET BUTTON ── */}
+        {/* ── DESKTOP UNIFIED GLASS TOOLBAR (hidden md:flex) ── */}
+        <div className="hidden md:flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Bot Fleet */}
           <button
             type="button"
             onClick={() => setSidebarOpen((p) => !p)}
             aria-label="Toggle Bot Swarm Fleet Sidebar (11 bots)"
-            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
               sidebarOpen
-                ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
-                : 'text-purple-300/80 hover:text-purple-200 bg-purple-500/10 border border-purple-400/20'
+                ? 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30'
+                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
             }`}
             title="Toggle Bot Swarm Fleet Sidebar"
           >
-            <Bot className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" strokeWidth={1.65} />
-            <span className="hidden md:inline">Bot Fleet (11)</span>
+            <Bot className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
+            <span>Bot Fleet (11)</span>
           </button>
 
-          {/* ── JUPYTER BUTTON (Electron + Web) ── */}
+          {/* Jupyter / Colab */}
           <button
             type="button"
             onClick={() => {
@@ -2132,14 +2226,14 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               }
             }}
             aria-label={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
-            className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400/50"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
             title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" strokeWidth={1.65} />
-            <span className="hidden sm:inline">{isElectron ? 'Jupyter' : 'Colab'}</span>
+            <BookOpen className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
+            <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
           </button>
 
-          {/* ── ADVANCED RAG / DOCUMENT UPLOAD ── */}
+          {/* Advanced RAG */}
           <button
             type="button"
             onClick={() => {
@@ -2151,98 +2245,394 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               setChatOpen(false)
             }}
             aria-label="Open Document Upload & Advanced RAG workspace"
-            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
               ragOpen
-                ? 'text-violet-200 bg-violet-500/30 border-violet-400/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
-                : 'text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25'
+                ? 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30'
+                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
             }`}
             title="Open Document Upload & Advanced RAG workspace"
           >
             <Database className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span className="hidden lg:inline">Advanced RAG</span>
+            <span>Advanced RAG</span>
           </button>
 
-          {/* ── GITHUB ARCHITECTURE TRAINING & INGESTION BUTTONS ── */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={async () => {
-                const res = await triggerDailyGitHubLearning(memories, true)
-                setMemories(res.newMemories)
-                setGithubLearningBanner(res.summary)
-                setTimeout(() => setGithubLearningBanner(null), 8000)
-              }}
-              aria-label="Train NEMI on High-Class GitHub Code Architectures"
-              className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
-              title="Train NEMI on High-Class GitHub Code Architectures"
-            >
-              <BrainCircuit className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" strokeWidth={1.65} />
-              <span className="hidden md:inline">Train GitHub</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIngestedResult(null)
-                setRepoModalOpen(true)
-              }}
-              aria-label="Ingest Any Public GitHub Repository into NEMI"
-              className="px-2 py-1 rounded-lg text-xs flex items-center gap-1 text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 hover:bg-cyan-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
-              title="Ingest Any Public GitHub Repository into NEMI"
-            >
-              <FolderGit2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" strokeWidth={1.65} />
-              <span>+ Ingest</span>
-            </button>
-          </div>
+          {/* Train GitHub */}
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await triggerDailyGitHubLearning(memories, true)
+              setMemories(res.newMemories)
+              setGithubLearningBanner(res.summary)
+              setTimeout(() => setGithubLearningBanner(null), 8000)
+            }}
+            aria-label="Train NEMI on High-Class GitHub Code Architectures"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
+            title="Train NEMI on High-Class GitHub Code Architectures"
+          >
+            <BrainCircuit className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
+            <span>Train GitHub</span>
+          </button>
 
-          {/* ── AUTH / ACCESS BUTTON ── */}
+          {/* Ingest */}
+          <button
+            type="button"
+            onClick={() => {
+              setIngestedResult(null)
+              setRepoModalOpen(true)
+            }}
+            aria-label="Ingest Any Public GitHub Repository into NEMI"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
+            title="Ingest Any Public GitHub Repository into NEMI"
+          >
+            <FolderGit2 className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
+            <span>+ Ingest</span>
+          </button>
+
+          {/* Auth */}
           <button
             type="button"
             onClick={() => setAuthModalOpen(true)}
             aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In or Sign Up'}
-            className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
-              isAuthenticated
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-                : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
-            }`}
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
             title={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In / Sign Up'}
           >
             {isAuthenticated ? (
               <>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" strokeWidth={1.65} />
-                <span className="font-medium text-[11px] truncate max-w-[120px]">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" strokeWidth={1.65} />
+                <span className="font-medium text-[11px] truncate max-w-[100px]">
                   {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
                 </span>
               </>
             ) : (
               <>
-                <Lock className="w-3.5 h-3.5 text-purple-400" strokeWidth={1.65} />
+                <Lock className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
                 <span className="font-medium text-[11px]">Sign In</span>
               </>
             )}
           </button>
 
+          {/* Chat Toggle */}
           <button
             type="button"
             onClick={() => setChatOpen((p) => !p)}
             aria-label={chatOpen ? 'Close Chat Panel' : 'Open Chat Panel'}
-            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
-              chatOpen ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'text-white/40 hover:text-white/80'
+            className={`h-7.5 px-3 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+              chatOpen
+                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40'
+                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.65} />
+            <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
             <span>Chat</span>
           </button>
+
+          {/* Settings Toggle */}
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
             aria-label="Open Settings"
-            className="p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
+            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
             title="Settings"
           >
-            <SettingsIcon className="w-4 h-4" strokeWidth={1.65} />
+            <SettingsIcon className="w-3.5 h-3.5" strokeWidth={1.65} />
+          </button>
+        </div>
+
+        {/* ── MOBILE HEADER CONTROLS (flex md:hidden) ── */}
+        <div className="flex md:hidden items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Quick Voice Mic */}
+          <button
+            type="button"
+            onClick={toggleVoice}
+            aria-label={isListening ? 'Stop Voice Listening' : 'Start Voice Listening'}
+            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+              isListening
+                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                : 'bg-white/[0.04] text-white/80 border-white/10 active:bg-white/10'
+            }`}
+          >
+            <Mic className={`w-3.5 h-3.5 ${isListening ? 'text-cyan-400 animate-pulse' : 'text-cyan-400'}`} strokeWidth={1.8} />
+            <span className="text-[11px] font-medium">{isListening ? 'Live' : 'Voice'}</span>
+          </button>
+
+          {/* Chat Toggle */}
+          <button
+            type="button"
+            onClick={() => setChatOpen((p) => !p)}
+            aria-label={chatOpen ? 'Close Chat' : 'Open Chat'}
+            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+              chatOpen
+                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                : 'bg-white/[0.04] text-white/80 border-white/10 active:bg-white/10'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-cyan-300 flex-shrink-0" strokeWidth={1.8} />
+            <span className="text-[11px] font-medium">Chat</span>
+          </button>
+
+          {/* Actions Menu Trigger */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open Actions Drawer"
+            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
+            title="Menu"
+          >
+            <Menu className="w-4 h-4 text-white/90" strokeWidth={1.8} />
           </button>
         </div>
       </header>
+
+      {/* ── MOBILE ACTIONS DRAWER (Bottom Sheet) ── */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm cursor-pointer"
+            />
+
+            {/* Bottom Sheet Modal */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full max-h-[85vh] bg-slate-950/98 border-t border-white/15 rounded-t-3xl p-5 pb-8 shadow-[0_-12px_48px_rgba(0,0,0,0.9)] overflow-y-auto nemi-scroll flex flex-col gap-4 z-10"
+            >
+              {/* Grab handle */}
+              <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto -mt-1 cursor-grab" onClick={() => setMobileMenuOpen(false)} />
+
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
+                  <span className="text-sm font-semibold tracking-wider text-white">NEMI Control Hub</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white"
+                  aria-label="Close menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {/* 1. Bot Fleet */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setSidebarOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-300">
+                      <Bot className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">Bot Swarm Fleet</div>
+                      <div className="text-xs text-white/50">11 autonomous AI agents & pipelines</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 2. Google Colab Notebooks */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    window.open('https://colab.research.google.com/#create=true', '_blank')
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-300">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">Google Colab Notebook</div>
+                      <div className="text-xs text-white/50">Launch cloud GPU notebook instantly</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 3. Advanced RAG & Documents */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setRagOpen(true)
+                    setChatOpen(false)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-400/30 flex items-center justify-center text-violet-300">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">Advanced RAG & Documents</div>
+                      <div className="text-xs text-white/50">Vector retrieval & doc ingestion</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 4. GitHub Architecture Training */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setMobileMenuOpen(false)
+                    const res = await triggerDailyGitHubLearning(memories, true)
+                    setMemories(res.newMemories)
+                    setGithubLearningBanner(res.summary)
+                    setTimeout(() => setGithubLearningBanner(null), 8000)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300">
+                      <BrainCircuit className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">Train on GitHub</div>
+                      <div className="text-xs text-white/50">Daily top repo architecture learning</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 5. Ingest Any GitHub Repo */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setIngestedResult(null)
+                    setRepoModalOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
+                      <FolderGit2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">Ingest GitHub Repository</div>
+                      <div className="text-xs text-white/50">Clone & ingest any public code repo</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 6. Authentication / Profile */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setAuthModalOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-300">
+                      {isAuthenticated ? <ShieldCheck className="w-5 h-5 text-emerald-400" /> : <Lock className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {isAuthenticated ? (currentUser?.name || currentUser?.email || 'Account Authenticated') : 'Sign In / Account'}
+                      </div>
+                      <div className="text-xs text-white/50">
+                        {isAuthenticated ? `Role: ${authRole}` : 'Cloud sync and custom API keys'}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+
+                {/* 7. Settings */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setSettingsOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 active:bg-white/[0.08] transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-800 border border-white/20 flex items-center justify-center text-white/80">
+                      <SettingsIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">System Settings</div>
+                      <div className="text-xs text-white/50">Model engines, voice speed, keys</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/30" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MOBILE VOICE HUD OVERLAY ── */}
+      <AnimatePresence>
+        {isListening && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 inset-x-4 md:hidden z-50 p-3.5 rounded-2xl bg-slate-950/95 border border-cyan-500/40 shadow-[0_8px_32px_rgba(0,0,0,0.85),0_0_24px_rgba(6,182,212,0.25)] backdrop-blur-xl flex flex-col gap-2.5 select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-xs font-semibold text-cyan-300 uppercase tracking-wider">Listening to Voice</span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className="p-1 text-white/40 hover:text-white"
+                aria-label="Cancel Voice"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-white/90 italic bg-white/[0.03] border border-white/5 rounded-xl px-3 py-2 min-h-[36px] flex items-center">
+              {latestTranscriptRef.current || transcript || 'Speak now, listening...'}
+            </div>
+
+            <div className="flex items-center gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={handleSendVoiceNow}
+                className="flex-1 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs font-medium flex items-center justify-center gap-1.5 active:bg-cyan-500/30 transition-colors"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+                <span>Send Now</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className="px-3 h-9 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs font-medium flex items-center justify-center active:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Main Canvas ── */}
       <div className="flex-1 relative overflow-hidden">
