@@ -568,7 +568,7 @@ export default function MessageBubble({
         animate={{ opacity: 1, y: 0, x: 0 }}
         className="flex justify-end group"
       >
-        <div className="max-w-[85%] space-y-1">
+        <div className="max-w-[92%] sm:max-w-[85%] space-y-1">
           <div className="
             user-bubble rounded-2xl rounded-br-xs px-3.5 py-2
             bg-gradient-to-br from-cyan-600/35 to-purple-600/25
@@ -581,7 +581,7 @@ export default function MessageBubble({
           <div className="flex items-center justify-end gap-2 pr-1">
             <button
               onClick={handleCopy}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-white/30 hover:text-white/70"
+              className="opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 text-white/40 hover:text-white/80 cursor-pointer"
               title="Copy"
             >
               {copied ? <Check className="w-2.5 h-2.5 text-green-400" /> : <Copy className="w-2.5 h-2.5" />}
@@ -618,27 +618,26 @@ export default function MessageBubble({
 
           {/* Dedicated Full Notebook Action Banner if code exists */}
           {hasCode && !message.streaming && (
-            <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-purple-300 font-medium text-[11px]">
-                <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Dedicated Notebook Created</span>
-              </div>
+            <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[10px] text-purple-300/80 font-mono flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-purple-400" /> Code ready
+              </span>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleDownloadFullNotebook}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
-                  title="Download .ipynb"
+                  className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-medium transition-colors cursor-pointer flex items-center gap-1"
+                  title="Download conversation notebook"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Download .ipynb</span>
+                  <Download className="w-2.5 h-2.5" />
+                  <span>.ipynb</span>
                 </button>
                 <button
                   onClick={handleOpenColabFull}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
-                  title="Launch Google Colab"
+                  className="hidden sm:flex px-2 py-0.5 rounded text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-medium transition-colors cursor-pointer items-center gap-1"
+                  title="Open in Google Colab"
                 >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>Open in Colab</span>
+                  <BookOpen className="w-2.5 h-2.5" />
+                  <span>Colab</span>
                 </button>
               </div>
             </div>
@@ -660,7 +659,7 @@ export default function MessageBubble({
             )}
           </div>
 
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity">
             {onSpeak && (
               <button
                 onClick={() => onSpeak(message.content)}

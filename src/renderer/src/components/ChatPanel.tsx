@@ -222,9 +222,12 @@ export default function ChatPanel({
           exit={{ opacity: 0, y: 30, scale: 0.94 }}
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           className={`
-            fixed right-6 bottom-6 z-40 flex flex-col
-            ${isMinimized ? 'w-[240px] h-[46px]' : 'w-[350px] h-[490px] max-h-[72vh]'}
-            transition-all duration-300 ease-out
+            fixed z-40 flex flex-col transition-all duration-300 ease-out
+            inset-x-0 bottom-0 sm:inset-x-auto sm:right-6 sm:bottom-6
+            ${isMinimized
+              ? 'w-full sm:w-[260px] h-14 sm:h-[46px]'
+              : 'w-full sm:w-[380px] md:w-[420px] h-[88dvh] sm:h-[540px] sm:max-h-[78vh]'
+            }
           `}
           onMouseEnter={() => window.nemi?.enterInteractiveMode()}
           onDragOver={(e) => {
@@ -240,10 +243,13 @@ export default function ChatPanel({
         >
           {/* ── MINIMALIST GLASS CONTAINER ── */}
           <div className="
-            relative w-full h-full flex flex-col rounded-2xl overflow-hidden
-            bg-slate-950/85 backdrop-blur-2xl border border-white/10
-            shadow-[0_16px_48px_rgba(0,0,0,0.75)] select-none
+            relative w-full h-full flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden
+            bg-slate-950/95 sm:bg-slate-950/85 backdrop-blur-2xl border-t sm:border border-white/10
+            shadow-[0_-8px_32px_rgba(0,0,0,0.6),0_16px_48px_rgba(0,0,0,0.75)] select-none
           ">
+            {/* Mobile swipe/drag handle pill */}
+            <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mt-2 mb-0.5 sm:hidden flex-shrink-0" />
+
             {/* Ambient subtle glow background */}
             <div className="absolute top-0 right-1/4 w-40 h-20 bg-cyan-500/10 blur-3xl pointer-events-none rounded-full" />
             <div className="absolute bottom-0 left-1/4 w-40 h-20 bg-purple-500/10 blur-3xl pointer-events-none rounded-full" />
@@ -483,7 +489,7 @@ export default function ChatPanel({
                     </AnimatePresence>
 
                     {/* ── INPUT BAR ── */}
-                    <div className="border-t border-white/8 p-2 bg-white/2 z-10">
+                    <div className="border-t border-white/8 p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:pb-2 bg-white/2 z-10">
                       {/* Attached files preview chips */}
                       {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-1 px-1 pb-2">
@@ -522,10 +528,10 @@ export default function ChatPanel({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 text-white/40 hover:text-cyan-300 hover:bg-white/5"
+                          className="p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 text-white/40 hover:text-cyan-300 hover:bg-white/5"
                           title="Upload file or code to chat"
                         >
-                          <Paperclip className="w-3.5 h-3.5" />
+                          <Paperclip className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                         </button>
 
                         <textarea
@@ -536,12 +542,12 @@ export default function ChatPanel({
                           placeholder={isListening ? 'Listening via microphone...' : attachedFiles.length > 0 ? 'Ask a question about uploaded file...' : activeBot.placeholder}
                           rows={1}
                           className="
-                            flex-1 bg-transparent px-2 py-1.5
-                            text-xs text-white/95 placeholder-white/25
+                            flex-1 bg-transparent px-2.5 py-2 sm:px-2 sm:py-1.5
+                            text-base sm:text-xs text-white/95 placeholder-white/25
                             border-none focus:outline-none resize-none
-                            max-h-24 overflow-y-auto nemi-scroll
+                            max-h-24 overflow-y-auto nemi-scroll leading-relaxed
                           "
-                          style={{ minHeight: '34px' }}
+                          style={{ minHeight: '36px' }}
                           onInput={(e) => {
                             const el = e.currentTarget
                             el.style.height = 'auto'
@@ -554,14 +560,14 @@ export default function ChatPanel({
                           <button
                             type="button"
                             onClick={onToggleVoice}
-                            className={`p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
+                            className={`p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 ${
                               isListening
                                 ? 'bg-red-500 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]'
                                 : 'text-white/35 hover:text-cyan-300 hover:bg-white/5'
                             }`}
                             title={isListening ? 'Stop listening' : 'Dictate with mic'}
                           >
-                            {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                            {isListening ? <MicOff className="w-4 h-4 sm:w-3.5 sm:h-3.5" /> : <Mic className="w-4 h-4 sm:w-3.5 sm:h-3.5" />}
                           </button>
                         )}
 
@@ -571,7 +577,7 @@ export default function ChatPanel({
                           onClick={handleSend}
                           disabled={(!input.trim() && attachedFiles.length === 0) || isThinking}
                           className={`
-                            p-2 rounded-xl flex items-center justify-center flex-shrink-0 transition-all
+                            p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl flex items-center justify-center flex-shrink-0 transition-all
                             ${(input.trim() || attachedFiles.length > 0) && !isThinking
                               ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-[0_0_12px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
                               : 'text-white/20 cursor-not-allowed'
@@ -579,7 +585,7 @@ export default function ChatPanel({
                           `}
                           title="Send message (Enter)"
                         >
-                          <Send className="w-3.5 h-3.5" />
+                          <Send className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                         </button>
                       </div>
 

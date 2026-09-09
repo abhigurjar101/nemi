@@ -196,14 +196,23 @@ export default function Sidebar({
       {/* ── SIDEBAR PANEL ── */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ x: '-100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '-100%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            className="fixed left-5 top-12 bottom-8 w-72 z-40 flex flex-col glass-panel overflow-hidden"
-            onMouseEnter={() => window.nemi?.enterInteractiveMode()}
-          >
+          <>
+            {/* Mobile backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onToggle}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden"
+            />
+            <motion.div
+              initial={{ x: '-100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '-100%', opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              className="fixed inset-y-0 left-0 sm:top-12 sm:bottom-8 sm:left-5 w-[85vw] max-w-xs sm:w-72 z-50 sm:z-40 flex flex-col glass-panel overflow-hidden shadow-2xl"
+              onMouseEnter={() => window.nemi?.enterInteractiveMode()}
+            >
             {/* Header */}
             <div className="px-4 pt-4 pb-2">
               <div className="flex items-center justify-between mb-3">
@@ -411,6 +420,7 @@ export default function Sidebar({
               </button>
             </div>
           </motion.div>
+        </>
         )}
       </AnimatePresence>
     </>

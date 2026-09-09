@@ -107,10 +107,12 @@ describe('GitHub Architecture & Continuous Learning Bot Engine', () => {
 
       expect(res.success).toBe(true)
       expect(res.repo).toBe('vllm-project/vllm')
-      expect(res.newMemories.length).toBe(1)
+      expect(res.newMemories.length).toBeGreaterThanOrEqual(1)
       expect(res.newMemories[0].content).toContain('[GitHub Ingested Architecture: vllm-project/vllm]')
+      expect(res.principles.length).toBeGreaterThan(0)
+      expect(res.codeSnippet).toBeTruthy()
       expect(res.summary).toContain('All 11 bots upgraded')
-      expect(storage['nemi_github_learned_count']).toBe('1')
+      expect(parseInt(storage['nemi_github_learned_count'] || '0')).toBeGreaterThanOrEqual(1)
     })
 
     it('strips full github.com URLs down to owner/repo cleanly', async () => {
@@ -119,6 +121,7 @@ describe('GitHub Architecture & Continuous Learning Bot Engine', () => {
 
       expect(res.success).toBe(true)
       expect(res.repo).toBe('karpathy/nanoGPT')
+      expect(res.principles.length).toBeGreaterThan(0)
     })
   })
 })

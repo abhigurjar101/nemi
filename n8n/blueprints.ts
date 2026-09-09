@@ -343,3 +343,22 @@ if __name__ == '__main__':
     summary: 'Resilient async event stream parsing and jittered exponential retry architecture.',
   },
 ]
+
+export const DYNAMIC_LEARNED_BLUEPRINTS: GitHubArchitectureBlueprint[] = []
+
+export function registerDynamicBlueprint(blueprint: GitHubArchitectureBlueprint): void {
+  const normalizedRepo = blueprint.repo.toLowerCase().trim()
+  const existingIdx = DYNAMIC_LEARNED_BLUEPRINTS.findIndex(
+    (b) => b.repo.toLowerCase().trim() === normalizedRepo
+  )
+  if (existingIdx >= 0) {
+    DYNAMIC_LEARNED_BLUEPRINTS[existingIdx] = blueprint
+  } else {
+    DYNAMIC_LEARNED_BLUEPRINTS.push(blueprint)
+  }
+}
+
+export function getAllLearnedBlueprints(): GitHubArchitectureBlueprint[] {
+  return [...GITHUB_ARCHITECTURE_BLUEPRINTS, ...DYNAMIC_LEARNED_BLUEPRINTS]
+}
+

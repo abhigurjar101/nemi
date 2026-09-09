@@ -19,8 +19,10 @@ import {
   Sparkles, Mic, MessageSquare, Settings as SettingsIcon,
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
-  BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X
+  BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
+  FolderGit2
 } from 'lucide-react'
+import BotIcon from './components/BotIcon'
 import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
   type ConversationSession,
@@ -602,15 +604,17 @@ export default function App() {
   const [repoModalOpen, setRepoModalOpen] = useState(false)
   const [customRepoInput, setCustomRepoInput] = useState('')
   const [isIngestingRepo, setIsIngestingRepo] = useState(false)
+  const [ingestedResult, setIngestedResult] = useState<any | null>(null)
 
   const handleIngestCustomRepo = async () => {
     if (!customRepoInput.trim()) return
     setIsIngestingRepo(true)
+    setIngestedResult(null)
     try {
       const res = await ingestCustomGitHubRepo(customRepoInput, memories)
       setMemories(res.newMemories)
       setGithubLearningBanner(res.summary)
-      setRepoModalOpen(false)
+      setIngestedResult(res)
       setCustomRepoInput('')
       setTimeout(() => setGithubLearningBanner(null), 8000)
     } catch (err: any) {
@@ -1454,6 +1458,44 @@ export default function App() {
       })
     }
 
+    // 2. Check if user requested to ingest or learn a GitHub repository directly in chat
+    const githubIngestMatch = userText.match(/(?:ingest|learn|import|analyze|fetch)(?:\s+from|\s+repo|\s+github)?\s+(https?:\/\/github\.com\/[^\s]+|github\.com\/[^\s]+|[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)/i)
+    if (githubIngestMatch) {
+      try {
+        const repoStr = githubIngestMatch[1]
+        const ingestRes = await ingestCustomGitHubRepo(repoStr, memories)
+        setMemories(ingestRes.newMemories)
+        setGithubLearningBanner(ingestRes.summary)
+
+        const replyContent = `### Ingested GitHub Architecture: \`${ingestRes.repo}\`
+**Title**: ${ingestRes.title}
+**Category**: \`${ingestRes.category}\` | **Language**: \`${ingestRes.language}\`${ingestRes.stars > 0 ? ` | **Stars**: ${ingestRes.stars.toLocaleString()}` : ''}
+
+**Summary**:
+${ingestRes.description}
+
+#### Core Architectural Principles Learned:
+${ingestRes.principles.map((p, i) => `${i + 1}. **${p}**`).join('\n')}
+
+#### Verified Code Pattern:
+\`\`\`${ingestRes.language.toLowerCase().includes('type') ? 'typescript' : 'python'}
+${ingestRes.codeSnippet}
+\`\`\`
+
+All 11 autonomous specialist bots in the swarm have been upgraded with this architecture. You can now prompt any bot to write, test, or decompose systems using these patterns.`
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId ? { ...m, content: replyContent, streaming: false } : m
+          )
+        )
+        setIsThinking(false)
+        return
+      } catch (err: any) {
+        console.warn('In-chat GitHub ingestion fallback:', err)
+      }
+    }
+
     try {
       playThoughtSpark()
     } catch {}
@@ -1507,7 +1549,7 @@ Personality & Conversational Style:
     const { promptBlock: learnedArchitectureContext } = buildLearnedPromptContext(selectedBotId, memories)
 
     const botPersona = activeBot
-      ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} (${activeBot.emoji}) ===
+      ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} ===
 Role & Objective: ${activeBot.description}
 Category: ${activeBot.category}
 Specialist Directive:
@@ -1981,22 +2023,22 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
   }, [])
 
   return (
-    <div className={`relative w-screen h-screen overflow-hidden bg-slate-950 flex flex-col select-none ${modelMode === 'nvidia-nim' ? 'nim-active' : ''}`}>
+    <div className={`relative w-screen h-[100dvh] min-h-screen overflow-hidden bg-slate-950 flex flex-col select-none ${modelMode === 'nvidia-nim' ? 'nim-active' : ''}`}>
 
       {/* ── Top Header / App Bar ── */}
       <header
-        className={`h-10 flex items-center justify-between border-b border-white/5 bg-slate-900/60 backdrop-blur-lg z-50 select-none ${
-          isElectron ? 'px-20' : 'px-4 sm:px-6'
+        className={`h-10 pt-[env(safe-area-inset-top)] flex items-center justify-between border-b border-white/5 bg-slate-900/60 backdrop-blur-lg z-50 select-none ${
+          isElectron ? 'px-20' : 'px-3 sm:px-6'
         }`}
         style={isElectron ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined}
       >
-        <div className="flex items-center gap-3" style={isElectron ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}>
+        <div className="flex items-center gap-2 sm:gap-3" style={isElectron ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
             <span className="text-xs font-bold tracking-[0.25em] gradient-text">NEMI</span>
           </div>
 
-          <div className="w-[1px] h-4 bg-white/10" />
+          <div className="w-[1px] h-4 bg-white/10 hidden sm:block" />
 
           {/* Active Bot Dropdown Selector */}
           <div className="relative">
@@ -2005,8 +2047,8 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-all cursor-pointer"
               title="Switch Active Bot"
             >
-              <span>{activeBot.emoji}</span>
-              <span className="font-medium text-[11px]">{activeBot.name}</span>
+              <BotIcon botId={activeBot.id} iconName={activeBot.icon} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+              <span className="font-medium text-[11px] truncate max-w-[90px] sm:max-w-none">{activeBot.name}</span>
               <span className="text-[10px] text-white/40">▾</span>
             </button>
 
@@ -2039,7 +2081,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                         `}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <span>{bot.emoji}</span>
+                          <BotIcon botId={bot.id} iconName={bot.icon} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
                           <span className="font-medium truncate">{bot.name}</span>
                         </div>
                         <span className="text-[9px] text-white/30 font-mono flex-shrink-0">
@@ -2054,19 +2096,19 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         </div>
 
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="flex items-center gap-1.5 sm:gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* ── BOT FLEET BUTTON ── */}
           <button
             onClick={() => setSidebarOpen((p) => !p)}
-            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
               sidebarOpen
                 ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
                 : 'text-purple-300/80 hover:text-purple-200 bg-purple-500/10 border border-purple-400/20'
             }`}
             title="Toggle Bot Swarm Fleet Sidebar"
           >
-            <Bot className="w-3.5 h-3.5 text-purple-400" />
-            <span>Bot Fleet (11)</span>
+            <Bot className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span className="hidden md:inline">Bot Fleet (11)</span>
           </button>
 
           {/* ── JUPYTER BUTTON (Electron + Web) ── */}
@@ -2080,11 +2122,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 window.open('https://colab.research.google.com/#create=true', '_blank')
               }
             }}
-            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+            className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
             title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
+            <BookOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span className="hidden sm:inline">{isElectron ? 'Jupyter' : 'Colab'}</span>
           </button>
 
           {/* ── ADVANCED RAG / DOCUMENT UPLOAD ── */}
@@ -2097,15 +2139,15 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               }
               setChatOpen(false)
             }}
-            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
               ragOpen
                 ? 'text-violet-200 bg-violet-500/30 border-violet-400/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
                 : 'text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25'
             }`}
             title="Open Document Upload & Advanced RAG workspace"
           >
-            <Database className="w-3.5 h-3.5" />
-            <span>Advanced RAG</span>
+            <Database className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="hidden lg:inline">Advanced RAG</span>
           </button>
 
           {/* ── GITHUB ARCHITECTURE TRAINING & INGESTION BUTTONS ── */}
@@ -2117,17 +2159,21 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 setGithubLearningBanner(res.summary)
                 setTimeout(() => setGithubLearningBanner(null), 8000)
               }}
-              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
+              className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
               title="Train NEMI on High-Class GitHub Code Architectures"
             >
-              <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
-              <span>Train GitHub</span>
+              <BrainCircuit className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+              <span className="hidden md:inline">Train GitHub</span>
             </button>
             <button
-              onClick={() => setRepoModalOpen(true)}
+              onClick={() => {
+                setIngestedResult(null)
+                setRepoModalOpen(true)
+              }}
               className="px-2 py-1 rounded-lg text-xs flex items-center gap-1 text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 hover:bg-cyan-500/25 transition-all cursor-pointer"
               title="Ingest Any Public GitHub Repository into NEMI"
             >
+              <FolderGit2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
               <span>+ Ingest</span>
             </button>
           </div>
@@ -2273,7 +2319,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.9 }}
             onClick={() => handleToggleChatOpen(true)}
-            className="fixed right-6 bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-purple-400/30 text-white shadow-[0_4px_24px_rgba(168,85,247,0.25)] flex items-center gap-2 cursor-pointer group hover:border-purple-400/60 transition-all"
+            className="fixed right-4 bottom-5 sm:right-6 sm:bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-purple-400/30 text-white shadow-[0_4px_24px_rgba(168,85,247,0.25)] flex items-center gap-2 cursor-pointer group hover:border-purple-400/60 transition-all"
             title="Open NEMI Chat (⌘⇧C)"
           >
             <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#c084fc]" />
@@ -2284,7 +2330,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 <span>{memories.length}</span>
               </span>
             )}
-            <kbd className="text-[10px] text-white/30 font-mono px-1 py-0.5 rounded bg-white/5 border border-white/10">⌘⇧C</kbd>
+            <kbd className="hidden sm:inline text-[10px] text-white/30 font-mono px-1 py-0.5 rounded bg-white/5 border border-white/10">⌘⇧C</kbd>
           </motion.button>
         )}
 
@@ -2423,10 +2469,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 max-h-[80vh] overflow-y-auto nemi-scroll">
               <p className="text-xs text-white/70 leading-relaxed">
-                Teach all 11 specialist bots modern code architectures from any GitHub repository. Enter an <span className="font-mono text-cyan-300">owner/repo</span> or full repository URL.
+                Teach all 11 specialist bots modern code architectures from any GitHub repository. Ingests the real <span className="font-mono text-cyan-300">README.md</span>, manifests, dependencies, and code patterns directly.
               </p>
+
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -2443,12 +2490,83 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 <button
                   disabled={isIngestingRepo || !customRepoInput.trim()}
                   onClick={() => void handleIngestCustomRepo()}
-                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   {isIngestingRepo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                   <span>{isIngestingRepo ? 'Ingesting...' : 'Ingest'}</span>
                 </button>
               </div>
+
+              {/* Ingesting In-Progress Status */}
+              {isIngestingRepo && (
+                <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center gap-2.5 text-xs text-cyan-200 animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+                  <span>Fetching repository README, dependencies, and code patterns via raw GitHub...</span>
+                </div>
+              )}
+
+              {/* Ingested Result Card */}
+              {ingestedResult && !isIngestingRepo && (
+                <div className="p-3.5 rounded-xl bg-white/5 border border-emerald-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-bold text-white font-mono">{ingestedResult.repo}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/20 font-mono">
+                        {ingestedResult.language}
+                      </span>
+                      {ingestedResult.stars > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20 font-mono">
+                          ★ {ingestedResult.stars.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-white/80 leading-relaxed">{ingestedResult.description}</p>
+
+                  {ingestedResult.principles?.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/40 font-semibold">
+                        Extracted Architectural Principles
+                      </span>
+                      <ul className="space-y-1">
+                        {ingestedResult.principles.map((p: string, i: number) => (
+                          <li key={i} className="text-xs text-white/80 flex items-start gap-1.5">
+                            <span className="text-cyan-400 font-mono text-[10px] mt-0.5">•</span>
+                            <span>{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {ingestedResult.codeSnippet && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/40 font-semibold">
+                        Extracted Code Pattern
+                      </span>
+                      <pre className="p-2.5 rounded-lg bg-black/60 border border-white/10 text-[11px] font-mono text-cyan-200 overflow-x-auto max-h-36 nemi-scroll">
+                        {ingestedResult.codeSnippet}
+                      </pre>
+                    </div>
+                  )}
+
+                  <div className="pt-1 flex items-center justify-between">
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      All 11 bots upgraded with this architecture.
+                    </span>
+                    <button
+                      onClick={() => setRepoModalOpen(false)}
+                      className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Quick suggestions */}
               <div>

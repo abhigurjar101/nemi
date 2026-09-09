@@ -1,5 +1,9 @@
 import type { LearnedArchitectureItem } from './types'
-import { GITHUB_ARCHITECTURE_BLUEPRINTS } from './blueprints'
+import {
+  GITHUB_ARCHITECTURE_BLUEPRINTS,
+  getAllLearnedBlueprints,
+  DYNAMIC_LEARNED_BLUEPRINTS,
+} from './blueprints'
 
 /**
  * Curated mappings of which GitHub code architectures empower which bot.
@@ -89,8 +93,10 @@ export const BOT_LEARNING_DOMAIN_MAP: Record<string, string[]> = {
  */
 export function getLearnedBlueprintsForBot(botId: string): LearnedArchitectureItem[] {
   const allowedRepos = BOT_LEARNING_DOMAIN_MAP[botId] || ['huggingface/transformers']
-  return GITHUB_ARCHITECTURE_BLUEPRINTS.filter((bp) =>
-    allowedRepos.includes(bp.repo)
+  const all = getAllLearnedBlueprints()
+  return all.filter((bp) =>
+    allowedRepos.includes(bp.repo) ||
+    DYNAMIC_LEARNED_BLUEPRINTS.some((d) => d.repo.toLowerCase() === bp.repo.toLowerCase())
   ).map((bp) => ({
     repo: bp.repo,
     title: bp.title,
