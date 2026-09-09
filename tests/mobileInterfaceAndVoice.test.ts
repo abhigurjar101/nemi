@@ -77,3 +77,38 @@ describe('Direct Mobile Voice Fallback & Intent Handling', () => {
     expect(res.query).toBe('')
   })
 })
+
+describe('Universal Command Palette & Jupyter/Colab Paste Engine Integration', () => {
+  const appPath = path.resolve(__dirname, '../src/renderer/src/App.tsx')
+  const appContent = fs.readFileSync(appPath, 'utf8')
+  const bubblePath = path.resolve(__dirname, '../src/renderer/src/components/MessageBubble.tsx')
+  const bubbleContent = fs.readFileSync(bubblePath, 'utf8')
+
+  it('binds Cmd+K / Ctrl+K and provides desktop and mobile Command Palette triggers', () => {
+    expect(appContent).toContain("e.key.toLowerCase() === 'k'")
+    expect(appContent).toContain('setCommandPaletteOpen')
+    expect(appContent).toContain('Open Command Palette (Cmd+K)')
+    expect(appContent).toContain('Universal Command Palette')
+  })
+
+  it('renders a universal floating Toast notification for clipboard and export actions', () => {
+    expect(appContent).toContain('toastMessage')
+    expect(appContent).toContain('showToast')
+    expect(appContent).toContain('Universal Floating Toast Feedback')
+  })
+
+  it('provides automated self-healing error pipeline in App.tsx and MessageBubble.tsx', () => {
+    expect(appContent).toContain('handleAutoFixCode')
+    expect(appContent).toContain('SELF-HEALING CODE FIX REQUEST')
+    expect(bubbleContent).toContain('Auto-Fix with NEMI')
+  })
+
+  it('provides mobile-accessible Colab and Jupyter buttons with cell-ready copying', () => {
+    // Colab button must not be hidden on mobile
+    expect(bubbleContent).not.toMatch(/className="hidden sm:flex items-center gap-1[^"]*title="Open in Google Colab"/)
+    // Must contain dedicated Jupyter / Colab copy button
+    expect(bubbleContent).toContain('Copy clean code formatted for Jupyter or Colab')
+    expect(bubbleContent).toContain('handleCopyForJupyter')
+    expect(bubbleContent).toContain('handleCopyAllJupyter')
+  })
+})

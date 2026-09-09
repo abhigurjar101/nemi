@@ -57,6 +57,8 @@ export interface ChatPanelProps {
   // Bot integration
   selectedBotId?: string
   onSelectBot?: (botId: string) => void
+  onFixCode?: (error: string, code: string) => void
+  onToast?: (message: string) => void
 }
 
 type TabMode = 'chat' | 'memory' | 'history'
@@ -85,6 +87,8 @@ export default function ChatPanel({
   modelBadge = 'NEURAL',
   selectedBotId = 'orchestrator',
   onSelectBot,
+  onFixCode,
+  onToast,
 }: ChatPanelProps) {
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -450,6 +454,8 @@ export default function ChatPanel({
                           onSpeak={onSpeakMessage}
                           onRemember={(content) => onAddMemory && onAddMemory(content, 'general')}
                           isSpeakingThis={isSpeakingText === msg.content}
+                          onFixCode={onFixCode}
+                          onToast={onToast}
                         />
                       ))}
 

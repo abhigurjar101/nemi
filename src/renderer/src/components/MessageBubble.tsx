@@ -21,6 +21,10 @@ import {
   openInGoogleColab,
   executeCodeSnippet,
   extractCodeBlocks,
+  copyTextToClipboard,
+  formatCodeForJupyter,
+  formatNotebookAsJupyterScript,
+  copyNotebookAsJson,
 } from '../utils/jupyter'
 
 // ── Markdown Table parser & renderer ──
@@ -138,7 +142,11 @@ export function TableBlock({ table }: { table: ParsedTable | { headers: string[]
 }
 
 // ── Simple markdown renderer ──
-function renderMarkdown(text: string): React.ReactNode[] {
+function renderMarkdown(
+  text: string,
+  onFixCode?: (error: string, code: string) => void,
+  onToast?: (message: string) => void
+): React.ReactNode[] {
   if (!text || typeof text !== 'string') return []
   const lines = text.split('\n')
   const result: React.ReactNode[] = []
@@ -160,7 +168,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
       } else {
         inCode = false
         result.push(
-          <CodeBlock key={key++} code={codeLines.join('\n')} language={codeLang} />
+          <CodeBlock
+            key={key++}
+            code={codeLines.join('\n')}
+            language={codeLang}
+            onFixCode={onFixCode}
+            onToast={onToast}
+          />
         )
         codeLines = []
         codeLang = ''
@@ -241,7 +255,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
   // If text ended while inside a code block (streaming or unclosed fence), render the code block!
   if (inCode && codeLines.length > 0) {
     result.push(
-      <CodeBlock key={key++} code={codeLines.join('\n')} language={codeLang} />
+      <CodeBlock
+        key={key++}
+        code={codeLines.join('\n')}
+        language={codeLang}
+        onFixCode={onFixCode}
+        onToast={onToast}
+      />
     )
   }
 
@@ -300,8 +320,19 @@ function renderInline(text: string): React.ReactNode {
 }
 
 // ── Code block with line numbers, copy button, Colab launch, .ipynb/raw download, and execution console ──
-function CodeBlock({ code, language }: { code: string; language: string }) {
+function CodeBlock({
+  code,
+  language,
+  onFixCode,
+  onToast,
+}: {
+  code: string
+  language: string
+  onFixCode?: (error: string, code: string) => void
+  onToast?: (message: string) => void
+}) {
   const [copied, setCopied] = useState(false)
+  const [jupyterCopied, setJupyterCopied] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [showLines, setShowLines] = useState(true)
   const [execResult, setExecResult] = useState<{
@@ -312,9 +343,23 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   } | null>(null)
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    const success = await copyTextToClipboard(code)
+    if (success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleCopyForJupyter = async () => {
+    const clean = formatCodeForJupyter(code)
+    const success = await copyTextToClipboard(clean)
+    if (success) {
+      setJupyterCopied(true)
+      setTimeout(() => setJupyterCopied(false), 2500)
+      if (onToast) {
+        onToast('Clean code copied for Jupyter / Colab! Press Cmd+V or Ctrl+V in your cell to paste.')
+      }
+    }
   }
 
   const handleRun = async () => {
@@ -334,6 +379,9 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
       language: language || 'python',
     })
     downloadNotebookFile(notebook, `nemi_cell_${Date.now()}.ipynb`)
+    if (onToast) {
+      onToast('Jupyter Notebook (.ipynb) downloaded!')
+    }
   }
 
   const handleDownloadRaw = () => {
@@ -368,6 +416,9 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
       language: language || 'python',
     })
     await openInGoogleColab(notebook)
+    if (onToast) {
+      onToast('Code copied! Paste directly into Google Colab (Cmd+V / Ctrl+V).')
+    }
   }
 
   const isExecutable = !language || ['python', 'py', 'sh', 'bash', 'sql'].includes(language.toLowerCase())
@@ -376,7 +427,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   return (
     <div className="relative rounded-xl overflow-hidden my-2.5 border border-white/10 bg-slate-950/80 shadow-lg group">
       {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5 flex-wrap gap-1.5">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
             {language || 'code'}
@@ -392,7 +443,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* Toggle line numbers */}
           <button
             onClick={() => setShowLines((prev) => !prev)}
@@ -419,14 +470,41 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             </button>
           )}
 
-          {/* Colab button */}
+          {/* Copy for Jupyter / Colab button */}
+          {isExecutable && (
+            <button
+              type="button"
+              onClick={handleCopyForJupyter}
+              aria-label="Copy clean code formatted for Jupyter or Colab notebook"
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer border ${
+                jupyterCopied
+                  ? 'bg-purple-500/30 text-purple-200 border-purple-400/50'
+                  : 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border-purple-400/20'
+              }`}
+              title="Copy clean code formatted for Jupyter or Colab cell"
+            >
+              {jupyterCopied ? (
+                <>
+                  <Check className="w-2.5 h-2.5 text-purple-300" strokeWidth={1.65} />
+                  <span>Cell Copied!</span>
+                </>
+              ) : (
+                <>
+                  <BookOpen className="w-2.5 h-2.5 text-purple-300" strokeWidth={1.65} />
+                  <span>Jupyter/Colab</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Colab button (visible on mobile too!) */}
           {isExecutable && (
             <button
               type="button"
               onClick={handleColab}
-              aria-label="Open in Google Colab"
-              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400/50"
-              title="Open in Google Colab"
+              aria-label="Copy and Open in Google Colab"
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400/50"
+              title="Copy code and launch Google Colab"
             >
               <ExternalLink className="w-2.5 h-2.5" strokeWidth={1.65} />
               <span>Colab</span>
@@ -438,20 +516,20 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             type="button"
             onClick={handleDownloadRaw}
             aria-label={`Download raw file (.${(language || 'py').toLowerCase()})`}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400/50"
+            className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400/50"
             title={`Download raw file (.${(language || 'py').toLowerCase()})`}
           >
             <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
             <span>Raw</span>
           </button>
 
-          {/* Download .ipynb button */}
+          {/* Download .ipynb button (visible on mobile too!) */}
           {isExecutable && (
             <button
               type="button"
               onClick={handleDownloadIpynb}
               aria-label="Download as Jupyter Notebook (.ipynb)"
-              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               title="Download as Jupyter Notebook (.ipynb)"
             >
               <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
@@ -504,6 +582,22 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           <pre className={`whitespace-pre-wrap leading-relaxed ${execResult.success ? 'text-emerald-300' : 'text-rose-300'}`}>
             {execResult.error || execResult.output}
           </pre>
+
+          {/* Self-Healing Auto-Fix Trigger */}
+          {!execResult.success && onFixCode && (
+            <div className="mt-2 pt-1.5 border-t border-rose-500/20 flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[10px] text-rose-300/80">Code encountered an execution error.</span>
+              <button
+                type="button"
+                onClick={() => onFixCode(execResult.error || 'Execution failed', code)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[10px] font-semibold transition-all cursor-pointer shadow-[0_0_10px_rgba(244,63,94,0.2)]"
+                title="Ask NEMI AI to diagnose and repair this code automatically"
+              >
+                <Sparkles className="w-3 h-3 text-rose-300 animate-pulse" strokeWidth={1.65} />
+                <span>Auto-Fix with NEMI</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -518,6 +612,8 @@ export interface MessageBubbleProps {
   onSpeak?: (text: string) => void
   onRemember?: (text: string) => void
   isSpeakingThis?: boolean
+  onFixCode?: (error: string, code: string) => void
+  onToast?: (message: string) => void
 }
 
 export default function MessageBubble({
@@ -525,9 +621,12 @@ export default function MessageBubble({
   onSpeak,
   onRemember,
   isSpeakingThis,
+  onFixCode,
+  onToast,
 }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
+  const [jupyterCopied, setJupyterCopied] = useState(false)
   const [remembered, setRemembered] = useState(false)
 
   const timeStr = (() => {
@@ -540,9 +639,11 @@ export default function MessageBubble({
   })()
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    const success = await copyTextToClipboard(message.content)
+    if (success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const handleRemember = () => {
@@ -561,6 +662,36 @@ export default function MessageBubble({
       responseText: message.content,
     })
     downloadNotebookFile(nb, `nemi_task_${Date.now()}.ipynb`)
+    if (onToast) {
+      onToast('Full conversation notebook (.ipynb) downloaded!')
+    }
+  }
+
+  const handleCopyAllJupyter = async () => {
+    const nb = buildNotebookFromResponse({
+      taskName: 'NEMI Task Analysis',
+      responseText: message.content,
+    })
+    const script = formatNotebookAsJupyterScript(nb)
+    const success = await copyTextToClipboard(script)
+    if (success) {
+      setJupyterCopied(true)
+      setTimeout(() => setJupyterCopied(false), 2500)
+      if (onToast) {
+        onToast('All cells formatted with # %% and copied! Paste directly into Jupyter or Colab.')
+      }
+    }
+  }
+
+  const handleCopyIpynbJson = async () => {
+    const nb = buildNotebookFromResponse({
+      taskName: 'NEMI Task Analysis',
+      responseText: message.content,
+    })
+    const success = await copyNotebookAsJson(nb)
+    if (success && onToast) {
+      onToast('Valid Jupyter Notebook JSON copied to clipboard!')
+    }
   }
 
   const handleOpenColabFull = async () => {
@@ -569,6 +700,9 @@ export default function MessageBubble({
       responseText: message.content,
     })
     await openInGoogleColab(nb)
+    if (onToast) {
+      onToast('Code copied! Paste directly into Google Colab (Cmd+V / Ctrl+V).')
+    }
   }
 
   if (isUser) {
@@ -622,7 +756,7 @@ export default function MessageBubble({
           bg-slate-900/60 backdrop-blur-md border border-white/8
           shadow-[0_4px_16px_rgba(0,0,0,0.3)] space-y-1
         ">
-          {renderMarkdown(message.content)}
+          {renderMarkdown(message.content, onFixCode, onToast)}
           {/* Streaming cursor */}
           {message.streaming && (
             <span className="inline-block w-1 h-3.5 bg-cyan-400 animate-pulse align-text-bottom ml-0.5 rounded-xs" />
@@ -634,7 +768,24 @@ export default function MessageBubble({
               <span className="text-[10px] text-purple-300/80 font-mono flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-purple-400" strokeWidth={1.65} /> Code ready
               </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Copy for Jupyter cells */}
+                <button
+                  type="button"
+                  onClick={handleCopyAllJupyter}
+                  aria-label="Copy all code formatted as Jupyter cells (# %%)"
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer flex items-center gap-1 border ${
+                    jupyterCopied
+                      ? 'bg-purple-500/30 text-purple-200 border-purple-400/50'
+                      : 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border-purple-400/20'
+                  }`}
+                  title="Copy code formatted as interactive Jupyter cells (# %%)"
+                >
+                  <Copy className="w-2.5 h-2.5" strokeWidth={1.65} />
+                  <span>{jupyterCopied ? 'Cells Copied!' : 'Copy for Jupyter'}</span>
+                </button>
+
+                {/* Download .ipynb */}
                 <button
                   type="button"
                   onClick={handleDownloadFullNotebook}
@@ -645,15 +796,28 @@ export default function MessageBubble({
                   <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
                   <span>.ipynb</span>
                 </button>
+
+                {/* Colab button (visible on mobile too!) */}
                 <button
                   type="button"
                   onClick={handleOpenColabFull}
                   aria-label="Open conversation notebook in Google Colab"
-                  className="hidden sm:flex px-2 py-0.5 rounded text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-medium transition-colors cursor-pointer items-center gap-1 focus-visible:ring-2 focus-visible:ring-amber-400/50"
-                  title="Open in Google Colab"
+                  className="flex px-2 py-0.5 rounded text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-medium transition-colors cursor-pointer items-center gap-1 focus-visible:ring-2 focus-visible:ring-amber-400/50"
+                  title="Copy code and open in Google Colab"
                 >
                   <BookOpen className="w-2.5 h-2.5" strokeWidth={1.65} />
                   <span>Colab</span>
+                </button>
+
+                {/* Copy JSON */}
+                <button
+                  type="button"
+                  onClick={handleCopyIpynbJson}
+                  aria-label="Copy .ipynb raw JSON"
+                  className="hidden xs:flex px-1.5 py-0.5 rounded text-[10px] bg-white/5 hover:bg-white/10 text-white/50 hover:text-white font-mono transition-colors cursor-pointer items-center gap-1"
+                  title="Copy valid Jupyter Notebook JSON"
+                >
+                  <span>JSON</span>
                 </button>
               </div>
             </div>

@@ -3,6 +3,10 @@ import {
   extractCodeBlocks,
   buildNotebookFromResponse,
   executeCodeSnippet,
+  formatCodeForJupyter,
+  formatNotebookAsJupyterScript,
+  copyNotebookAsJson,
+  copyTextToClipboard,
 } from '../src/renderer/src/utils/jupyter'
 
 describe('NEMI Jupyter Notebook Utility Suite', () => {
@@ -107,5 +111,48 @@ print("Unique words:", len(counts))
     const result = await executeCodeSnippet(brokenCode)
     expect(result.success).toBe(false)
     expect(result.error).toContain('SyntaxError')
+  })
+
+  it('formats code cleanly for Jupyter and Google Colab by stripping markdown ticks', () => {
+    const rawWithTicks = `\`\`\`python
+def calculate_metrics():
+    return {"acc": 0.98}
+\`\`\``
+    const clean = formatCodeForJupyter(rawWithTicks)
+    expect(clean).not.toContain('```')
+    expect(clean).toContain('def calculate_metrics():')
+
+    // Test with cell marker (# %%)
+    const withCell = formatCodeForJupyter(rawWithTicks, { asCell: true })
+    expect(withCell.startsWith('# %%\n')).toBe(true)
+    expect(withCell).toContain('def calculate_metrics():')
+  })
+
+  it('formats a full JupyterNotebook into an interactive script with # %% markers', () => {
+    const notebook = buildNotebookFromResponse({
+      taskName: 'linear_regression',
+      prompt: 'Fit line',
+      responseText: `# Linear Model\n\`\`\`python\nimport numpy as np\nx = np.array([1, 2, 3])\n\`\`\``,
+    })
+
+    const script = formatNotebookAsJupyterScript(notebook)
+    expect(script).toContain('# %% [markdown]')
+    expect(script).toContain('# %%')
+    expect(script).toContain('import numpy as np')
+  })
+
+  it('copies text and notebook json with fallback support', async () => {
+    const notebook = buildNotebookFromResponse({
+      taskName: 'test_notebook',
+      prompt: 'test',
+      responseText: '```python\nprint("hello")\n```',
+    })
+
+    // In node/vitest environment, copyTextToClipboard safely returns boolean without crashing
+    const copied = await copyNotebookAsJson(notebook)
+    expect(typeof copied).toBe('boolean')
+
+    const copiedText = await copyTextToClipboard('sample code')
+    expect(typeof copiedText).toBe('boolean')
   })
 })

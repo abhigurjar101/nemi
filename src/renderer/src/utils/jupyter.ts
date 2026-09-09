@@ -199,22 +199,130 @@ export function downloadNotebookFile(notebook: JupyterNotebook, filename?: strin
 }
 
 /**
+ * Universal fail-proof clipboard copier.
+ * Uses navigator.clipboard if available, with a textarea fallback for iOS Safari,
+ * mobile browsers, or non-secure contexts.
+ */
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (typeof text !== 'string') return false
+
+  // 1. Try modern async Clipboard API
+  if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall through to execCommand
+    }
+  }
+
+  // 2. Fallback for mobile browsers, iOS Safari, or non-secure iframe contexts
+  if (typeof document !== 'undefined') {
+    try {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.setAttribute('readonly', '')
+      textArea.style.position = 'fixed'
+      textArea.style.top = '0'
+      textArea.style.left = '0'
+      textArea.style.width = '2em'
+      textArea.style.height = '2em'
+      textArea.style.padding = '0'
+      textArea.style.border = 'none'
+      textArea.style.outline = 'none'
+      textArea.style.boxShadow = 'none'
+      textArea.style.background = 'transparent'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      textArea.setSelectionRange(0, textArea.value.length)
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      if (successful) return true
+    } catch {}
+  }
+  return false
+}
+
+/**
+ * Strips markdown code block ticks (e.g. ```python ... ```) and ensures
+ * code is ready for direct pasting into Jupyter or Google Colab cells.
+ * Optionally prefixes with standard IPython cell marker '# %%' for multi-cell split.
+ */
+export function formatCodeForJupyter(
+  code: string,
+  options?: { asCell?: boolean; title?: string }
+): string {
+  if (!code) return ''
+
+  // Strip enclosing markdown code block fences if present
+  let clean = code.trim()
+  const fenceRegex = /^```(?:[a-zA-Z0-9_-]+)?\s*\n?([\s\S]*?)\n?```$/
+  const match = clean.match(fenceRegex)
+  if (match) {
+    clean = match[1].trim()
+  }
+
+  // Remove any trailing or leading lone backticks
+  clean = clean.replace(/^```[a-zA-Z0-9_-]*\n/, '').replace(/\n```$/, '').trim()
+
+  if (options?.asCell) {
+    const header = options.title ? `# %% [code] - ${options.title}\n` : '# %%\n'
+    return header + clean
+  }
+
+  return clean
+}
+
+/**
+ * Formats an entire JupyterNotebook into an interactive IPython script using '# %%' cell markers.
+ * When pasted into VS Code Interactive, JupyterLab, or Colab, it automatically creates clean cells.
+ */
+export function formatNotebookAsJupyterScript(notebook: JupyterNotebook): string {
+  if (!notebook || !Array.isArray(notebook.cells)) return ''
+
+  return notebook.cells
+    .map((cell) => {
+      const content = cell.source.join('')
+      if (cell.cell_type === 'markdown') {
+        const commentedLines = content
+          .split('\n')
+          .map((line) => (line.trim() ? `# ${line}` : '#'))
+          .join('\n')
+        return `# %% [markdown]\n${commentedLines}`
+      } else {
+        return `# %%\n${content.trim()}`
+      }
+    })
+    .join('\n\n')
+}
+
+/**
+ * Copies the raw Jupyter notebook JSON string to the clipboard.
+ */
+export async function copyNotebookAsJson(notebook: JupyterNotebook): Promise<boolean> {
+  const json = JSON.stringify(notebook, null, 2)
+  return copyTextToClipboard(json)
+}
+
+/**
  * Opens Google Colab in a new tab with a clean ready-to-run environment.
  * Copies the primary Python code to the user's clipboard so they can paste directly.
  */
-export async function openInGoogleColab(notebook: JupyterNotebook): Promise<void> {
+export async function openInGoogleColab(notebook: JupyterNotebook): Promise<boolean> {
   // Extract all code from code cells
   const codeCells = notebook.cells.filter((c) => c.cell_type === 'code')
-  const combinedCode = codeCells.map((c) => c.source.join('')).join('\n\n# --- Next Cell ---\n\n')
+  const combinedCode = codeCells.map((c) => c.source.join('').trim()).join('\n\n# --- Next Cell ---\n\n')
 
-  try {
-    if (combinedCode && typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(combinedCode)
-    }
-  } catch {}
+  const copied = await copyTextToClipboard(combinedCode)
 
   // Open Colab new notebook
-  window.open('https://colab.research.google.com/#create=true', '_blank')
+  try {
+    window.open('https://colab.research.google.com/#create=true', '_blank')
+  } catch {}
+
+  return copied
 }
 
 /**

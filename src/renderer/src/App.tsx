@@ -20,9 +20,11 @@ import {
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
-  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff
+  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search
 } from 'lucide-react'
 import BotIcon from './components/BotIcon'
+import CommandPalette from './components/CommandPalette'
+import { downloadNotebookFile, buildNotebookFromResponse } from './utils/jupyter'
 import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
   type ConversationSession,
@@ -842,6 +844,25 @@ export default function App() {
   const processedTranscriptRef = useRef<boolean>(false)
   const sendToAIRef = useRef<(text: string) => Promise<void>>(async () => {})
 
+  // ── Universal Command Palette & Toast Notifications ──
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    triggerHaptic(15)
+    setTimeout(() => {
+      setToastMessage((curr) => (curr === msg ? null : curr))
+    }, 3200)
+  }, [])
+
+  const handleAutoFixCode = useCallback((error: string, code: string) => {
+    triggerHaptic(25)
+    setChatOpen(true)
+    const fixPrompt = `[SELF-HEALING CODE FIX REQUEST]\nThe following code produced a runtime or kernel error during execution:\n\n\`\`\`python\n${code}\n\`\`\`\n\nExact Error Traceback:\n${error}\n\nPlease analyze the root cause, fix the issue completely, and return the corrected, verified code ready for execution in Jupyter Notebook / Google Colab.`
+    void sendToAIRef.current?.(fixPrompt)
+    showToast('NEMI Self-Healing: Diagnosing and repairing code...')
+  }, [showToast])
+
   // Non-allocating audio level accessor for 60fps zero-render visual reactivity (3D Brain & ripples)
   // Measures active TTS output when speaking, or microphone input when listening
   const audioDataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
@@ -1027,9 +1048,16 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Auto-open chat when typing on keyboard ──
+  // ── Global Keyboard Shortcuts: Cmd+K (Command Palette) & Quick-type ──
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K toggles Command Palette
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+        return
+      }
+
       const activeTag = document.activeElement?.tagName.toLowerCase()
       if (activeTag === 'input' || activeTag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) {
         return
@@ -2209,6 +2237,19 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
 
         {/* ── DESKTOP UNIFIED GLASS TOOLBAR (hidden md:flex) ── */}
         <div className="hidden md:flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Command Palette Trigger */}
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            aria-label="Open Command Palette (Cmd+K)"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
+            title="Open Command Palette (Cmd+K / Ctrl+K)"
+          >
+            <Search className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" strokeWidth={1.65} />
+            <span className="hidden xl:inline">Commands</span>
+            <kbd className="hidden sm:inline-flex px-1.5 py-0.2 rounded bg-white/10 text-[9px] font-mono text-white/50 border border-white/10">⌘K</kbd>
+          </button>
+
           {/* Bot Fleet */}
           <button
             type="button"
@@ -2382,6 +2423,20 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <span className="text-[11px] font-medium">Chat</span>
           </button>
 
+          {/* Mobile Command Palette Trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic(10)
+              setCommandPaletteOpen(true)
+            }}
+            aria-label="Open Command Palette"
+            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
+            title="Search & Commands (Cmd+K)"
+          >
+            <Search className="w-3.5 h-3.5 text-cyan-400" strokeWidth={1.8} />
+          </button>
+
           {/* Actions Menu Trigger */}
           <button
             type="button"
@@ -2439,6 +2494,27 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               </div>
 
               <div className="grid grid-cols-1 gap-2.5">
+                {/* 0. Command Palette */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setCommandPaletteOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-400/25 active:bg-cyan-500/20 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+                      <Search className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">Universal Command Palette</div>
+                      <div className="text-xs text-cyan-300/70">Quick launcher, bots & tools (Cmd+K)</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-cyan-300/50" />
+                </button>
+
                 {/* 1. Bot Fleet */}
                 <button
                   type="button"
@@ -2785,6 +2861,8 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           modelBadge={activeBot.name}
           selectedBotId={selectedBotId}
           onSelectBot={(id) => setSelectedBotId(id)}
+          onFixCode={handleAutoFixCode}
+          onToast={showToast}
         />
 
         <RagPanel
@@ -3024,6 +3102,65 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         </div>
       )}
+
+      {/* Universal Floating Toast Feedback */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.92 }}
+            transition={{ type: 'spring', damping: 24, stiffness: 320 }}
+            className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+          >
+            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-900/95 border border-cyan-400/40 text-white shadow-[0_8px_32px_rgba(0,0,0,0.8),0_0_20px_rgba(0,212,255,0.25)] backdrop-blur-xl">
+              <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0 animate-pulse" strokeWidth={1.75} />
+              <span className="text-xs font-medium text-white/90">{toastMessage}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Universal Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSelectBot={(id) => {
+          setSelectedBotId(id)
+          setChatOpen(true)
+        }}
+        onOpenColab={() => {
+          window.open('https://colab.research.google.com/#create=true', '_blank')
+          showToast('Opened Google Colab notebook in new tab.')
+        }}
+        onDownloadNotebook={() => {
+          const lastMsgWithCode = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.includes('```'))
+          if (lastMsgWithCode) {
+            const nb = buildNotebookFromResponse({
+              taskName: 'NEMI Command Session',
+              responseText: lastMsgWithCode.content,
+            })
+            downloadNotebookFile(nb, `nemi_session_${Date.now()}.ipynb`)
+            showToast('Downloaded Jupyter Notebook (.ipynb)')
+          } else {
+            showToast('No code cells found to export to notebook.')
+          }
+        }}
+        onOpenRag={() => {
+          setRagOpen(true)
+          setChatOpen(false)
+        }}
+        onTriggerGitHubLearning={async () => {
+          const res = await triggerDailyGitHubLearning(memories, true)
+          setMemories(res.newMemories)
+          setGithubLearningBanner(res.summary)
+          showToast('NEMI Swarm updated with latest GitHub architectures!')
+          setTimeout(() => setGithubLearningBanner(null), 8000)
+        }}
+        onToggleVoice={() => toggleVoice()}
+        onNewChat={handleNewConversation}
+        onToast={showToast}
+      />
     </div>
   )
 }
