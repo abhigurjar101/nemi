@@ -1,9 +1,10 @@
-import React, { useRef, useMemo, useCallback } from 'react'
+import React, { useRef, useMemo, useCallback, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
+import { ZoomIn, ZoomOut, RotateCcw, Compass } from 'lucide-react'
 
 // ──────────────────────────────────────────────────────────
 // TYPES
@@ -652,6 +653,64 @@ function NimEnergyHalo() {
 }
 
 // ──────────────────────────────────────────────────────────
+// CAMERA RIG & ORBIT CONTROLLER
+// ──────────────────────────────────────────────────────────
+interface CameraRigProps {
+  resetSignal: number
+  zoomSignal: { action: 'in' | 'out'; id: number } | null
+}
+
+function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
+  const controlsRef = useRef<any>(null)
+  const { camera } = useThree()
+
+  // Zoom In / Zoom Out trigger from HUD buttons
+  useEffect(() => {
+    if (!zoomSignal) return
+    const controls = controlsRef.current
+    if (!controls) return
+
+    const factor = zoomSignal.action === 'in' ? 0.72 : 1.35
+    const target = controls.target || new THREE.Vector3(0, 0, 0)
+    const dir = new THREE.Vector3().subVectors(camera.position, target)
+    let newDist = dir.length() * factor
+    if (newDist < 2.5) newDist = 2.5
+    if (newDist > 40) newDist = 40
+    dir.setLength(newDist)
+    camera.position.copy(target).add(dir)
+    controls.update()
+  }, [zoomSignal, camera])
+
+  // Reset Camera trigger from HUD buttons
+  useEffect(() => {
+    if (resetSignal === 0) return
+    const controls = controlsRef.current
+    if (!controls) return
+
+    controls.target.set(0, 0, 0)
+    camera.position.set(0, 0, 14)
+    camera.up.set(0, 1, 0)
+    controls.update()
+  }, [resetSignal, camera])
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enableRotate={true}
+      enableZoom={true}
+      enablePan={true}
+      minDistance={2.5}
+      maxDistance={40}
+      dampingFactor={0.06}
+      enableDamping={true}
+      rotateSpeed={0.8}
+      zoomSpeed={1.0}
+      makeDefault
+    />
+  )
+}
+
+// ──────────────────────────────────────────────────────────
 // MAIN NEMI BRAIN COMPONENT
 // ──────────────────────────────────────────────────────────
 export default function NemiBrain({
@@ -666,62 +725,135 @@ export default function NemiBrain({
   const NEURON_COUNT = 220
   const MAX_CONNECTION_DIST = 2.8
 
+  const [resetSignal, setResetSignal] = useState(0)
+  const [zoomSignal, setZoomSignal] = useState<{ action: 'in' | 'out'; id: number } | null>(null)
+
   const neurons = useMemo(() => generateNeurons(NEURON_COUNT), [])
   const connections = useMemo(
     () => generateConnections(neurons, MAX_CONNECTION_DIST),
     [neurons]
   )
 
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return
+    const dx = Math.abs(e.clientX - pointerStartRef.current.x)
+    const dy = Math.abs(e.clientY - pointerStartRef.current.y)
+    pointerStartRef.current = null
+
+    // Only fire brain click if pointer moved less than 6px (intentional click vs 3D drag)
+    if (dx < 6 && dy < 6 && onBrainClick) {
+      onBrainClick()
+    }
+  }
+
   return (
-    <Canvas
-      className="brain-canvas"
-      dpr={[1, 1.5]}
-      performance={{ min: 0.5 }}
-      gl={{
-        alpha: true,
-        antialias: false,
-        powerPreference: 'high-performance',
-        stencil: false,
-        depth: true,
-        toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.2,
-      }}
-      camera={{ position: [0, 0, 14], fov: 55, near: 0.1, far: 100 }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'transparent',
-        pointerEvents: 'none', // pass through unless clicked
-      }}
-      onClick={onBrainClick}
-    >
-      <SceneLights isListening={isListening} isThinking={isThinking} nimActive={nimActive} />
+    <div className="fixed inset-0 pointer-events-none z-0">
+      <Canvas
+        className="brain-canvas pointer-events-auto"
+        dpr={[1, 1.5]}
+        performance={{ min: 0.5 }}
+        gl={{
+          alpha: true,
+          antialias: false,
+          powerPreference: 'high-performance',
+          stencil: false,
+          depth: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.2,
+        }}
+        camera={{ position: [0, 0, 14], fov: 55, near: 0.1, far: 100 }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'transparent',
+          touchAction: 'none',
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+      >
+        <CameraRig resetSignal={resetSignal} zoomSignal={zoomSignal} />
 
-      {nimActive && <NimEnergyHalo />}
+        <SceneLights isListening={isListening} isThinking={isThinking} nimActive={nimActive} />
 
-      <group scale={nimActive ? 1.35 : 1}>
-        <BrainGroup
-          neurons={neurons}
-          connections={connections}
-          isListening={isListening}
-          isThinking={isThinking}
-          isSpeaking={isSpeaking}
-          companionEnabled={companionEnabled}
-          audioLevel={audioLevel}
-          nimActive={nimActive}
-        />
-      </group>
+        {nimActive && <NimEnergyHalo />}
 
-      {/* Optimized Post-processing: Fast Mipmap Bloom without costly multi-pass convolution */}
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2)}
-          luminanceThreshold={0.15}
-          luminanceSmoothing={0.85}
-          mipmapBlur
-          blendFunction={BlendFunction.ADD}
-        />
-      </EffectComposer>
-    </Canvas>
+        <group scale={nimActive ? 1.35 : 1}>
+          <BrainGroup
+            neurons={neurons}
+            connections={connections}
+            isListening={isListening}
+            isThinking={isThinking}
+            isSpeaking={isSpeaking}
+            companionEnabled={companionEnabled}
+            audioLevel={audioLevel}
+            nimActive={nimActive}
+          />
+        </group>
+
+        {/* Optimized Post-processing: Fast Mipmap Bloom without costly multi-pass convolution */}
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2)}
+            luminanceThreshold={0.15}
+            luminanceSmoothing={0.85}
+            mipmapBlur
+            blendFunction={BlendFunction.ADD}
+          />
+        </EffectComposer>
+      </Canvas>
+
+      {/* ── Sleek Minimalist 3D Brain Camera HUD (Fixed Lower-Left) ── */}
+      <div
+        className="fixed bottom-24 sm:bottom-6 left-4 sm:left-6 z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl glass-panel bg-slate-950/85 backdrop-blur-2xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.75)] select-none"
+        role="toolbar"
+        aria-label="3D Brain Navigation Controls"
+      >
+        <button
+          type="button"
+          onClick={() => setZoomSignal((prev) => ({ action: 'in', id: (prev?.id || 0) + 1 }))}
+          aria-label="Zoom in on NEMI Brain"
+          className="p-2 min-h-[36px] min-w-[36px] rounded-xl text-white/60 hover:text-cyan-300 hover:bg-white/10 active:bg-white/15 transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+          title="Zoom In (Scroll up, pinch, or click)"
+        >
+          <ZoomIn className="w-4 h-4" strokeWidth={1.65} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setZoomSignal((prev) => ({ action: 'out', id: (prev?.id || 0) + 1 }))}
+          aria-label="Zoom out of NEMI Brain"
+          className="p-2 min-h-[36px] min-w-[36px] rounded-xl text-white/60 hover:text-cyan-300 hover:bg-white/10 active:bg-white/15 transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+          title="Zoom Out (Scroll down, pinch, or click)"
+        >
+          <ZoomOut className="w-4 h-4" strokeWidth={1.65} />
+        </button>
+
+        <div className="w-[1px] h-5 bg-white/10 mx-0.5" aria-hidden="true" />
+
+        <button
+          type="button"
+          onClick={() => setResetSignal((c) => c + 1)}
+          aria-label="Reset Brain Camera View"
+          className="p-2 min-h-[36px] min-w-[36px] rounded-xl text-white/60 hover:text-purple-300 hover:bg-white/10 active:bg-white/15 transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/60"
+          title="Reset 3D View (Default perspective)"
+        >
+          <RotateCcw className="w-4 h-4" strokeWidth={1.65} />
+        </button>
+
+        <div className="w-[1px] h-5 bg-white/10 mx-0.5 hidden sm:block" aria-hidden="true" />
+
+        {/* Minimal hint badge */}
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium text-white/40">
+          <Compass className="w-3.5 h-3.5 text-purple-400/70" strokeWidth={1.65} />
+          <span>Drag to orbit • Scroll to zoom</span>
+        </div>
+      </div>
+    </div>
   )
 }

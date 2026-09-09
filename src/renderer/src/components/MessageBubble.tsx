@@ -407,12 +407,14 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           {/* Run button */}
           {isExecutable && (
             <button
+              type="button"
               onClick={handleRun}
               disabled={isRunning}
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+              aria-label="Execute code in kernel sandbox"
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-emerald-400/50"
               title="Execute code in kernel sandbox"
             >
-              <Play className="w-2.5 h-2.5 fill-current" />
+              <Play className="w-2.5 h-2.5 fill-current" strokeWidth={1.65} />
               <span>{isRunning ? 'Running...' : 'Run'}</span>
             </button>
           )}
@@ -420,46 +422,54 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           {/* Colab button */}
           {isExecutable && (
             <button
+              type="button"
               onClick={handleColab}
-              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-medium transition-colors cursor-pointer"
+              aria-label="Open in Google Colab"
+              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400/50"
               title="Open in Google Colab"
             >
-              <ExternalLink className="w-2.5 h-2.5" />
+              <ExternalLink className="w-2.5 h-2.5" strokeWidth={1.65} />
               <span>Colab</span>
             </button>
           )}
 
           {/* Download Raw file button */}
           <button
+            type="button"
             onClick={handleDownloadRaw}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors cursor-pointer"
+            aria-label={`Download raw file (.${(language || 'py').toLowerCase()})`}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-400/50"
             title={`Download raw file (.${(language || 'py').toLowerCase()})`}
           >
-            <Download className="w-2.5 h-2.5" />
+            <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
             <span>Raw</span>
           </button>
 
           {/* Download .ipynb button */}
           {isExecutable && (
             <button
+              type="button"
               onClick={handleDownloadIpynb}
-              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer"
+              aria-label="Download as Jupyter Notebook (.ipynb)"
+              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               title="Download as Jupyter Notebook (.ipynb)"
             >
-              <Download className="w-2.5 h-2.5" />
+              <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
               <span>.ipynb</span>
             </button>
           )}
 
           {/* Copy button */}
           <button
+            type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white/60 hover:text-white transition-colors cursor-pointer"
+            aria-label="Copy code to clipboard"
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white/60 hover:text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-white/50"
           >
             {copied ? (
-              <><Check className="w-2.5 h-2.5 text-emerald-400" /><span className="text-emerald-400 text-[9px]">Copied</span></>
+              <><Check className="w-2.5 h-2.5 text-emerald-400" strokeWidth={1.65} /><span className="text-emerald-400 text-[9px]">Copied</span></>
             ) : (
-              <><Copy className="w-2.5 h-2.5" /><span className="text-[9px]">Copy</span></>
+              <><Copy className="w-2.5 h-2.5" strokeWidth={1.65} /><span className="text-[9px]">Copy</span></>
             )}
           </button>
         </div>
@@ -580,11 +590,13 @@ export default function MessageBubble({
           </div>
           <div className="flex items-center justify-end gap-2 pr-1">
             <button
+              type="button"
               onClick={handleCopy}
-              className="opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 text-white/40 hover:text-white/80 cursor-pointer"
+              aria-label="Copy your message"
+              className="opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 text-white/40 hover:text-white/80 cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               title="Copy"
             >
-              {copied ? <Check className="w-2.5 h-2.5 text-green-400" /> : <Copy className="w-2.5 h-2.5" />}
+              {copied ? <Check className="w-2.5 h-2.5 text-green-400" strokeWidth={1.65} /> : <Copy className="w-2.5 h-2.5" strokeWidth={1.65} />}
             </button>
             <span className="text-[9px] text-white/25 font-mono">{timeStr}</span>
           </div>
@@ -620,23 +632,27 @@ export default function MessageBubble({
           {hasCode && !message.streaming && (
             <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap">
               <span className="text-[10px] text-purple-300/80 font-mono flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-purple-400" /> Code ready
+                <Sparkles className="w-3 h-3 text-purple-400" strokeWidth={1.65} /> Code ready
               </span>
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={handleDownloadFullNotebook}
-                  className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-medium transition-colors cursor-pointer flex items-center gap-1"
+                  aria-label="Download conversation notebook (.ipynb)"
+                  className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-medium transition-colors cursor-pointer flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-400/50"
                   title="Download conversation notebook"
                 >
-                  <Download className="w-2.5 h-2.5" />
+                  <Download className="w-2.5 h-2.5" strokeWidth={1.65} />
                   <span>.ipynb</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handleOpenColabFull}
-                  className="hidden sm:flex px-2 py-0.5 rounded text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-medium transition-colors cursor-pointer items-center gap-1"
+                  aria-label="Open conversation notebook in Google Colab"
+                  className="hidden sm:flex px-2 py-0.5 rounded text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-medium transition-colors cursor-pointer items-center gap-1 focus-visible:ring-2 focus-visible:ring-amber-400/50"
                   title="Open in Google Colab"
                 >
-                  <BookOpen className="w-2.5 h-2.5" />
+                  <BookOpen className="w-2.5 h-2.5" strokeWidth={1.65} />
                   <span>Colab</span>
                 </button>
               </div>
@@ -654,7 +670,7 @@ export default function MessageBubble({
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-[9px] text-emerald-400 flex items-center gap-1 font-semibold"
               >
-                <CheckCircle2 className="w-2.5 h-2.5" /> Saved to Memory
+                <CheckCircle2 className="w-2.5 h-2.5" strokeWidth={1.65} /> Saved to Memory
               </motion.span>
             )}
           </div>
@@ -662,30 +678,36 @@ export default function MessageBubble({
           <div className="flex items-center gap-1 opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity">
             {onSpeak && (
               <button
+                type="button"
                 onClick={() => onSpeak(message.content)}
-                className={`p-1 rounded-md transition-colors ${
+                aria-label={isSpeakingThis ? 'Stop speaking message' : 'Read message aloud'}
+                className={`p-1 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
                   isSpeakingThis ? 'text-cyan-400 bg-cyan-500/20' : 'text-white/35 hover:text-white/80 hover:bg-white/5'
                 }`}
                 title={isSpeakingThis ? 'Speaking...' : 'Read aloud'}
               >
-                <Volume2 className="w-3 h-3" />
+                <Volume2 className="w-3 h-3" strokeWidth={1.65} />
               </button>
             )}
             {onRemember && (
               <button
+                type="button"
                 onClick={handleRemember}
-                className="p-1 rounded-md text-white/35 hover:text-amber-300 hover:bg-white/5 transition-colors"
+                aria-label="Save response to NEMI Memory Vault"
+                className="p-1 rounded-md text-white/35 hover:text-amber-300 hover:bg-white/5 transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/50"
                 title="Save to NEMI Memory Vault"
               >
-                <Bookmark className="w-3 h-3" />
+                <Bookmark className="w-3 h-3" strokeWidth={1.65} />
               </button>
             )}
             <button
+              type="button"
               onClick={handleCopy}
-              className="p-1 rounded-md text-white/35 hover:text-white/80 hover:bg-white/5 transition-colors"
+              aria-label="Copy AI response"
+              className="p-1 rounded-md text-white/35 hover:text-white/80 hover:bg-white/5 transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
               title="Copy"
             >
-              {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+              {copied ? <Check className="w-3 h-3 text-green-400" strokeWidth={1.65} /> : <Copy className="w-3 h-3" strokeWidth={1.65} />}
             </button>
           </div>
         </div>

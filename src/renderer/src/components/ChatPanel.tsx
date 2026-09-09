@@ -295,12 +295,14 @@ export default function ChatPanel({
               <div className="flex items-center gap-1">
                 {/* Memory Vault Toggle */}
                 <button
+                  type="button"
                   onClick={() => {
                     if (isMinimized) setIsMinimized(false)
                     setActiveTab(activeTab === 'memory' ? 'chat' : 'memory')
                   }}
+                  aria-label="View NEMI Chat Memory"
                   className={`
-                    px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer
+                    px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50
                     ${activeTab === 'memory'
                       ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
                       : 'bg-white/5 hover:bg-white/10 text-white/50 border border-white/5'
@@ -308,18 +310,20 @@ export default function ChatPanel({
                   `}
                   title="View NEMI Chat Memory"
                 >
-                  <Brain className="w-3 h-3 text-purple-400" />
+                  <Brain className="w-3 h-3 text-purple-400" strokeWidth={1.65} />
                   <span>{memories.length}</span>
                 </button>
 
                 {/* History Switcher Toggle */}
                 <button
+                  type="button"
                   onClick={() => {
                     if (isMinimized) setIsMinimized(false)
                     setActiveTab(activeTab === 'history' ? 'chat' : 'history')
                   }}
+                  aria-label="View Past Conversations"
                   className={`
-                    p-1.5 rounded-xl transition-all cursor-pointer
+                    p-1.5 rounded-xl transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50
                     ${activeTab === 'history'
                       ? 'bg-cyan-500/20 text-cyan-300'
                       : 'text-white/40 hover:text-white/80 hover:bg-white/5'
@@ -327,39 +331,45 @@ export default function ChatPanel({
                   `}
                   title="Past Conversations"
                 >
-                  <Clock className="w-3.5 h-3.5" />
+                  <Clock className="w-3.5 h-3.5" strokeWidth={1.65} />
                 </button>
 
                 {/* New Chat */}
                 {onNewConversation && (
                   <button
+                    type="button"
                     onClick={() => {
                       onNewConversation()
                       setActiveTab('chat')
                     }}
-                    className="p-1.5 rounded-xl text-white/40 hover:text-cyan-300 hover:bg-white/5 transition-all cursor-pointer"
+                    aria-label="Start new conversation"
+                    className="p-1.5 rounded-xl text-white/40 hover:text-cyan-300 hover:bg-white/5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
                     title="New conversation"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" strokeWidth={1.65} />
                   </button>
                 )}
 
                 {/* Minimize Toggle */}
                 <button
+                  type="button"
                   onClick={() => setIsMinimized(!isMinimized)}
-                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                  aria-label={isMinimized ? 'Expand chat window' : 'Minimize chat window'}
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-white/50"
                   title={isMinimized ? 'Expand' : 'Minimize'}
                 >
-                  {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+                  {isMinimized ? <Maximize2 className="w-3.5 h-3.5" strokeWidth={1.65} /> : <Minimize2 className="w-3.5 h-3.5" strokeWidth={1.65} />}
                 </button>
 
                 {/* Close Button */}
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                  aria-label="Close chat window"
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white/80 hover:bg-white/5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-white/50"
                   title="Close"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" strokeWidth={1.65} />
                 </button>
               </div>
             </div>
@@ -528,10 +538,11 @@ export default function ChatPanel({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 text-white/40 hover:text-cyan-300 hover:bg-white/5"
+                          aria-label="Upload file or code to chat"
+                          className="p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 text-white/40 hover:text-cyan-300 hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-cyan-400/50"
                           title="Upload file or code to chat"
                         >
-                          <Paperclip className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                          <Paperclip className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
                         </button>
 
                         <textarea
@@ -541,6 +552,7 @@ export default function ChatPanel({
                           onKeyDown={handleKeyDown}
                           placeholder={isListening ? 'Listening via microphone...' : attachedFiles.length > 0 ? 'Ask a question about uploaded file...' : activeBot.placeholder}
                           rows={1}
+                          aria-label="Chat message input"
                           className="
                             flex-1 bg-transparent px-2.5 py-2 sm:px-2 sm:py-1.5
                             text-base sm:text-xs text-white/95 placeholder-white/25
@@ -560,14 +572,19 @@ export default function ChatPanel({
                           <button
                             type="button"
                             onClick={onToggleVoice}
-                            className={`p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 ${
+                            aria-label={isListening ? 'Stop voice listening' : 'Dictate with microphone'}
+                            className={`p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
                               isListening
                                 ? 'bg-red-500 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]'
                                 : 'text-white/35 hover:text-cyan-300 hover:bg-white/5'
                             }`}
                             title={isListening ? 'Stop listening' : 'Dictate with mic'}
                           >
-                            {isListening ? <MicOff className="w-4 h-4 sm:w-3.5 sm:h-3.5" /> : <Mic className="w-4 h-4 sm:w-3.5 sm:h-3.5" />}
+                            {isListening ? (
+                              <MicOff className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
+                            ) : (
+                              <Mic className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
+                            )}
                           </button>
                         )}
 
@@ -576,8 +593,9 @@ export default function ChatPanel({
                           type="button"
                           onClick={handleSend}
                           disabled={(!input.trim() && attachedFiles.length === 0) || isThinking}
+                          aria-label="Send message to AI"
                           className={`
-                            p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl flex items-center justify-center flex-shrink-0 transition-all
+                            p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl flex items-center justify-center flex-shrink-0 transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50
                             ${(input.trim() || attachedFiles.length > 0) && !isThinking
                               ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-[0_0_12px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
                               : 'text-white/20 cursor-not-allowed'
@@ -585,7 +603,7 @@ export default function ChatPanel({
                           `}
                           title="Send message (Enter)"
                         >
-                          <Send className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                          <Send className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
                         </button>
                       </div>
 

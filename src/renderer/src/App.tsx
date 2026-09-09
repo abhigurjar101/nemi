@@ -2043,11 +2043,14 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           {/* Active Bot Dropdown Selector */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => setBotDropdownOpen((p) => !p)}
-              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-all cursor-pointer"
+              aria-label={`Current bot: ${activeBot.name}. Click to switch bot`}
+              aria-expanded={botDropdownOpen}
+              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
               title="Switch Active Bot"
             >
-              <BotIcon botId={activeBot.id} iconName={activeBot.icon} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+              <BotIcon botId={activeBot.id} iconName={activeBot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
               <span className="font-medium text-[11px] truncate max-w-[90px] sm:max-w-none">{activeBot.name}</span>
               <span className="text-[10px] text-white/40">▾</span>
             </button>
@@ -2063,17 +2066,20 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   <div className="px-2.5 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-b border-white/5">
                     Select Autonomous Agent
                   </div>
-                  <div className="max-h-64 overflow-y-auto nemi-scroll space-y-0.5 py-1">
+                  <div className="max-h-64 overflow-y-auto nemi-scroll space-y-0.5 py-1" role="menu">
                     {N8N_BOTS.map((bot) => (
                       <button
                         key={bot.id}
+                        type="button"
+                        role="menuitem"
+                        aria-label={`Select ${bot.name} (${bot.shortName})`}
                         onClick={() => {
                           setSelectedBotId(bot.id)
                           setBotDropdownOpen(false)
                           setChatOpen(true)
                         }}
                         className={`
-                          w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer
+                          w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50
                           ${bot.id === selectedBotId
                             ? 'bg-purple-600/30 text-white border border-purple-400/40'
                             : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
@@ -2081,7 +2087,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                         `}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <BotIcon botId={bot.id} iconName={bot.icon} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+                          <BotIcon botId={bot.id} iconName={bot.icon} strokeWidth={1.65} className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
                           <span className="font-medium truncate">{bot.name}</span>
                         </div>
                         <span className="text-[9px] text-white/30 font-mono flex-shrink-0">
@@ -2099,20 +2105,23 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         <div className="flex items-center gap-1.5 sm:gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* ── BOT FLEET BUTTON ── */}
           <button
+            type="button"
             onClick={() => setSidebarOpen((p) => !p)}
-            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+            aria-label="Toggle Bot Swarm Fleet Sidebar (11 bots)"
+            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
               sidebarOpen
                 ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
                 : 'text-purple-300/80 hover:text-purple-200 bg-purple-500/10 border border-purple-400/20'
             }`}
             title="Toggle Bot Swarm Fleet Sidebar"
           >
-            <Bot className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <Bot className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" strokeWidth={1.65} />
             <span className="hidden md:inline">Bot Fleet (11)</span>
           </button>
 
           {/* ── JUPYTER BUTTON (Electron + Web) ── */}
           <button
+            type="button"
             onClick={() => {
               if (isElectron) {
                 const url = 'http://localhost:8888'
@@ -2122,15 +2131,17 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 window.open('https://colab.research.google.com/#create=true', '_blank')
               }
             }}
-            className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+            aria-label={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
+            className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400/50"
             title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <BookOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" strokeWidth={1.65} />
             <span className="hidden sm:inline">{isElectron ? 'Jupyter' : 'Colab'}</span>
           </button>
 
           {/* ── ADVANCED RAG / DOCUMENT UPLOAD ── */}
           <button
+            type="button"
             onClick={() => {
               if (isElectron && window.nemi?.openRagWindow) {
                 void window.nemi.openRagWindow()
@@ -2139,49 +2150,56 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               }
               setChatOpen(false)
             }}
-            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+            aria-label="Open Document Upload & Advanced RAG workspace"
+            className={`px-2 sm:px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
               ragOpen
                 ? 'text-violet-200 bg-violet-500/30 border-violet-400/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
                 : 'text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25'
             }`}
             title="Open Document Upload & Advanced RAG workspace"
           >
-            <Database className="w-3.5 h-3.5 flex-shrink-0" />
+            <Database className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
             <span className="hidden lg:inline">Advanced RAG</span>
           </button>
 
           {/* ── GITHUB ARCHITECTURE TRAINING & INGESTION BUTTONS ── */}
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={async () => {
                 const res = await triggerDailyGitHubLearning(memories, true)
                 setMemories(res.newMemories)
                 setGithubLearningBanner(res.summary)
                 setTimeout(() => setGithubLearningBanner(null), 8000)
               }}
-              className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
+              aria-label="Train NEMI on High-Class GitHub Code Architectures"
+              className="px-2 sm:px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
               title="Train NEMI on High-Class GitHub Code Architectures"
             >
-              <BrainCircuit className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+              <BrainCircuit className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" strokeWidth={1.65} />
               <span className="hidden md:inline">Train GitHub</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 setIngestedResult(null)
                 setRepoModalOpen(true)
               }}
-              className="px-2 py-1 rounded-lg text-xs flex items-center gap-1 text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 hover:bg-cyan-500/25 transition-all cursor-pointer"
+              aria-label="Ingest Any Public GitHub Repository into NEMI"
+              className="px-2 py-1 rounded-lg text-xs flex items-center gap-1 text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 hover:bg-cyan-500/25 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               title="Ingest Any Public GitHub Repository into NEMI"
             >
-              <FolderGit2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+              <FolderGit2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" strokeWidth={1.65} />
               <span>+ Ingest</span>
             </button>
           </div>
 
           {/* ── AUTH / ACCESS BUTTON ── */}
           <button
+            type="button"
             onClick={() => setAuthModalOpen(true)}
-            className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+            aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In or Sign Up'}
+            className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
               isAuthenticated
                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
                 : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
@@ -2190,34 +2208,38 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           >
             {isAuthenticated ? (
               <>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" strokeWidth={1.65} />
                 <span className="font-medium text-[11px] truncate max-w-[120px]">
                   {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
                 </span>
               </>
             ) : (
               <>
-                <Lock className="w-3.5 h-3.5 text-purple-400" />
+                <Lock className="w-3.5 h-3.5 text-purple-400" strokeWidth={1.65} />
                 <span className="font-medium text-[11px]">Sign In</span>
               </>
             )}
           </button>
 
           <button
+            type="button"
             onClick={() => setChatOpen((p) => !p)}
-            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+            aria-label={chatOpen ? 'Close Chat Panel' : 'Open Chat Panel'}
+            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
               chatOpen ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'text-white/40 hover:text-white/80'
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5" />
+            <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.65} />
             <span>Chat</span>
           </button>
           <button
+            type="button"
             onClick={() => setSettingsOpen(true)}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+            aria-label="Open Settings"
+            className="p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
             title="Settings"
           >
-            <SettingsIcon className="w-4 h-4" />
+            <SettingsIcon className="w-4 h-4" strokeWidth={1.65} />
           </button>
         </div>
       </header>

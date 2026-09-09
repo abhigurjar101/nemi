@@ -12,6 +12,10 @@ import {
   Workflow,
   FolderGit2,
   Bot,
+  Sparkles,
+  Layers,
+  Zap,
+  Terminal,
   type LucideProps,
 } from 'lucide-react'
 
@@ -19,6 +23,7 @@ export interface BotIconProps extends LucideProps {
   botId?: string
   iconName?: string
   className?: string
+  strokeWidth?: number
 }
 
 const BOT_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -48,9 +53,19 @@ const NAME_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'workflow': Workflow,
   'foldergit2': FolderGit2,
   'bot': Bot,
+  'sparkles': Sparkles,
+  'layers': Layers,
+  'zap': Zap,
+  'terminal': Terminal,
 }
 
-export const BotIcon: React.FC<BotIconProps> = ({ botId, iconName, className, ...props }) => {
+export const BotIcon: React.FC<BotIconProps> = ({
+  botId,
+  iconName,
+  className = 'w-4 h-4',
+  strokeWidth = 1.65,
+  ...props
+}) => {
   let IconComponent: React.ComponentType<LucideProps> = Bot
 
   if (botId && BOT_ICON_MAP[botId]) {
@@ -62,7 +77,14 @@ export const BotIcon: React.FC<BotIconProps> = ({ botId, iconName, className, ..
     }
   }
 
-  return <IconComponent className={className || 'w-4 h-4'} {...props} />
+  return (
+    <IconComponent
+      className={className}
+      strokeWidth={strokeWidth}
+      aria-hidden="true"
+      {...props}
+    />
+  )
 }
 
 export default BotIcon

@@ -118,18 +118,24 @@ function ConversationItem({
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              type="button"
               onClick={onPin}
-              className={`p-1 rounded-md transition-colors ${
-                conv.pinned ? 'text-purple-400' : 'text-white/25 hover:text-white/60'
+              aria-label={conv.pinned ? 'Unpin conversation' : 'Pin conversation'}
+              title={conv.pinned ? 'Unpin' : 'Pin'}
+              className={`p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+                conv.pinned ? 'text-purple-400' : 'text-white/30 hover:text-white/70'
               }`}
             >
-              <Pin className="w-3 h-3" />
+              <Pin className="w-3.5 h-3.5" strokeWidth={1.65} />
             </button>
             <button
+              type="button"
               onClick={onDelete}
-              className="p-1 rounded-md text-white/25 hover:text-red-400 transition-colors"
+              aria-label="Delete conversation"
+              title="Delete"
+              className="p-1.5 rounded-lg text-white/30 hover:text-red-400 transition-colors focus-visible:ring-2 focus-visible:ring-red-400/50"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.65} />
             </button>
           </motion.div>
         )}
@@ -225,40 +231,50 @@ export default function Sidebar({
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={onNewConversation}
-                  className="icon-btn text-purple-400 hover:text-purple-300"
+                  aria-label="Start new conversation"
+                  className="icon-btn text-purple-400 hover:text-purple-300 focus-visible:ring-2 focus-visible:ring-purple-400/50"
                   title="New conversation"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" strokeWidth={1.65} />
                 </button>
               </div>
 
               {/* Dual Tab Switcher */}
-              <div className="flex items-center p-1 bg-white/5 rounded-xl border border-white/5 mb-2.5">
+              <div className="flex items-center p-1 bg-white/5 rounded-xl border border-white/5 mb-2.5" role="tablist">
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'bots'}
+                  aria-label="Bot Fleet Tab (11 bots)"
                   onClick={() => setActiveTab('bots')}
                   className={`
-                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all
+                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50
                     ${activeTab === 'bots'
                       ? 'bg-purple-600/30 text-white border border-purple-400/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
                       : 'text-white/40 hover:text-white/70'
                     }
                   `}
                 >
-                  <Bot className="w-3.5 h-3.5" />
+                  <Bot className="w-3.5 h-3.5" strokeWidth={1.65} />
                   <span>Bot Fleet (11)</span>
                 </button>
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'history'}
+                  aria-label="Conversation History Tab"
                   onClick={() => setActiveTab('history')}
                   className={`
-                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all
+                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50
                     ${activeTab === 'history'
                       ? 'bg-purple-600/30 text-white border border-purple-400/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
                       : 'text-white/40 hover:text-white/70'
                     }
                   `}
                 >
-                  <Clock className="w-3.5 h-3.5" />
+                  <Clock className="w-3.5 h-3.5" strokeWidth={1.65} />
                   <span>History</span>
                 </button>
               </div>
@@ -412,10 +428,12 @@ export default function Sidebar({
             {/* Footer */}
             <div className="border-t border-white/5 p-3">
               <button
+                type="button"
                 onClick={onOpenSettings}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/5 transition-all text-xs"
+                aria-label="Open Settings"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/50 hover:text-white/80 hover:bg-white/5 transition-all text-xs focus-visible:ring-2 focus-visible:ring-purple-400/50"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4" strokeWidth={1.65} />
                 <span>Settings</span>
               </button>
             </div>

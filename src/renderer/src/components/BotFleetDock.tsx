@@ -49,28 +49,37 @@ export default function BotFleetDock({
       </AnimatePresence>
 
       {/* Floating Glass Dock */}
-      <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-2xl glass-panel bg-slate-950/80 backdrop-blur-2xl border border-purple-500/25 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+      <nav
+        aria-label="Autonomous Bot Fleet Navigation"
+        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-2xl glass-panel bg-slate-950/85 backdrop-blur-2xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+      >
         {/* Status Indicator */}
-        <div
+        <button
+          type="button"
           onClick={onToggleSidebar}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-xl hover:bg-white/5 cursor-pointer transition-all mr-1"
+          aria-label="Toggle Bot Swarm Fleet Sidebar (11 bots active)"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-white/10 active:bg-white/15 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/60"
           title="Toggle Bot Swarm Fleet Sidebar"
         >
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
           <span className="text-[11px] font-bold tracking-wider bg-gradient-to-r from-purple-300 to-cyan-300 bg-clip-text text-transparent">
             11 BOTS
           </span>
-        </div>
+        </button>
 
-        <div className="w-[1px] h-5 bg-white/10 mx-0.5" />
+        <div className="w-[1px] h-5 bg-white/10 mx-0.5" aria-hidden="true" />
 
         {/* Bot Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto nemi-scroll py-0.5">
+        <div className="flex items-center gap-1 overflow-x-auto nemi-scroll py-0.5" role="toolbar" aria-label="Bot Fleet Selector">
           {N8N_BOTS.map((bot) => {
             const isSelected = bot.id === selectedBotId
             return (
               <button
                 key={bot.id}
+                type="button"
+                role="button"
+                aria-label={`Select ${bot.name} (${bot.shortName}) - ${bot.category}`}
+                aria-pressed={isSelected}
                 onClick={() => {
                   onSelectBot(bot.id)
                   onOpenChat()
@@ -78,16 +87,21 @@ export default function BotFleetDock({
                 onMouseEnter={() => setHoveredBot(bot)}
                 onMouseLeave={() => setHoveredBot(null)}
                 className={`
-                  relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium
-                  transition-all duration-200 cursor-pointer border whitespace-nowrap
+                  relative flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] sm:min-h-[38px] rounded-xl text-xs font-medium
+                  transition-all duration-200 cursor-pointer border whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/60
                   ${isSelected
-                    ? 'bg-purple-600/30 border-purple-400/60 text-white shadow-[0_0_14px_rgba(168,85,247,0.35)]'
-                    : 'bg-white/3 border-white/5 text-white/60 hover:text-white hover:bg-white/8 hover:border-white/10'
+                    ? 'bg-purple-600/35 border-purple-400/70 text-white shadow-[0_0_14px_rgba(168,85,247,0.4)] ring-1 ring-purple-400/30'
+                    : 'bg-white/[0.04] border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20'
                   }
                 `}
               >
-                <BotIcon botId={bot.id} iconName={bot.icon} className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-purple-300' : 'text-white/60'}`} />
-                <span className="text-[11px] tracking-tight">{bot.shortName}</span>
+                <BotIcon
+                  botId={bot.id}
+                  iconName={bot.icon}
+                  strokeWidth={1.65}
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-purple-200' : 'text-white/60'}`}
+                />
+                <span className="text-[11px] tracking-tight font-medium">{bot.shortName}</span>
                 {isSelected && (
                   <motion.div
                     layoutId="active-pill-dot"
@@ -99,19 +113,21 @@ export default function BotFleetDock({
           })}
         </div>
 
-        <div className="w-[1px] h-5 bg-white/10 mx-0.5" />
+        <div className="w-[1px] h-5 bg-white/10 mx-0.5" aria-hidden="true" />
 
         {/* Fleet Drawer Button */}
         {onToggleSidebar && (
           <button
+            type="button"
             onClick={onToggleSidebar}
-            className="p-1.5 rounded-xl text-white/40 hover:text-purple-300 hover:bg-white/5 transition-all cursor-pointer"
+            aria-label="Open Bot Fleet Drawer"
+            className="p-2 min-h-[36px] min-w-[36px] rounded-xl text-white/50 hover:text-purple-300 hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/60"
             title="Open Bot Fleet Drawer"
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Layers className="w-3.5 h-3.5" strokeWidth={1.65} />
           </button>
         )}
-      </div>
+      </nav>
     </div>
   )
 }

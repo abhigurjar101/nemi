@@ -183,7 +183,8 @@ describe('Tier 1 E2E Feature Coverage: Human-Centric Companion Layer', () => {
       const brainPath = path.resolve(__dirname, '../../src/renderer/src/components/NemiBrain.tsx')
       const content = fs.readFileSync(brainPath, 'utf-8')
       expect(content).toContain("background: 'transparent'")
-      expect(content).toContain("pointerEvents: 'none'")
+      expect(content).toContain("pointer-events-none")
+      expect(content).toContain("OrbitControls")
     })
 
     it('3.5 verifies strict front canvas minimalism: presence pill is eliminated to keep view unobstructed', () => {
