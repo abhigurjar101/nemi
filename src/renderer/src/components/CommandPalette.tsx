@@ -41,6 +41,7 @@ export interface CommandPaletteProps {
   onToggleVoice?: () => void
   onNewChat: () => void
   onToast?: (message: string) => void
+  onOpenLearningHub?: () => void
 }
 
 export default function CommandPalette({
@@ -54,6 +55,7 @@ export default function CommandPalette({
   onToggleVoice,
   onNewChat,
   onToast,
+  onOpenLearningHub,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -131,6 +133,21 @@ export default function CommandPalette({
         onClose()
       },
     })
+
+    if (onOpenLearningHub) {
+      list.push({
+        id: 'open-learning-hub',
+        title: 'Autonomous Learning Hub (24/7 Swarm)',
+        subtitle: 'Inspect all 11 bot mastery levels, active GitHub architectures & principles',
+        icon: Sparkles,
+        category: 'Tools',
+        badge: 'Mastery',
+        run: () => {
+          onOpenLearningHub()
+          onClose()
+        },
+      })
+    }
 
     list.push({
       id: 'open-rag',

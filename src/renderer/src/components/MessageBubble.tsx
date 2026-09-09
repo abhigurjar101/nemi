@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Terminal,
   BookOpen,
+  ChevronRight,
 } from 'lucide-react'
 import type { Message } from './ChatPanel'
 import {
@@ -26,6 +27,7 @@ import {
   formatNotebookAsJupyterScript,
   copyNotebookAsJson,
 } from '../utils/jupyter'
+import { recordAutonomousLearning } from '../utils/autonomousLearning'
 
 // ── Markdown Table parser & renderer ──
 export interface ParsedTable {
@@ -367,6 +369,24 @@ function CodeBlock({
     try {
       const res = await executeCodeSnippet(code)
       setExecResult(res)
+      if (res.success) {
+        if (onToast) onToast('Code executed cleanly in sandbox!')
+        void recordAutonomousLearning({
+          botId: 'code-tester',
+          userQuery: 'Sandbox execution verification',
+          responseText: code,
+          executionSuccess: true,
+          executedCode: code,
+        })
+      } else if (res.error) {
+        void recordAutonomousLearning({
+          botId: 'code-tester',
+          userQuery: 'Sandbox execution error mitigation',
+          responseText: code,
+          executionError: res.error,
+          executedCode: code,
+        })
+      }
     } finally {
       setIsRunning(false)
     }
@@ -614,6 +634,7 @@ export interface MessageBubbleProps {
   isSpeakingThis?: boolean
   onFixCode?: (error: string, code: string) => void
   onToast?: (message: string) => void
+  onOpenLearningHub?: () => void
 }
 
 export default function MessageBubble({
@@ -623,6 +644,7 @@ export default function MessageBubble({
   isSpeakingThis,
   onFixCode,
   onToast,
+  onOpenLearningHub,
 }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
@@ -756,6 +778,37 @@ export default function MessageBubble({
           bg-slate-900/60 backdrop-blur-md border border-white/8
           shadow-[0_4px_16px_rgba(0,0,0,0.3)] space-y-1
         ">
+          {/* Applied World-Class Learned Architectures Pill Banner */}
+          {message.appliedBlueprints && message.appliedBlueprints.length > 0 && !message.streaming && (
+            <div className="mb-2 pb-1.5 border-b border-white/5 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                  Learned Architectures:
+                </span>
+                {message.appliedBlueprints.slice(0, 3).map((bp, i) => (
+                  <span
+                    key={i}
+                    className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-cyan-500/10 border border-cyan-400/20 text-cyan-300"
+                  >
+                    {bp.split('/')[1] || bp}
+                  </span>
+                ))}
+              </div>
+              {onOpenLearningHub && (
+                <button
+                  type="button"
+                  onClick={onOpenLearningHub}
+                  className="text-[9px] font-mono text-white/40 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-0.5"
+                  title="Open Autonomous Learning Hub"
+                >
+                  <span>Inspect Swarm</span>
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           {renderMarkdown(message.content, onFixCode, onToast)}
           {/* Streaming cursor */}
           {message.streaming && (

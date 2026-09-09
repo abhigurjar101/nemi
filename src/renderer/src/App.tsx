@@ -24,7 +24,13 @@ import {
 } from 'lucide-react'
 import BotIcon from './components/BotIcon'
 import CommandPalette from './components/CommandPalette'
+import AutonomousLearningModal from './components/AutonomousLearningModal'
 import { downloadNotebookFile, buildNotebookFromResponse } from './utils/jupyter'
+import {
+  recordAutonomousLearning,
+  startAutonomousLearningDaemon,
+  calculateSwarmMastery,
+} from './utils/autonomousLearning'
 import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
   type ConversationSession,
@@ -844,8 +850,9 @@ export default function App() {
   const processedTranscriptRef = useRef<boolean>(false)
   const sendToAIRef = useRef<(text: string) => Promise<void>>(async () => {})
 
-  // ── Universal Command Palette & Toast Notifications ──
+  // ── Universal Command Palette, Learning Hub & Toast Notifications ──
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [learningModalOpen, setLearningModalOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg)
@@ -854,6 +861,22 @@ export default function App() {
       setToastMessage((curr) => (curr === msg ? null : curr))
     }, 3200)
   }, [])
+
+  const memoriesRef = useRef(memories)
+  useEffect(() => {
+    memoriesRef.current = memories
+  }, [memories])
+
+  useEffect(() => {
+    const stopDaemon = startAutonomousLearningDaemon(
+      () => memoriesRef.current,
+      (updated) => {
+        setMemories(updated)
+        showToast('⚡ NEMI Swarm: Ingested fresh repository blueprints in background')
+      }
+    )
+    return stopDaemon
+  }, [showToast])
 
   const handleAutoFixCode = useCallback((error: string, code: string) => {
     triggerHaptic(25)
@@ -1574,9 +1597,17 @@ export default function App() {
     setIsThinking(true)
     setChatOpen(true)
 
+    // ── Continuous GitHub architecture learning bridge ──
+    const { promptBlock: learnedArchitectureContext, appliedBlueprints } = buildLearnedPromptContext(selectedBotId, memories)
+
     const assistantMsgId = genUid()
     const assistantMsg: Message = {
-      id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date(), streaming: true,
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      streaming: true,
+      appliedBlueprints,
     }
     setMessages((prev) => [...prev, assistantMsg])
 
@@ -1677,8 +1708,7 @@ Personality & Conversational Style:
     // ── Memory context augmentation ──
     const memoryAugmentation = formatMemoriesForSystemPrompt(memories)
 
-    // ── Continuous GitHub architecture learning bridge ──
-    const { promptBlock: learnedArchitectureContext } = buildLearnedPromptContext(selectedBotId, memories)
+    // ── Continuous GitHub architecture learning bridge applied ──
 
     const botPersona = activeBot
       ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} ===
@@ -1752,8 +1782,31 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
     }
 
     const recordAssistantResponse = (finalText: string) => {
-      const updatedMessages: Message[] = [...messages, userMsg, { ...assistantMsg, content: finalText, streaming: false }]
+      const updatedAssistant: Message = {
+        ...assistantMsg,
+        content: finalText,
+        streaming: false,
+        appliedBlueprints: appliedBlueprints?.length ? appliedBlueprints : assistantMsg.appliedBlueprints,
+      }
+      const updatedMessages: Message[] = [...messages, userMsg, updatedAssistant]
       setMessages(updatedMessages)
+
+      // Autonomous continuous learning extraction
+      if (!finalText.startsWith('Error:')) {
+        void recordAutonomousLearning({
+          botId: selectedBotId,
+          userQuery: userText,
+          responseText: finalText,
+          existingMemories: memories,
+        }).then((res) => {
+          if (res.learned && res.newMemory) {
+            setMemories(res.allMemories)
+            showToast(`⚡ Swarm Learned: ${res.newMemory.content.slice(0, 48)}...`)
+          }
+        }).catch((err) => {
+          console.warn('Autonomous learning recording error:', err)
+        })
+      }
 
       setConversations((prev) => {
         let found = false
@@ -2326,6 +2379,19 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <span>Train GitHub</span>
           </button>
 
+          {/* Autonomous Learning Hub */}
+          <button
+            type="button"
+            onClick={() => setLearningModalOpen(true)}
+            aria-label="Open Autonomous Learning & Swarm Mastery Hub"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-cyan-300 hover:text-white bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400/60 hover:bg-cyan-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(6,182,212,0.15)]"
+            title="Open Autonomous Learning & Swarm Mastery Hub"
+          >
+            <BrainCircuit className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 animate-pulse" strokeWidth={1.65} />
+            <span className="font-medium">Learning Hub</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-400/20 text-cyan-300 font-mono">LIVE</span>
+          </button>
+
           {/* Ingest */}
           <button
             type="button"
@@ -2513,6 +2579,30 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-cyan-300/50" />
+                </button>
+
+                {/* 0.5. Autonomous Learning Hub */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setLearningModalOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-purple-500/15 border border-cyan-400/40 active:bg-cyan-500/25 transition-all text-left shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300">
+                      <BrainCircuit className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">Autonomous Learning Hub</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">LIVE</span>
+                      </div>
+                      <div className="text-xs text-cyan-300/70">11-Bot Swarm Mastery & Continuous GitHub Ingestion</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-cyan-300/60" />
                 </button>
 
                 {/* 1. Bot Fleet */}
@@ -2863,6 +2953,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           onSelectBot={(id) => setSelectedBotId(id)}
           onFixCode={handleAutoFixCode}
           onToast={showToast}
+          onOpenLearningHub={() => setLearningModalOpen(true)}
         />
 
         <RagPanel
@@ -3159,6 +3250,16 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         }}
         onToggleVoice={() => toggleVoice()}
         onNewChat={handleNewConversation}
+        onToast={showToast}
+        onOpenLearningHub={() => setLearningModalOpen(true)}
+      />
+
+      {/* Autonomous Learning & Swarm Mastery Hub */}
+      <AutonomousLearningModal
+        isOpen={learningModalOpen}
+        onClose={() => setLearningModalOpen(false)}
+        memories={memories}
+        onUpdateMemories={setMemories}
         onToast={showToast}
       />
     </div>

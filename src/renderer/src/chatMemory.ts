@@ -4,6 +4,7 @@ export interface Message {
   content: string
   timestamp: Date
   streaming?: boolean
+  appliedBlueprints?: string[]
 }
 
 export interface ConversationSession {

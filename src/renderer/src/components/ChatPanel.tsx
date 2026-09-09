@@ -59,6 +59,7 @@ export interface ChatPanelProps {
   onSelectBot?: (botId: string) => void
   onFixCode?: (error: string, code: string) => void
   onToast?: (message: string) => void
+  onOpenLearningHub?: () => void
 }
 
 type TabMode = 'chat' | 'memory' | 'history'
@@ -89,6 +90,7 @@ export default function ChatPanel({
   onSelectBot,
   onFixCode,
   onToast,
+  onOpenLearningHub,
 }: ChatPanelProps) {
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -456,6 +458,7 @@ export default function ChatPanel({
                           isSpeakingThis={isSpeakingText === msg.content}
                           onFixCode={onFixCode}
                           onToast={onToast}
+                          onOpenLearningHub={onOpenLearningHub}
                         />
                       ))}
 
