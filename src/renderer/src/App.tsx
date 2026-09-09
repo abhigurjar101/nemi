@@ -12,8 +12,9 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Sparkles, Mic, MessageSquare, Settings as SettingsIcon,
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
-  Bot, ChevronDown as ChevronDownIcon, Layers
+  Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck
 } from 'lucide-react'
+import AuthModal from './components/AuthModal'
 import {
   type ConversationSession,
   type MemoryItem,
@@ -150,7 +151,12 @@ function SettingsPanel({
     try {
       let valid = false
       let msg = ''
-      if (window.nemi?.validateNvidiaNimKey) {
+      if (cleanKey === 'SERVER_CONFIGURED') {
+        const res = await fetch('/api/status').catch(() => null)
+        const data = await res?.json().catch(() => ({}))
+        valid = data?.apiKeyConfigured === true
+        msg = valid ? 'NVIDIA NIM Cloud Server Key Verified & Active' : 'Server key not configured on Vercel'
+      } else if (window.nemi?.validateNvidiaNimKey) {
         const result = await window.nemi.validateNvidiaNimKey(cleanKey)
         valid = result?.valid === true
         msg = valid ? (result.message || 'NVIDIA NIM connected') : (result?.error || 'NVIDIA NIM connection failed')
@@ -243,13 +249,20 @@ function SettingsPanel({
                   Online
                 </button>
               </div>
-              <input
-                type="password"
-                value={localNvidiaNimKey}
-                onChange={(event) => setLocalNvidiaNimKey(event.target.value)}
-                placeholder="nvapi-..."
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white/80 placeholder-white/20 focus:border-cyan-400/40 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="password"
+                  value={localNvidiaNimKey === 'SERVER_CONFIGURED' ? '••••••••••••••••••••••••' : localNvidiaNimKey}
+                  onChange={(event) => setLocalNvidiaNimKey(event.target.value)}
+                  placeholder={localNvidiaNimKey === 'SERVER_CONFIGURED' ? 'Cloud Server Key Active' : 'nvapi-...'}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white/80 placeholder-white/40 focus:border-cyan-400/40 focus:outline-none pr-32"
+                />
+                {localNvidiaNimKey === 'SERVER_CONFIGURED' && (
+                  <span className="absolute right-3 top-3 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Cloud Managed
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => void saveNimKey()} disabled={!localNvidiaNimKey.trim()} className="flex-1 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">Save NIM Key</button>
                 <button type="button" onClick={() => void testNimKey()} disabled={nimTesting || !localNvidiaNimKey.trim()} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 disabled:opacity-40">{nimTesting ? 'Testing...' : 'Test'}</button>
@@ -472,6 +485,24 @@ export default function App() {
   if (new URLSearchParams(window.location.search).get('view') === 'rag') {
     return <RagWindowApp />
   }
+
+  const isElectron = typeof window !== 'undefined' && Boolean(window.nemi)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined' && window.nemi) return true
+    if (typeof localStorage !== 'undefined') {
+      return Boolean(localStorage.getItem('nemi_session_token'))
+    }
+    return false
+  })
+  const [authRole, setAuthRole] = useState<'owner' | 'guest'>(() => {
+    if (typeof window !== 'undefined' && window.nemi) return 'owner'
+    if (typeof localStorage !== 'undefined') {
+      return (localStorage.getItem('nemi_session_role') as 'owner' | 'guest') || 'guest'
+    }
+    return 'guest'
+  })
+  const [serverHasKey, setServerHasKey] = useState(false)
 
   const [isListening, setIsListening] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
@@ -717,6 +748,18 @@ export default function App() {
         if (!savedNimKey && typeof localStorage !== 'undefined') {
           savedNimKey = localStorage.getItem('nemi_nvidia_nim_key') || ''
         }
+        if (!savedNimKey && !isElectron) {
+          try {
+            const statusRes = await fetch('/api/status').catch(() => null)
+            if (statusRes?.ok) {
+              const statusData = await statusRes.json().catch(() => ({}))
+              if (statusData.apiKeyConfigured) {
+                savedNimKey = 'SERVER_CONFIGURED'
+                setServerHasKey(true)
+              }
+            }
+          } catch {}
+        }
         if (!savedNimKey) {
           try {
             const res = await fetch('/api/credentials/nvidia-key')
@@ -734,7 +777,9 @@ export default function App() {
           setModelMode('nvidia-nim')
           if (!nimInitialValidationRef.current) {
             nimInitialValidationRef.current = true
-            if (window.nemi?.validateNvidiaNimKey) {
+            if (savedNimKey === 'SERVER_CONFIGURED') {
+              setNvidiaNimReady(true)
+            } else if (window.nemi?.validateNvidiaNimKey) {
               const validation = await window.nemi.validateNvidiaNimKey(savedNimKey)
               setNvidiaNimReady(validation?.valid === true)
             } else {
@@ -1317,10 +1362,13 @@ Personality & Conversational Style:
 
     // ── Memory context augmentation ──
     const memoryAugmentation = formatMemoriesForSystemPrompt(memories)
+    const botPersona = (!isElectron && selectedBotId !== 'orchestrator' && activeBot)
+      ? `\n\n[Active Bot Persona: ${activeBot.name} - ${activeBot.role}. ${activeBot.description}]`
+      : ''
 
     const historyMessages = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }))
     const allMessages = [
-      { role: 'system', content: completeSystemPrompt + memoryAugmentation + ragAugmentation },
+      { role: 'system', content: completeSystemPrompt + memoryAugmentation + ragAugmentation + botPersona },
       ...historyMessages,
       { role: 'user', content: userText },
     ]
@@ -1371,9 +1419,9 @@ Personality & Conversational Style:
       } catch {}
     }
 
-    // ── Execute via n8n Bots Architecture ──
+    // ── Execute via n8n Bots Architecture (Electron Desktop Only) ──
     try {
-      if (selectedBotId === 'orchestrator') {
+      if (isElectron && selectedBotId === 'orchestrator') {
         const orchResp = await fetch('http://localhost:8000/api/tasks/execute-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1402,7 +1450,7 @@ Personality & Conversational Style:
           recordAssistantResponse(`${orchData.synthesis || ''}${nbBanner}`)
           return
         }
-      } else {
+      } else if (isElectron) {
         const botResp = await fetch(`http://localhost:8000/api/bots/${selectedBotId}/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1479,6 +1527,18 @@ Personality & Conversational Style:
           (await window.nemi?.getNvidiaNimKey()) ||
           (typeof localStorage !== 'undefined' ? localStorage.getItem('nemi_nvidia_nim_key') : '') ||
           ''
+        if (!activeNvidiaNimKey && !isElectron) {
+          try {
+            const statusRes = await fetch('/api/status').catch(() => null)
+            if (statusRes?.ok) {
+              const statusData = await statusRes.json().catch(() => ({}))
+              if (statusData.apiKeyConfigured) {
+                activeNvidiaNimKey = 'SERVER_CONFIGURED'
+                setServerHasKey(true)
+              }
+            }
+          } catch {}
+        }
         if (!activeNvidiaNimKey) {
           try {
             const credRes = await fetch('/api/credentials/nvidia-key')
@@ -1512,51 +1572,117 @@ Personality & Conversational Style:
           }
           replyText = response?.text || ''
         } else {
-          // In web mode: First attempt backend proxy, then direct NVIDIA NIM API
+          // In web mode: Stream SSE tokens from /api/chat for zero-latency response
           let success = false
           try {
-            const res = await fetch('/api/nemotron/generate', {
+            const chatRes = await fetch('/api/chat', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(activeNvidiaNimKey && activeNvidiaNimKey !== 'SERVER_CONFIGURED'
+                  ? { 'x-api-key': activeNvidiaNimKey }
+                  : {}),
+              },
               body: JSON.stringify({
-                prompt: userText,
-                system_prompt: 'You are NVIDIA Nemotron, the elite neural reasoning and architectural synthesizer.',
+                messages: allMessages,
+                stream: true,
+                temperature: 0.7,
+                max_tokens: 1536,
               }),
             })
-            if (res.ok) {
-              const data = await res.json()
-              replyText = data.content || ''
-              success = true
+
+            if (chatRes.ok && chatRes.body) {
+              const reader = chatRes.body.getReader()
+              const decoder = new TextDecoder()
+              let accumulated = ''
+              let streamDone = false
+              let buffer = ''
+
+              while (!streamDone) {
+                const { value, done } = await reader.read()
+                streamDone = done
+                if (value) {
+                  buffer += decoder.decode(value, { stream: true })
+                  const lines = buffer.split('\n')
+                  buffer = lines.pop() || ''
+                  for (const line of lines) {
+                    const trimmed = line.trim()
+                    if (trimmed.startsWith('data: ')) {
+                      const dataStr = trimmed.slice(6).trim()
+                      if (dataStr === '[DONE]') continue
+                      try {
+                        const parsed = JSON.parse(dataStr)
+                        if (parsed.error) throw new Error(parsed.error)
+                        const token = parsed.choices?.[0]?.delta?.content || ''
+                        if (token) {
+                          accumulated += token
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m.id === assistantMsgId ? { ...m, content: accumulated, streaming: true } : m
+                            )
+                          )
+                        }
+                      } catch (e: any) {
+                        if (e?.message && !e.message.includes('JSON')) throw e
+                      }
+                    }
+                  }
+                }
+              }
+              replyText = accumulated
+              success = Boolean(accumulated.trim())
             }
-          } catch {
+          } catch (streamErr) {
+            console.warn('Streaming chat attempt failed, trying fallback:', streamErr)
             success = false
           }
 
           if (!success) {
-            const nimRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${activeNvidiaNimKey}`,
-              },
-              body: JSON.stringify({
-                model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
-                messages: allMessages,
-                temperature: 0.7,
-                max_tokens: 1024,
-              }),
-            })
-            if (nimRes.ok) {
-              const nimData = await nimRes.json()
-              replyText = nimData.choices?.[0]?.message?.content || ''
-            } else {
-              const errData = await nimRes.json().catch(() => ({}))
-              throw new Error(errData?.error?.message || errData?.detail || `NVIDIA NIM request failed (HTTP ${nimRes.status})`)
+            // Non-streaming fallback via backend proxy
+            try {
+              const res = await fetch('/api/nemotron/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt: userText,
+                  system_prompt: completeSystemPrompt + memoryAugmentation + ragAugmentation,
+                }),
+              })
+              if (res.ok) {
+                const data = await res.json()
+                replyText = data.content || data.text || ''
+                success = Boolean(replyText)
+              }
+            } catch {
+              success = false
+            }
+
+            if (!success && activeNvidiaNimKey && activeNvidiaNimKey !== 'SERVER_CONFIGURED') {
+              const nimRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${activeNvidiaNimKey}`,
+                },
+                body: JSON.stringify({
+                  model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+                  messages: allMessages,
+                  temperature: 0.7,
+                  max_tokens: 1024,
+                }),
+              })
+              if (nimRes.ok) {
+                const nimData = await nimRes.json()
+                replyText = nimData.choices?.[0]?.message?.content || ''
+              } else {
+                const errData = await nimRes.json().catch(() => ({}))
+                throw new Error(errData?.error?.message || errData?.detail || `NVIDIA NIM request failed (HTTP ${nimRes.status})`)
+              }
             }
           }
         }
         let jupyterBanner = ''
-        if (/```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(replyText)) {
+        if (isElectron && /```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(replyText)) {
           try {
             const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
               method: 'POST',
@@ -1604,7 +1730,7 @@ Personality & Conversational Style:
         window.nemi?.off('ollama-stream-chunk', chunkHandler)
         const finalText = fullText || ollamaStreamRef.current
         let ollamaJupyterBanner = ''
-        if (/```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(finalText)) {
+        if (isElectron && /```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(finalText)) {
           try {
             const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
               method: 'POST',
@@ -1673,8 +1799,6 @@ Personality & Conversational Style:
     setIsSpeaking(false)
     setTranscript('')
   }, [])
-
-  const isElectron = typeof window !== 'undefined' && !!window.nemi
 
   return (
     <div className={`relative w-screen h-screen overflow-hidden bg-slate-950 flex flex-col select-none ${modelMode === 'nvidia-nim' ? 'nim-active' : ''}`}>
@@ -1765,28 +1889,55 @@ Personality & Conversational Style:
             <span>Bot Fleet (10)</span>
           </button>
 
-          {/* ── JUPYTER BUTTON ── */}
-          <button
-            onClick={() => {
-              const url = 'http://localhost:8888'
-              if (window.nemi?.openExternal) window.nemi.openExternal(url)
-              else window.open(url, '_blank')
-            }}
-            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all"
-            title="Open Jupyter Notebooks (port 8888)"
-          >
-            <span>📓</span>
-            <span>Jupyter</span>
-          </button>
+          {/* ── JUPYTER BUTTON (Electron only) ── */}
+          {isElectron && (
+            <button
+              onClick={() => {
+                const url = 'http://localhost:8888'
+                if (window.nemi?.openExternal) window.nemi.openExternal(url)
+                else window.open(url, '_blank')
+              }}
+              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all"
+              title="Open Jupyter Notebooks (port 8888)"
+            >
+              <span>📓</span>
+              <span>Jupyter</span>
+            </button>
+          )}
 
-          {/* ── RAG BUTTON ── */}
+          {/* ── RAG BUTTON (Electron only) ── */}
+          {isElectron && (
+            <button
+              onClick={() => { void window.nemi?.openRagWindow(); setChatOpen(false) }}
+              className="px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25 transition-all"
+              title="Open Advanced RAG workspace"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Advanced RAG</span>
+            </button>
+          )}
+
+          {/* ── AUTH / ACCESS BUTTON ── */}
           <button
-            onClick={() => { void window.nemi?.openRagWindow(); setChatOpen(false) }}
-            className="px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25 transition-all"
-            title="Open Advanced RAG workspace"
+            onClick={() => setAuthModalOpen(true)}
+            className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+              isAuthenticated
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
+            }`}
+            title={isAuthenticated ? 'Secured Session (Authenticated)' : 'Sign In / Authenticate'}
           >
-            <Database className="w-3.5 h-3.5" />
-            <span>Advanced RAG</span>
+            {isAuthenticated ? (
+              <>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-medium text-[11px]">{authRole === 'owner' ? 'Owner' : 'Guest'}</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-3.5 h-3.5 text-purple-400" />
+                <span className="font-medium text-[11px]">Sign In</span>
+              </>
+            )}
           </button>
 
           <button
@@ -1966,6 +2117,30 @@ Personality & Conversational Style:
         }}
         nimReady={nvidiaNimReady}
         onNimReadyChange={setNvidiaNimReady}
+      />
+
+      {/* Neural Access / Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        isAuthenticated={isAuthenticated}
+        isGuest={authRole === 'guest'}
+        onLoginSuccess={(token, role) => {
+          setIsAuthenticated(true)
+          setAuthRole(role)
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('nemi_session_token', token)
+            localStorage.setItem('nemi_session_role', role)
+          }
+        }}
+        onLogout={() => {
+          setIsAuthenticated(false)
+          setAuthRole('guest')
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('nemi_session_token')
+            localStorage.removeItem('nemi_session_role')
+          }
+        }}
       />
     </div>
   )

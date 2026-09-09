@@ -94,6 +94,13 @@ export async function saveStoredConversations(conversations: ConversationSession
     if (typeof window !== 'undefined' && window.nemi?.saveStoredConversations) {
       await window.nemi.saveStoredConversations(conversations)
     }
+    if (typeof fetch !== 'undefined' && typeof window !== 'undefined' && !window.nemi) {
+      fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: serialized,
+      }).catch(() => {})
+    }
   } catch (err) {
     console.warn('Failed to save conversations:', err)
   }
@@ -161,6 +168,13 @@ export async function saveStoredMemories(memories: MemoryItem[]): Promise<void> 
     }
     if (typeof window !== 'undefined' && window.nemi?.saveStoredMemories) {
       await window.nemi.saveStoredMemories(memories)
+    }
+    if (typeof fetch !== 'undefined' && typeof window !== 'undefined' && !window.nemi) {
+      fetch('/api/memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: serialized,
+      }).catch(() => {})
     }
   } catch (err) {
     console.warn('Failed to save memories:', err)
