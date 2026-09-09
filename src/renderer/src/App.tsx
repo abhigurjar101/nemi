@@ -28,6 +28,7 @@ import {
   uid as genUid,
 } from './chatMemory'
 import { playThoughtSpark, playActivationChime } from './humanCompanion/soundscape'
+import { triggerDailyGitHubLearning } from './utils/githubLearning'
 
 declare global {
   interface Window {
@@ -574,6 +575,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [memories, setMemories] = useState<MemoryItem[]>([])
   const [speakingMsgText, setSpeakingMsgText] = useState<string | null>(null)
+  const [githubLearningBanner, setGithubLearningBanner] = useState<string | null>(null)
 
   // ── Load persistent conversations & long-term memories on launch ──
   useEffect(() => {
@@ -588,6 +590,16 @@ export default function App() {
         }
         const storedMems = await loadStoredMemories()
         setMemories(storedMems)
+
+        // Automatic daily high-class learning: ingests GitHub code architectures
+        try {
+          const learnRes = await triggerDailyGitHubLearning(storedMems)
+          if (learnRes.trained && learnRes.count > 0) {
+            setMemories(learnRes.newMemories)
+            setGithubLearningBanner(learnRes.summary)
+            setTimeout(() => setGithubLearningBanner(null), 8000)
+          }
+        } catch {}
       } catch (err) {
         console.warn('Failed to load chat history and memory:', err)
       }
@@ -1420,11 +1432,13 @@ Category: ${activeBot.category}
 Specialist Directive:
 ${activeBot.directive || ''}
 
-CRITICAL CODE GENERATION & EXECUTION RULES:
-1. 100% COMPLETE IMPLEMENTATION ONLY: Never truncate code. Never emit placeholders like '# ... rest of code', '// TODO', or ellipses (...). Every single function, class, and method must be completely written out.
-2. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
-3. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed.
-4. SWARM SYNCHRONIZATION: When acting as Swarm Orchestrator, break down the request into synchronized, numbered stages (Phase 1: NLP Intent / Semantic Structure -> Phase 2: System DAG -> Phase 3: Complete Verified Code -> Phase 4: Test Verification -> Phase 5: Execution Demo).`
+CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
+1. SIMPLEST AND MOST EFFECTIVE: Prioritize clean, transparent, readable, and highly idiomatic implementations over unnecessary complexity or convoluted abstractions. Make code elegant, concise, and Pythonic.
+2. 100% ERROR-FREE & COMPLETE: Code must be completely self-contained. Always import all required modules. Never use '# ... rest of code', '// TODO', or ellipses (...). Every single function, class, and method must be completely written out with zero missing symbols.
+3. NLP CODE STANDARD: When providing NLP code, provide pure, self-contained, working tokenization, feature extraction, and classification with standard libraries. Ensure zero undefined variables or missing dependencies.
+4. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
+5. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed so the code renders immediately.
+6. SWARM SYNCHRONIZATION: When acting as Swarm Orchestrator, break down the request into synchronized, numbered stages (Phase 1: NLP Intent / Semantic Structure -> Phase 2: System DAG -> Phase 3: Complete Verified Code -> Phase 4: Test Verification -> Phase 5: Execution Demo).`
       : ''
 
     const historyMessages = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }))
@@ -2000,6 +2014,21 @@ CRITICAL CODE GENERATION & EXECUTION RULES:
             <span>Advanced RAG</span>
           </button>
 
+          {/* ── GITHUB ARCHITECTURE TRAINING BUTTON ── */}
+          <button
+            onClick={async () => {
+              const res = await triggerDailyGitHubLearning(memories, true)
+              setMemories(res.newMemories)
+              setGithubLearningBanner(res.summary)
+              setTimeout(() => setGithubLearningBanner(null), 8000)
+            }}
+            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
+            title="Train NEMI on High-Class GitHub Code Architectures"
+          >
+            <span>🧠⚡</span>
+            <span>Train GitHub</span>
+          </button>
+
           {/* ── AUTH / ACCESS BUTTON ── */}
           <button
             onClick={() => setAuthModalOpen(true)}
@@ -2046,6 +2075,23 @@ CRITICAL CODE GENERATION & EXECUTION RULES:
 
       {/* ── Main Canvas ── */}
       <div className="flex-1 relative overflow-hidden">
+        {/* Daily GitHub Architecture Training Alert */}
+        {githubLearningBanner && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90%] px-4 py-2.5 rounded-xl bg-purple-950/95 border border-purple-400/50 shadow-[0_0_24px_rgba(168,85,247,0.4)] backdrop-blur-md flex items-center justify-between text-xs text-purple-200">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🧠⚡</span>
+              <span>{githubLearningBanner}</span>
+            </div>
+            <button
+              onClick={() => setGithubLearningBanner(null)}
+              className="text-purple-400 hover:text-purple-100 ml-3 p-1 rounded transition-colors text-sm"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {nimShowcaseVisible && (
           <div className="nim-showcase" aria-hidden="true">
             <div className="nim-showcase-frame" />
@@ -2235,6 +2281,14 @@ CRITICAL CODE GENERATION & EXECUTION RULES:
               localStorage.setItem('nemi_session_user', JSON.stringify(user))
             }
           }
+          // Automated high-class learning: trains NEMI on login with modern architectures
+          void triggerDailyGitHubLearning(memories, true).then((res) => {
+            if (res.trained && res.count > 0) {
+              setMemories(res.newMemories)
+              setGithubLearningBanner(res.summary)
+              setTimeout(() => setGithubLearningBanner(null), 8000)
+            }
+          })
         }}
         onLogout={() => {
           setIsAuthenticated(false)

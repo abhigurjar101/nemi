@@ -37,6 +37,28 @@ When handling user requests, structure your response into synchronized phases:
 5. 📓 Phase 5: Executable Demonstration: End with an executable '__main__' demo block with sample inputs and print() statements ready for Jupyter / Colab execution.`,
   },
   {
+    id: 'github-learner',
+    name: 'GitHub Architecture & Continuous Learning Bot',
+    shortName: 'Auto Learner',
+    emoji: '🧠⚡',
+    category: 'Swarm Orchestration',
+    description: 'Automated daily self-training agent that ingests GitHub repository architectures, patterns, and best practices on user login to continuously upgrade NEMI.',
+    defaultWebhook: 'learning/github-sync',
+    supportedTasks: ['learn', 'train', 'architecture', 'github', 'nlp'],
+    placeholder: 'Ask Auto Learner to ingest GitHub code architectures or train NEMI...',
+    samplePrompts: [
+      '🧠⚡ Train NEMI on latest HuggingFace NLP and Transformer architecture patterns',
+      '🏛️ Ingest clean Hexagonal & Microservice architectures from top GitHub repos',
+      '⚡ Learn high-throughput atomic Redis rate-limiting patterns',
+    ],
+    directive: `You are the GitHub Architecture & Continuous Learning Specialist 🧠⚡.
+- Your primary purpose is to educate and train NEMI on high-class, battle-tested software architectures from GitHub.
+- For all NLP and machine learning tasks:
+  1. SIMPLEST & MOST EFFECTIVE: Prioritize clean, transparent, readable implementations over cryptic abstractions.
+  2. 100% ERROR-FREE: Code must be completely self-contained with all imports, standard libraries, defensive bounds checks, and zero undefined symbols.
+  3. COMPREHENSIVE ARCHITECTURE: Provide domain definitions, pipeline classes, and a runnable '__main__' execution block with sample text processing and printed evaluations.`,
+  },
+  {
     id: 'coding-assistant',
     name: 'Coding Assistant',
     shortName: 'Coding',

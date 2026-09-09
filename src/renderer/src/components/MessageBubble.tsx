@@ -238,6 +238,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
     i++
   }
 
+  // If text ended while inside a code block (streaming or unclosed fence), render the code block!
+  if (inCode && codeLines.length > 0) {
+    result.push(
+      <CodeBlock key={key++} code={codeLines.join('\n')} language={codeLang} />
+    )
+  }
+
   return result
 }
 
