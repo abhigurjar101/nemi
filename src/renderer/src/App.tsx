@@ -50,6 +50,14 @@ function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+function triggerHaptic(pattern: number | number[] = 10): void {
+  try {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(pattern)
+    }
+  } catch {}
+}
+
 function newConversation(): Conversation {
   return {
     id: uid(),
@@ -1242,6 +1250,7 @@ export default function App() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop() } catch {}
     }
+    triggerHaptic([15, 30])
     setIsListening(false)
     if (text && !processedTranscriptRef.current) {
       processedTranscriptRef.current = true
@@ -1492,6 +1501,7 @@ export default function App() {
 
   const toggleVoice = useCallback(() => {
     primeMobileAudio()
+    triggerHaptic(isListening ? 15 : [10, 25, 10])
     if (isListening) {
       stopListening()
       setTranscript('')
@@ -2375,7 +2385,10 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           {/* Actions Menu Trigger */}
           <button
             type="button"
-            onClick={() => setMobileMenuOpen(true)}
+            onClick={() => {
+              triggerHaptic(10)
+              setMobileMenuOpen(true)
+            }}
             aria-label="Open Actions Drawer"
             className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
             title="Menu"
