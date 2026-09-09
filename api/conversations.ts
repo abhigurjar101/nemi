@@ -11,12 +11,24 @@ async function parseBody(req: IncomingMessage): Promise<any> {
     }
     return (req as any).body
   }
+  if ((req as any).readableEnded || !(req as any).readable) {
+    return {}
+  }
   return new Promise((resolve) => {
     let data = ''
+    const timer = setTimeout(() => {
+      try {
+        resolve(data ? JSON.parse(data) : {})
+      } catch {
+        resolve({})
+      }
+    }, 1500)
+
     req.on('data', (chunk) => {
       data += chunk
     })
     req.on('end', () => {
+      clearTimeout(timer)
       try {
         resolve(JSON.parse(data))
       } catch {
@@ -24,6 +36,7 @@ async function parseBody(req: IncomingMessage): Promise<any> {
       }
     })
     req.on('error', () => {
+      clearTimeout(timer)
       resolve({})
     })
   })
