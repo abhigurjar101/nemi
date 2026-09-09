@@ -1,7 +1,27 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Check, Volume2, Bookmark, Sparkles, CheckCircle2 } from 'lucide-react'
+import {
+  Copy,
+  Check,
+  Volume2,
+  Bookmark,
+  Sparkles,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Play,
+  AlertCircle,
+  Terminal,
+  BookOpen,
+} from 'lucide-react'
 import type { Message } from './ChatPanel'
+import {
+  buildNotebookFromResponse,
+  downloadNotebookFile,
+  openInGoogleColab,
+  executeCodeSnippet,
+  extractCodeBlocks,
+} from '../utils/jupyter'
 
 // ── Markdown Table parser & renderer ──
 export interface ParsedTable {
@@ -272,9 +292,16 @@ function renderInline(text: string): React.ReactNode {
   return <>{parts}</>
 }
 
-// ── Code block with copy button and language badge ──
+// ── Code block with copy button, Colab launch, .ipynb download, and execution console ──
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
+  const [execResult, setExecResult] = useState<{
+    success: boolean
+    output: string
+    durationMs: number
+    error?: string
+  } | null>(null)
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code)
@@ -282,30 +309,127 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleRun = async () => {
+    setIsRunning(true)
+    try {
+      const res = await executeCodeSnippet(code)
+      setExecResult(res)
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  const handleDownloadIpynb = () => {
+    const notebook = buildNotebookFromResponse({
+      taskName: 'Code Cell',
+      responseText: `\`\`\`${language || 'python'}\n${code}\n\`\`\``,
+      language: language || 'python',
+    })
+    downloadNotebookFile(notebook, `nemi_cell_${Date.now()}.ipynb`)
+  }
+
+  const handleColab = async () => {
+    const notebook = buildNotebookFromResponse({
+      taskName: 'Code Cell',
+      responseText: `\`\`\`${language || 'python'}\n${code}\n\`\`\``,
+      language: language || 'python',
+    })
+    await openInGoogleColab(notebook)
+  }
+
+  const isExecutable = !language || ['python', 'py', 'sh', 'bash', 'sql'].includes(language.toLowerCase())
+
   return (
-    <div className="relative rounded-xl overflow-hidden my-2 border border-white/8 bg-black/40 group">
+    <div className="relative rounded-xl overflow-hidden my-2.5 border border-white/10 bg-slate-950/70 shadow-md group">
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5">
-        <span className="text-[9px] font-mono text-cyan-400/80 uppercase tracking-wider">
-          {language || 'code'}
-        </span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/80 transition-colors"
-        >
-          {copied ? (
-            <><Check className="w-2.5 h-2.5 text-green-400" /><span className="text-green-400 text-[9px]">Copied</span></>
-          ) : (
-            <><Copy className="w-2.5 h-2.5" /><span className="text-[9px]">Copy</span></>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
+            {language || 'code'}
+          </span>
+          {isExecutable && (
+            <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">
+              Jupyter Ready
+            </span>
           )}
-        </button>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {/* Run button */}
+          {isExecutable && (
+            <button
+              onClick={handleRun}
+              disabled={isRunning}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+              title="Execute code in kernel sandbox"
+            >
+              <Play className="w-2.5 h-2.5 fill-current" />
+              <span>{isRunning ? 'Running...' : 'Run'}</span>
+            </button>
+          )}
+
+          {/* Colab button */}
+          {isExecutable && (
+            <button
+              onClick={handleColab}
+              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-medium transition-colors cursor-pointer"
+              title="Open in Google Colab"
+            >
+              <ExternalLink className="w-2.5 h-2.5" />
+              <span>Colab</span>
+            </button>
+          )}
+
+          {/* Download .ipynb button */}
+          {isExecutable && (
+            <button
+              onClick={handleDownloadIpynb}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer"
+              title="Download as Jupyter Notebook (.ipynb)"
+            >
+              <Download className="w-2.5 h-2.5" />
+              <span>.ipynb</span>
+            </button>
+          )}
+
+          {/* Copy button */}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white/60 hover:text-white transition-colors cursor-pointer"
+          >
+            {copied ? (
+              <><Check className="w-2.5 h-2.5 text-emerald-400" /><span className="text-emerald-400 text-[9px]">Copied</span></>
+            ) : (
+              <><Copy className="w-2.5 h-2.5" /><span className="text-[9px]">Copy</span></>
+            )}
+          </button>
+        </div>
       </div>
+
       {/* Code content */}
-      <pre className="px-3 py-2 overflow-x-auto nemi-scroll">
+      <pre className="px-3.5 py-2.5 overflow-x-auto nemi-scroll">
         <code className="text-[11px] font-mono text-white/90 leading-relaxed whitespace-pre">
           {code}
         </code>
       </pre>
+
+      {/* Interactive Execution Output Console */}
+      {execResult && (
+        <div className="border-t border-white/10 bg-black/80 px-3.5 py-2 text-[11px] font-mono">
+          <div className="flex items-center justify-between text-[10px] text-white/50 mb-1 pb-1 border-b border-white/5">
+            <span className="flex items-center gap-1.5">
+              <Terminal className="w-3 h-3 text-cyan-400" />
+              <span className={execResult.success ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                {execResult.success ? 'Execution Result' : 'Kernel Error'}
+              </span>
+            </span>
+            <span>{execResult.durationMs}ms</span>
+          </div>
+          <pre className={`whitespace-pre-wrap leading-relaxed ${execResult.success ? 'text-emerald-300' : 'text-rose-300'}`}>
+            {execResult.error || execResult.output}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
@@ -324,22 +448,20 @@ export default function MessageBubble({
   message,
   onSpeak,
   onRemember,
-  isSpeakingThis = false,
+  isSpeakingThis,
 }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
   const [remembered, setRemembered] = useState(false)
 
-  let timeStr = ''
-  try {
-    const d = new Date(message.timestamp || Date.now())
-    if (!isNaN(d.getTime())) {
-      timeStr = new Intl.DateTimeFormat('en', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(d)
+  const timeStr = (() => {
+    try {
+      const d = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp)
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
     }
-  } catch {}
+  })()
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content)
@@ -353,6 +475,24 @@ export default function MessageBubble({
       setRemembered(true)
       setTimeout(() => setRemembered(false), 2500)
     }
+  }
+
+  const hasCode = !isUser && /```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(message.content)
+
+  const handleDownloadFullNotebook = () => {
+    const nb = buildNotebookFromResponse({
+      taskName: 'NEMI Task Analysis',
+      responseText: message.content,
+    })
+    downloadNotebookFile(nb, `nemi_task_${Date.now()}.ipynb`)
+  }
+
+  const handleOpenColabFull = async () => {
+    const nb = buildNotebookFromResponse({
+      taskName: 'NEMI Task Analysis',
+      responseText: message.content,
+    })
+    await openInGoogleColab(nb)
   }
 
   if (isUser) {
@@ -398,7 +538,7 @@ export default function MessageBubble({
         <span className="text-[10px] font-bold text-white">N</span>
       </div>
 
-      <div className="flex-1 min-w-0 space-y-1">
+      <div className="flex-1 min-w-0 space-y-1.5">
         <div className="
           glass-bubble rounded-2xl rounded-tl-xs px-3.5 py-2.5
           bg-slate-900/60 backdrop-blur-md border border-white/8
@@ -408,6 +548,34 @@ export default function MessageBubble({
           {/* Streaming cursor */}
           {message.streaming && (
             <span className="inline-block w-1 h-3.5 bg-cyan-400 animate-pulse align-text-bottom ml-0.5 rounded-xs" />
+          )}
+
+          {/* Dedicated Full Notebook Action Banner if code exists */}
+          {hasCode && !message.streaming && (
+            <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-purple-300 font-medium text-[11px]">
+                <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Dedicated Notebook Created</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleDownloadFullNotebook}
+                  className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                  title="Download .ipynb"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Download .ipynb</span>
+                </button>
+                <button
+                  onClick={handleOpenColabFull}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                  title="Launch Google Colab"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open in Colab</span>
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

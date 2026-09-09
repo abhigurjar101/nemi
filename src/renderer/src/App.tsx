@@ -14,7 +14,7 @@ import {
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck
 } from 'lucide-react'
-import AuthModal from './components/AuthModal'
+import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
   type ConversationSession,
   type MemoryItem,
@@ -488,6 +488,17 @@ export default function App() {
 
   const isElectron = typeof window !== 'undefined' && Boolean(window.nemi)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('nemi_session_user')
+      if (raw) {
+        try {
+          return JSON.parse(raw)
+        } catch {}
+      }
+    }
+    return null
+  })
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (typeof window !== 'undefined' && window.nemi) return true
     if (typeof localStorage !== 'undefined') {
@@ -502,6 +513,45 @@ export default function App() {
     }
     return 'guest'
   })
+
+  // ── Auto-verify stored session token with /api/auth ──
+  useEffect(() => {
+    const verifySession = async () => {
+      if (typeof window !== 'undefined' && window.nemi) {
+        setIsAuthenticated(true)
+        setAuthRole('owner')
+        return
+      }
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('nemi_session_token') : null
+      if (!token) return
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify', token }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.valid && data.user) {
+            setIsAuthenticated(true)
+            setAuthRole(data.user.role || 'owner')
+            setCurrentUser(data.user)
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('nemi_session_user', JSON.stringify(data.user))
+            }
+          } else if (!data.valid) {
+            setIsAuthenticated(false)
+            setCurrentUser(null)
+            if (typeof localStorage !== 'undefined') {
+              localStorage.removeItem('nemi_session_token')
+              localStorage.removeItem('nemi_session_user')
+            }
+          }
+        }
+      } catch {}
+    }
+    verifySession()
+  }, [])
   const [serverHasKey, setServerHasKey] = useState(false)
 
   const [isListening, setIsListening] = useState(false)
@@ -1373,6 +1423,52 @@ Personality & Conversational Style:
       { role: 'user', content: userText },
     ]
 
+    const generateJupyterNotebookBanner = async (codeText: string, promptText: string): Promise<string> => {
+      if (!/```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(codeText)) {
+        return ''
+      }
+
+      // If running inside Electron desktop, try local Python bridge with timeout
+      if (isElectron) {
+        try {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 2000)
+          const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              task_name: promptText.slice(0, 30),
+              code: codeText,
+              raw_response: codeText,
+              create_fresh: true,
+              skip_pretest: true,
+            }),
+          })
+          clearTimeout(timeoutId)
+          if (jupRes.ok) {
+            const jupData = await jupRes.json()
+            const jLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
+            const jName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
+            if (jLink) {
+              if (window.nemi?.openExternal) {
+                window.nemi.openExternal(jLink)
+              } else {
+                window.open(jLink, '_blank')
+              }
+              return `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+            }
+          }
+        } catch {}
+      }
+
+      // Web or fallback: generate clean timestamped notebook identification
+      const slug = promptText.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() || 'task'
+      const ts = new Date().toISOString().slice(11, 19).replace(/:/g, '')
+      const notebookName = `nemi_${slug}_${ts}.ipynb`
+      return `\n\n> 📓 **Fresh Dedicated Notebook Generated:** \`${notebookName}\`\n> Formatted with Python kernel execution cells, markdown explanations, and 1-click Colab export.\n\n`
+    }
+
     const recordAssistantResponse = (finalText: string) => {
       const updatedMessages: Message[] = [...messages, userMsg, { ...assistantMsg, content: finalText, streaming: false }]
       setMessages(updatedMessages)
@@ -1702,35 +1798,7 @@ Personality & Conversational Style:
             }
           }
         }
-        let jupyterBanner = ''
-        if (isElectron && /```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(replyText)) {
-          try {
-            const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                task_name: userText.slice(0, 30),
-                code: replyText,
-                raw_response: replyText,
-                create_fresh: true,
-                skip_pretest: true,
-              }),
-            })
-            if (jupRes.ok) {
-              const jupData = await jupRes.json()
-              const jLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
-              const jName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
-              if (jLink) {
-                if (window.nemi?.openExternal) {
-                  window.nemi.openExternal(jLink)
-                } else {
-                  window.open(jLink, '_blank')
-                }
-                jupyterBanner = `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
-              }
-            }
-          } catch {}
-        }
+        const jupyterBanner = await generateJupyterNotebookBanner(replyText, userText)
         recordAssistantResponse(`${replyText}${jupyterBanner}`)
       } else if (!ollamaRunning) {
         throw new Error('Ollama is not running. Start it with `ollama serve`.')
@@ -1750,35 +1818,7 @@ Personality & Conversational Style:
         const fullText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
         window.nemi?.off('ollama-stream-chunk', chunkHandler)
         const finalText = fullText || ollamaStreamRef.current
-        let ollamaJupyterBanner = ''
-        if (isElectron && /```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(finalText)) {
-          try {
-            const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                task_name: userText.slice(0, 30),
-                code: finalText,
-                raw_response: finalText,
-                create_fresh: true,
-                skip_pretest: true,
-              }),
-            })
-            if (jupRes.ok) {
-              const jupData = await jupRes.json()
-              const jLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
-              const jName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
-              if (jLink) {
-                if (window.nemi?.openExternal) {
-                  window.nemi.openExternal(jLink)
-                } else {
-                  window.open(jLink, '_blank')
-                }
-                ollamaJupyterBanner = `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
-              }
-            }
-          } catch {}
-        }
+        const ollamaJupyterBanner = await generateJupyterNotebookBanner(finalText, userText)
         recordAssistantResponse(`${finalText}${ollamaJupyterBanner}`)
       }
     } catch (err) {
@@ -1910,21 +1950,23 @@ Personality & Conversational Style:
             <span>Bot Fleet (10)</span>
           </button>
 
-          {/* ── JUPYTER BUTTON (Electron only) ── */}
-          {isElectron && (
-            <button
-              onClick={() => {
+          {/* ── JUPYTER BUTTON (Electron + Web) ── */}
+          <button
+            onClick={() => {
+              if (isElectron) {
                 const url = 'http://localhost:8888'
                 if (window.nemi?.openExternal) window.nemi.openExternal(url)
                 else window.open(url, '_blank')
-              }}
-              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all"
-              title="Open Jupyter Notebooks (port 8888)"
-            >
-              <span>📓</span>
-              <span>Jupyter</span>
-            </button>
-          )}
+              } else {
+                window.open('https://colab.research.google.com/#create=true', '_blank')
+              }
+            }}
+            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+            title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
+          >
+            <span>📓</span>
+            <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
+          </button>
 
           {/* ── RAG BUTTON (Electron only) ── */}
           {isElectron && (
@@ -1946,12 +1988,14 @@ Personality & Conversational Style:
                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
                 : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
             }`}
-            title={isAuthenticated ? 'Secured Session (Authenticated)' : 'Sign In / Authenticate'}
+            title={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In / Sign Up'}
           >
             {isAuthenticated ? (
               <>
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-medium text-[11px]">{authRole === 'owner' ? 'Owner' : 'Guest'}</span>
+                <span className="font-medium text-[11px] truncate max-w-[120px]">
+                  {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
+                </span>
               </>
             ) : (
               <>
@@ -2146,20 +2190,29 @@ Personality & Conversational Style:
         onClose={() => setAuthModalOpen(false)}
         isAuthenticated={isAuthenticated}
         isGuest={authRole === 'guest'}
-        onLoginSuccess={(token, role) => {
+        currentUser={currentUser}
+        onLoginSuccess={(token, role, user) => {
           setIsAuthenticated(true)
-          setAuthRole(role)
+          setAuthRole(role === 'guest' ? 'guest' : 'owner')
+          if (user) {
+            setCurrentUser(user)
+          }
           if (typeof localStorage !== 'undefined') {
             localStorage.setItem('nemi_session_token', token)
             localStorage.setItem('nemi_session_role', role)
+            if (user) {
+              localStorage.setItem('nemi_session_user', JSON.stringify(user))
+            }
           }
         }}
         onLogout={() => {
           setIsAuthenticated(false)
           setAuthRole('guest')
+          setCurrentUser(null)
           if (typeof localStorage !== 'undefined') {
             localStorage.removeItem('nemi_session_token')
             localStorage.removeItem('nemi_session_role')
+            localStorage.removeItem('nemi_session_user')
           }
         }}
       />
