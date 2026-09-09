@@ -1,5 +1,5 @@
 import type { LearnedArchitectureItem } from './types'
-import { GITHUB_ARCHITECTURE_BLUEPRINTS } from '../src/renderer/src/utils/githubLearning'
+import { GITHUB_ARCHITECTURE_BLUEPRINTS } from './blueprints'
 
 /**
  * Curated mappings of which GitHub code architectures empower which bot.
@@ -115,7 +115,7 @@ export function buildLearnedPromptContext(
   const blueprints = getLearnedBlueprintsForBot(botId)
   const appliedRepos = blueprints.map((b) => b.repo)
 
-  let block = `\n--- 🧠 CONTINUOUS GITHUB ARCHITECTURAL KNOWLEDGE INGESTION ---\n`
+  let block = `\n--- CONTINUOUS GITHUB ARCHITECTURAL KNOWLEDGE INGESTION ---\n`
   block += `The following verified blueprints and high-class patterns were learned from top GitHub repositories:\n`
 
   for (const bp of blueprints) {

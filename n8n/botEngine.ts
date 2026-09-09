@@ -56,7 +56,7 @@ export function compileBotSystemPrompt(
   const bot = getBotById(botId)
   const { promptBlock, appliedBlueprints } = buildLearnedPromptContext(botId, memories)
 
-  const systemPrompt = `You are ${bot.name} (${bot.emoji}), an elite specialist in the NEMI Autonomous Multi-Agent Swarm.
+  const systemPrompt = `You are ${bot.name}, an elite specialist in the NEMI Autonomous Multi-Agent Swarm.
 
 CORE SPECIALIST DIRECTIVE:
 ${bot.directive}
@@ -154,7 +154,7 @@ export async function executeBotTask(
 
   // Fallback placeholder if no inference provided
   if (!output) {
-    output = `### ${bot.emoji} ${bot.name} Initialized\n\nDirectives compiled with ${appliedBlueprints.length} GitHub architectures (${appliedBlueprints.join(', ')}).\n\nTask: ${context.prompt}`
+    output = `### ${bot.name} Initialized\n\nDirectives compiled with ${appliedBlueprints.length} GitHub architectures (${appliedBlueprints.join(', ')}).\n\nTask: ${context.prompt}`
   }
 
   // 3. Extract and validate code syntax
@@ -180,7 +180,8 @@ export async function executeBotTask(
     success: true,
     botId: bot.id,
     botName: bot.name,
-    emoji: bot.emoji,
+    icon: bot.icon,
+    emoji: bot.emoji || '',
     output,
     detectedCode: detectedCode || undefined,
     astValidation,

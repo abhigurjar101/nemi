@@ -1,6 +1,6 @@
 {
   "id": "nemi-n8n-manager-v2",
-  "name": "NEMI - n8n Manager Bot [⚙️]",
+  "name": "NEMI - n8n Manager Bot ",
   "active": true,
   "nodes": [
     {
@@ -78,7 +78,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "\n            const raw = $input.first().json;\n            const text = raw.content || raw.output || JSON.stringify(raw);\n            const codeMatch = text.match(/```(?:python|py|ts|js)?\\n([\\s\\S]*?)```/);\n            const code = codeMatch ? codeMatch[1].trim() : \"\";\n            \n            return {\n              json: {\n                success: true,\n                botId: \"n8n-manager\",\n                botName: \"n8n Manager Bot\",\n                emoji: \"⚙️\",\n                output: text,\n                detectedCode: code,\n                astValidation: {\n                  valid: true,\n                  balancedDelimiters: true,\n                  language: \"python\"\n                },\n                jupyterNotebook: {\n                  notebook_name: \"n8n-manager_output.ipynb\",\n                  jupyter_link: \"http://localhost:8888\",\n                  created_fresh: true\n                },\n                latency_ms: 120\n              }\n            };\n          "
+        "jsCode": "\n            const raw = $input.first().json;\n            const text = raw.content || raw.output || JSON.stringify(raw);\n            const codeMatch = text.match(/```(?:python|py|ts|js)?\\n([\\s\\S]*?)```/);\n            const code = codeMatch ? codeMatch[1].trim() : \"\";\n            \n            return {\n              json: {\n                success: true,\n                botId: \"n8n-manager\",\n                botName: \"n8n Manager Bot\",\n                icon: \"workflow\",\n                output: text,\n                detectedCode: code,\n                astValidation: {\n                  valid: true,\n                  balancedDelimiters: true,\n                  language: \"python\"\n                },\n                jupyterNotebook: {\n                  notebook_name: \"n8n-manager_output.ipynb\",\n                  jupyter_link: \"http://localhost:8888\",\n                  created_fresh: true\n                },\n                latency_ms: 120\n              }\n            };\n          "
       }
     },
     {

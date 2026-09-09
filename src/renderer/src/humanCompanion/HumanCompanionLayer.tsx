@@ -19,7 +19,7 @@ interface CanvasRipple {
 }
 
 /**
- * 🌿 HumanCompanionLayer
+ * HumanCompanionLayer
  * An isolated, easily-removable companion layer that infuses NEMI with
  * organic presence: acoustic sound chimes, living Voice Orb aura, and 60fps acoustic wave ripples.
  * Front canvas is strictly minimalist: only the 3D Brain and Voice Orb are visible.

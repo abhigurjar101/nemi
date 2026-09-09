@@ -23,16 +23,11 @@ import {
   FileText,
 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
-import type { MemoryItem, ConversationSession } from '../chatMemory'
+import BotIcon from './BotIcon'
+import type { MemoryItem, ConversationSession, Message } from '../chatMemory'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
 
-export interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
-  streaming?: boolean
-}
+export type { Message }
 
 export interface ChatPanelProps {
   messages: Message[]
@@ -212,10 +207,10 @@ export default function ChatPanel({
   )
 
   const quickStarters = [
-    '⚡ Synthesize verified Python code (Coding Assistant)',
-    '🏛️ Decompose architecture into DAG (System Design)',
-    '🔬 Adversarial risk & failure pre-mortem (High Thinking)',
-    '📓 Create & paste to Desktop Jupyter Notebook',
+    'Synthesize verified Python code (Coding Assistant)',
+    'Decompose architecture into DAG (System Design)',
+    'Adversarial risk & failure pre-mortem (High Thinking)',
+    'Create & paste to Desktop Jupyter Notebook',
   ]
 
   return (
@@ -284,7 +279,7 @@ export default function ChatPanel({
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="text-[10px] font-bold text-white/70 tracking-wider">NEMI</span>
                   <div className="flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-500/20 border border-purple-400/30 text-[10px] text-purple-200 font-semibold truncate">
-                    <span>{activeBot.emoji}</span>
+                    <BotIcon botId={activeBot.id} iconName={activeBot.icon} className="w-3 h-3 text-purple-300 flex-shrink-0" />
                     <span className="truncate max-w-[90px]">{activeBot.shortName}</span>
                   </div>
                 </div>
@@ -382,7 +377,7 @@ export default function ChatPanel({
                           }
                         `}
                       >
-                        <span className="text-[10px]">{bot.emoji}</span>
+                        <BotIcon botId={bot.id} iconName={bot.icon} className="w-3 h-3 text-purple-300 flex-shrink-0" />
                         <span className="text-[10px]">{bot.shortName}</span>
                       </button>
                     )
@@ -402,8 +397,8 @@ export default function ChatPanel({
                       {/* Empty state with interactive prompt starters tailored to activeBot */}
                       {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-full gap-2 py-4 px-2 text-center opacity-90">
-                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.25)] text-xl">
-                            {activeBot.emoji}
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.25)] text-purple-300">
+                            <BotIcon botId={activeBot.id} iconName={activeBot.icon} className="w-5 h-5 text-purple-300" />
                           </div>
                           <div>
                             <div className="flex items-center justify-center gap-1.5">
@@ -594,7 +589,10 @@ export default function ChatPanel({
                           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                           {modelBadge}
                         </span>
-                        <span>{memories.length > 0 ? `🧠 ${memories.length} memories loaded` : 'Memory active'}</span>
+                        <span className="flex items-center gap-1">
+                          <Brain className="w-2.5 h-2.5 text-purple-400" />
+                          {memories.length > 0 ? `${memories.length} memories loaded` : 'Memory active'}
+                        </span>
                       </div>
                     </div>
                   </>

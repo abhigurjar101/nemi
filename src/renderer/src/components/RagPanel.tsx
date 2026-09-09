@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Upload, FileText, Search, Trash2, Database,
   Loader2, CheckCircle2, AlertCircle, ChevronRight,
-  Brain, Zap, BookOpen, Layers, Sparkles, RotateCcw
+  Brain, Zap, BookOpen, Layers, Sparkles, RotateCcw, Info
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────
@@ -321,35 +321,35 @@ export default function RagPanel({
 
   const uploadFile = useCallback(async (file: File) => {
     if (!ragStatus.running) {
-      setUploadStatus('❌ RAG server not running. Please wait...')
+      setUploadStatus('RAG server not running. Please wait...')
       return
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || ''
     const textExts = ['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'js', 'ts', 'jsx', 'tsx', 'py', 'html', 'css', 'xml', 'yaml', 'yml', 'log', 'ini', 'env', 'sh', 'sql', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'pdf']
     if (!textExts.includes(ext) && !file.type.startsWith('text/')) {
-      setUploadStatus(`⚠️ Skipped ${file.name}: unsupported binary format. Please upload text, markdown, or code files.`)
+      setUploadStatus(`Skipped ${file.name}: unsupported binary format. Please upload text, markdown, or code files.`)
       setTimeout(() => setUploadStatus(''), 4000)
       return
     }
-    setUploadStatus(`📄 Reading ${file.name}...`)
+    setUploadStatus(`Reading ${file.name}...`)
     try {
       const text = await readFileAsText(file)
       if (!text.trim()) {
-        setUploadStatus('❌ File appears empty or unreadable')
+        setUploadStatus('File appears empty or unreadable')
         return
       }
-      setUploadStatus(`🔍 Chunking & embedding ${file.name}...`)
+      setUploadStatus(`Chunking & embedding ${file.name}...`)
       const result = await window.nemi?.ragUpload(file.name, text)
       if (result && (result as RagUploadResult).error) {
-        setUploadStatus(`❌ Error: ${(result as RagUploadResult).error}`)
+        setUploadStatus(`Error: ${(result as RagUploadResult).error}`)
       } else if (result) {
         const r = result as RagUploadResult
-        setUploadStatus(`✅ Indexed ${r.chunks} chunks from ${file.name} (${r.embedding_mode === 'bge-m3' ? 'BGE-M3' : 'TF-IDF'})`)
+        setUploadStatus(`Indexed ${r.chunks} chunks from ${file.name} (${r.embedding_mode === 'bge-m3' ? 'BGE-M3' : 'TF-IDF'})`)
         await loadDocs()
         await loadGraph()
       }
     } catch (e) {
-      setUploadStatus(`❌ Upload failed: ${e}`)
+      setUploadStatus(`Upload failed: ${e}`)
     }
     setTimeout(() => setUploadStatus(''), 4000)
   }, [ragStatus.running])
@@ -372,7 +372,7 @@ export default function RagPanel({
   }, [uploadFile])
 
   const loadSampleDoc = useCallback(async () => {
-    setUploadStatus('📄 Indexing sample knowledge document (NEMI Overview)...')
+    setUploadStatus('Indexing sample knowledge document (NEMI Overview)...')
     const sampleText = `NEMI Desktop AI Assistant Overview
 NEMI is an ultra-fast, next-generation AI desktop assistant designed for speed, privacy, and intelligence.
 
@@ -387,12 +387,12 @@ Architecture & Key Capabilities:
     try {
       const result = await window.nemi?.ragUpload('NEMI-Overview.txt', sampleText)
       if (result && (result as RagUploadResult).chunks) {
-        setUploadStatus(`✅ Indexed ${(result as RagUploadResult).chunks} chunks from NEMI-Overview.txt (${(result as RagUploadResult).embedding_mode === 'bge-m3' ? 'BGE-M3' : 'TF-IDF'})`)
+        setUploadStatus(`Indexed ${(result as RagUploadResult).chunks} chunks from NEMI-Overview.txt (${(result as RagUploadResult).embedding_mode === 'bge-m3' ? 'BGE-M3' : 'TF-IDF'})`)
         await loadDocs()
         await loadGraph()
       }
     } catch (e: any) {
-      setUploadStatus(`❌ Failed to load sample: ${e.message || e}`)
+      setUploadStatus(`Failed to load sample: ${e.message || e}`)
     }
     setTimeout(() => setUploadStatus(''), 4000)
   }, [loadDocs])
@@ -439,7 +439,7 @@ Architecture & Key Capabilities:
       let fallbackPrefix = ''
 
       if (chunks.length === 0) {
-        fallbackPrefix = '> 💡 *No matching documents in knowledge base — answering using general AI intelligence:*\n\n'
+        fallbackPrefix = '> *No matching documents in knowledge base — answering using general AI intelligence:*\n\n'
         augmentedPrompt = `Question: ${q}\n\nPlease answer this question clearly, concisely, and helpfully.`
       }
 
@@ -721,8 +721,9 @@ Architecture & Key Capabilities:
                   </div>
                 </div>
                 {docs.length === 0 && (
-                  <p className="text-[10px] text-cyan-400/60 mt-1.5 flex items-center gap-1">
-                    <span>💡 Knowledge base empty: queries will be answered with general AI.</span>
+                  <p className="text-[10px] text-cyan-400/60 mt-1.5 flex items-center gap-1.5">
+                    <Info className="w-3 h-3 flex-shrink-0" />
+                    <span>Knowledge base empty: queries will be answered with general AI.</span>
                   </p>
                 )}
               </div>

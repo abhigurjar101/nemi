@@ -5,7 +5,7 @@ export const codingAssistantBot: N8nBot = {
   id: 'coding-assistant',
   name: 'Coding Assistant',
   shortName: 'Coding',
-  emoji: '💻',
+  icon: 'Code2',
   category: 'Core Development',
   description: 'Code generation, in-depth review, refactoring, debugging, and AST syntax validation.',
   defaultWebhook: 'coding-assistant',
@@ -13,11 +13,11 @@ export const codingAssistantBot: N8nBot = {
   supportedTasks: ['generate', 'review', 'refactor', 'debug', 'explain', 'validate'],
   placeholder: 'Ask Coding Assistant to write, debug, or refactor code...',
   samplePrompts: [
-    '⚡ Write an async token-bucket rate limiter in Python',
-    '🔍 Deep code review with typing & exception handling',
-    '✨ AST syntax check and function decomposition',
+    'Write an async token-bucket rate limiter in Python',
+    'Deep code review with typing & exception handling',
+    'AST syntax check and function decomposition',
   ],
-  directive: `You are the World's Best Senior Coding Assistant 💻.
+  directive: `You are the World's Best Senior Coding Assistant.
 - ELITE CODE SYNTHESIS: Output 100% complete, battle-tested, production-ready code with ZERO placeholders, ZERO ellipses, and ZERO 'pass'.
 - STRICT TYPING: Use strict, expressive typing (Python 3.12+ type annotations, Generics, Protocols, or TypeScript 5.5+ discriminated unions).
 - RESILIENT CONCURRENCY: Implement robust asynchronous patterns (asyncio.TaskGroup, worker queues, jittered exponential retry loops) with graceful cancellation.

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
 import { Sparkles, Bot, Layers, ChevronUp } from 'lucide-react'
+import BotIcon from './BotIcon'
 
 interface BotFleetDockProps {
   selectedBotId: string
@@ -34,7 +35,7 @@ export default function BotFleetDock({
             className="absolute -top-14 left-1/2 -translate-x-1/2 px-3.5 py-1.5 rounded-xl bg-slate-950/90 backdrop-blur-xl border border-purple-500/30 text-center shadow-[0_8px_32px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap z-50"
           >
             <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
-              <span>{hoveredBot.emoji}</span>
+              <BotIcon botId={hoveredBot.id} iconName={hoveredBot.icon} className="w-3.5 h-3.5 text-purple-400" />
               <span>{hoveredBot.name}</span>
               <span className="text-[10px] text-purple-300 font-mono px-1.5 py-0.2 rounded bg-purple-500/20 border border-purple-400/30">
                 {hoveredBot.category}
@@ -57,7 +58,7 @@ export default function BotFleetDock({
         >
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
           <span className="text-[11px] font-bold tracking-wider bg-gradient-to-r from-purple-300 to-cyan-300 bg-clip-text text-transparent">
-            10 BOTS
+            11 BOTS
           </span>
         </div>
 
@@ -85,7 +86,7 @@ export default function BotFleetDock({
                   }
                 `}
               >
-                <span className="text-xs">{bot.emoji}</span>
+                <BotIcon botId={bot.id} iconName={bot.icon} className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-purple-300' : 'text-white/60'}`} />
                 <span className="text-[11px] tracking-tight">{bot.shortName}</span>
                 {isSelected && (
                   <motion.div

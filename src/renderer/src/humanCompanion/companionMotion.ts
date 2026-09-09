@@ -1,5 +1,5 @@
 /**
- * 🧠 companionMotion.ts
+ * companionMotion.ts
  * Pure mathematical functions for organic 3D Brain presence:
  * - Multi-axis asymmetric respiratory cycle (~4.5s cycle)
  * - Attentive forward focus lean-in on voice input (+1.35 Z, -0.075 rad pitch, damped yaw)

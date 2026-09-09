@@ -9,7 +9,7 @@ import {
 } from '../../src/renderer/src/components/MessageBubble'
 
 /**
- * 📐 Interface Contracts & Progressive Testability Fixture
+ * Interface Contracts & Progressive Testability Fixture
  * Implements specifications from PROJECT.md & TEST_INFRA.md.
  */
 

@@ -1,4 +1,10 @@
-import type { Message } from './components/ChatPanel'
+export interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  streaming?: boolean
+}
 
 export interface ConversationSession {
   id: string
@@ -35,7 +41,7 @@ export function createDefaultConversation(): ConversationSession {
       {
         id: 'welcome',
         role: 'assistant',
-        content: `### 🧠 Welcome to NEMI\n\nI'm your next-generation desktop AI companion.\n\n- 💬 **Interactive Chat**: Type your questions, code, or ideas.\n- 🧠 **Persistent Memory**: I remember your preferences and project details across sessions.\n- 🎙️ **Voice Ready**: Press \`⌘⇧Space\` or click the mic button to speak.\n- 📁 **RAG Connected**: Query your local documents in real-time.`,
+        content: `### Welcome to NEMI\n\nI'm your next-generation desktop AI companion.\n\n- **Interactive Chat**: Type your questions, code, or ideas.\n- **Persistent Memory**: I remember your preferences and project details across sessions.\n- **Voice Ready**: Press \`⌘⇧Space\` or click the mic button to speak.\n- **RAG Connected**: Query your local documents in real-time.`,
         timestamp: new Date(),
       },
     ],

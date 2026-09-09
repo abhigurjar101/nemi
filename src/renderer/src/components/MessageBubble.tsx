@@ -382,8 +382,9 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             {language || 'code'}
           </span>
           {isExecutable && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
-              ⚡ Sandbox Ready
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono flex items-center gap-1">
+              <Terminal className="w-2.5 h-2.5" />
+              Sandbox Ready
             </span>
           )}
           <span className="text-[9px] text-white/40 font-mono">

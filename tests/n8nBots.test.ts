@@ -37,7 +37,7 @@ describe('Unified n8n Bots Swarm Fleet & Cross-Bot Learning Engine', () => {
         expect(bot).toBeDefined()
         expect(bot.id).toBe(id)
         expect(bot.name).toBeTruthy()
-        expect(bot.emoji).toBeTruthy()
+        expect(bot.icon).toBeTruthy()
         expect(bot.description).toBeTruthy()
         expect(bot.defaultWebhook).toBeTruthy()
         expect(bot.directive).toBeTruthy()

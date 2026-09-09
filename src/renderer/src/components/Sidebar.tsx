@@ -17,6 +17,7 @@ import {
   Play,
 } from 'lucide-react'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
+import BotIcon from './BotIcon'
 
 export interface Conversation {
   id: string
@@ -236,7 +237,7 @@ export default function Sidebar({
                   `}
                 >
                   <Bot className="w-3.5 h-3.5" />
-                  <span>Bot Fleet (10)</span>
+                  <span>Bot Fleet (11)</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('history')}
@@ -258,7 +259,7 @@ export default function Sidebar({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
                 <input
                   type="text"
-                  placeholder={activeTab === 'bots' ? 'Search 10 bots...' : 'Search conversations...'}
+                  placeholder={activeTab === 'bots' ? 'Search 11 bots...' : 'Search conversations...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="
@@ -280,7 +281,7 @@ export default function Sidebar({
                     <span>Active Swarm Nodes</span>
                     <span className="text-emerald-400 flex items-center gap-1 font-mono">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      10 ONLINE
+                      11 ONLINE
                     </span>
                   </div>
 
@@ -303,7 +304,7 @@ export default function Sidebar({
                       >
                         <div className="flex items-start justify-between gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-base">{bot.emoji}</span>
+                            <BotIcon botId={bot.id} iconName={bot.icon} className="w-4 h-4 text-purple-400 flex-shrink-0" />
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <span className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>

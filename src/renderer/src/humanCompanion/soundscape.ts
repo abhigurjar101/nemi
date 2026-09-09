@@ -1,5 +1,5 @@
 /**
- * 🌿 NEMI Acoustic Soundscape
+ * NEMI Acoustic Soundscape
  * Pure Web Audio API synthesized tactile chimes.
  * Zero external audio files, zero network latency, 100% organic felt/marimba tones.
  */

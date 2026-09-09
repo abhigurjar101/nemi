@@ -6,7 +6,7 @@ if (typeof (globalThis as any).window === 'undefined') {
 }
 
 /**
- * 🎵 Reusable Mock Web Audio API Fixture
+ * Reusable Mock Web Audio API Fixture
  * Provides opaque-box simulation and call-spying for Web Audio synthesis,
  * dynamics compression, frequency analysis, and audio playback.
  */

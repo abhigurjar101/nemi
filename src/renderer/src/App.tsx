@@ -18,7 +18,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Sparkles, Mic, MessageSquare, Settings as SettingsIcon,
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
-  Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck
+  Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
+  BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X
 } from 'lucide-react'
 import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
@@ -60,16 +61,16 @@ function newConversation(): Conversation {
 
 // ── Voice names for display ──────────────────────────────────
 const KOKORO_VOICES: Record<string, string> = {
-  af_heart:    '❤️ Heart (Warm & Intimate Female)',
-  af_bella:    '✨ Bella (Smooth & Articulate Female)',
-  af_sarah:    '🌸 Sarah (Soft & Friendly Female)',
-  af_sky:      '☀️ Sky (Bright & Youthful Female)',
-  af_nicole:   '🌙 Nicole (Calm & Whispery Female)',
-  am_adam:     '🎙️ Adam (Clear & Confident Male)',
-  am_michael:  '☕ Michael (Warm & Conversational Male)',
-  bf_emma:     '🎩 Emma (Elegant British Female)',
-  bf_isabella: '🌿 Isabella (Gentle British Female)',
-  bm_george:   '🇬🇧 George (Classic British Male)',
+  af_heart:    'Heart (Warm & Intimate Female)',
+  af_bella:    'Bella (Smooth & Articulate Female)',
+  af_sarah:    'Sarah (Soft & Friendly Female)',
+  af_sky:      'Sky (Bright & Youthful Female)',
+  af_nicole:   'Nicole (Calm & Whispery Female)',
+  am_adam:     'Adam (Clear & Confident Male)',
+  am_michael:  'Michael (Warm & Conversational Male)',
+  bf_emma:     'Emma (Elegant British Female)',
+  bf_isabella: 'Isabella (Gentle British Female)',
+  bm_george:   'George (Classic British Male)',
 }
 
 const OLLAMA_PREFERRED = ['llama3.2', 'llama3.1', 'llama3']
@@ -291,27 +292,30 @@ onChange={(e) => { onOllamaModelChange(e.target.value) }}
                       ))}
                     </select>
                   ) : (
-                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-400/20 text-red-300 text-xs">
-                      {ollamaRunning
-                        ? '⚠️ No models installed. Run: ollama pull llama3.2'
-                        : '❌ Ollama not running. Start with: ollama serve'}
-</div>
-                    )}
-                    <p className="text-xs text-white/35">Install models: <span className="font-mono text-green-400">ollama pull llama3.2</span></p>
-                </div>
-              )}
-
-            {/* ── Voice Settings ── */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Voice (TTS)</label>
-                <div className={`flex items-center gap-1.5 text-xs ${voiceServerRunning ? 'text-green-400' : 'text-yellow-400'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${voiceServerRunning ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                  {voiceServerRunning
-                    ? (kokoro ? 'Kokoro TTS ✨' : 'Voice Server (macOS fallback)')
-                    : 'macOS Samantha (fallback)'}
-                </div>
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-400/20 text-red-300 text-xs flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                      <span>
+                        {ollamaRunning
+                          ? 'No models installed. Run: ollama pull llama3.2'
+                          : 'Ollama not running. Start with: ollama serve'}
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-xs text-white/35">Install models: <span className="font-mono text-green-400">ollama pull llama3.2</span></p>
               </div>
+            )}
+
+          {/* ── Voice Settings ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-white/60 uppercase tracking-widest">Voice (TTS)</label>
+              <div className={`flex items-center gap-1.5 text-xs ${voiceServerRunning ? 'text-green-400' : 'text-yellow-400'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${voiceServerRunning ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                {voiceServerRunning
+                  ? (kokoro ? 'Kokoro TTS' : 'Voice Server (macOS fallback)')
+                  : 'macOS Samantha (fallback)'}
+              </div>
+            </div>
               <select
                 value={selectedVoice}
 onChange={(e) => { onVoiceChange(e.target.value) }}
@@ -367,12 +371,25 @@ onChange={(e) => { onVoiceChange(e.target.value) }}
               <div className="p-3 rounded-xl bg-white/4 border border-white/10 text-xs space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-white/60">Browser WebSpeech API</span>
-                  <span className="text-green-400 font-semibold">✅ Primary</span>
+                  <span className="text-green-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Primary</span>
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/60">Local Whisper (voice server)</span>
-                  <span className={sttMode !== 'none' ? 'text-green-400 font-semibold' : 'text-white/30'}>
-                    {sttMode !== 'none' ? `✅ ${sttMode}` : '⚠️ not installed'}
+                  <span className={sttMode !== 'none' ? 'text-green-400 font-semibold flex items-center gap-1' : 'text-white/40 flex items-center gap-1'}>
+                    {sttMode !== 'none' ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>{sttMode}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <span>Not installed</span>
+                      </>
+                    )}
                   </span>
                 </div>
                 <p className="text-white/30 pt-1">Install: <span className="font-mono text-amber-400">pip install faster-whisper</span></p>
@@ -639,7 +656,7 @@ export default function App() {
         void triggerDailyGitHubLearning(currentMems, true, true).then((learnRes) => {
           if (learnRes.trained && learnRes.count > 0) {
             setMemories(learnRes.newMemories)
-            setGithubLearningBanner(`⚡ Connection Sync: Ingested ${learnRes.count} GitHub architectures.`)
+            setGithubLearningBanner(`Connection Sync: Ingested ${learnRes.count} GitHub architectures.`)
             setTimeout(() => setGithubLearningBanner(null), 6000)
           }
         })
@@ -1146,7 +1163,7 @@ export default function App() {
     const intent = extractVoiceIntent(transcribedText)
     if (voiceSessionActivatedRef.current) {
       if (intent.isWakeOnly) {
-        setTranscript('✨ NEMI is ready. What would you like to do?')
+        setTranscript('NEMI is ready. What would you like to do?')
         const isRagReady = serviceStatuses.find(s => s.name === 'RAG')?.state === 'ready'
         void speakText(readinessBriefing({
           ollama: ollamaRunning,
@@ -1164,7 +1181,7 @@ export default function App() {
         setTranscript(intent.query)
         void sendToAI(intent.query)
       } else {
-        setTranscript('✨ NEMI is ready. What would you like to do?')
+        setTranscript('NEMI is ready. What would you like to do?')
         const isRagReady = serviceStatuses.find(s => s.name === 'RAG')?.state === 'ready'
         void speakText(readinessBriefing({
           ollama: ollamaRunning,
@@ -1192,7 +1209,7 @@ export default function App() {
     recognition.maxAlternatives = 1
     recognition.onstart = () => {
       setIsListening(true)
-      setTranscript('🎤 Listening...')
+      setTranscript('Listening...')
     }
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const result = event.results[event.results.length - 1]
@@ -1249,7 +1266,7 @@ export default function App() {
 
       mediaRecorder.onstart = () => {
         setIsListening(true)
-        setTranscript('🎤 Listening...')
+        setTranscript('Listening...')
         hasSpokenRef.current = false
       }
 
@@ -1275,7 +1292,7 @@ export default function App() {
 
         // 1. Try local voice server Whisper
         if (voiceServerRunning && sttMode !== 'none') {
-          setTranscript('🔄 Transcribing...')
+          setTranscript('Transcribing...')
           try {
             const arrayBuf = await blob.arrayBuffer()
             const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)))
@@ -1290,7 +1307,7 @@ export default function App() {
           handleVoiceTranscript(transcribedText)
         } else {
           if (hasSpokenRef.current) {
-            setTranscript('⚠️ Could not transcribe. Try speaking clearly.')
+            setTranscript('Could not transcribe. Try speaking clearly.')
             setTimeout(() => setTranscript(''), 2500)
           } else {
             setTranscript('')
@@ -1312,7 +1329,7 @@ export default function App() {
         if (average > 4) {
           hasSpokenRef.current = true
           silenceStart = Date.now()
-          setTranscript('🎤 Recording...')
+          setTranscript('Recording...')
         } else if (hasSpokenRef.current && Date.now() - silenceStart > 1500) {
           finishUtterance()
           return
@@ -1326,7 +1343,7 @@ export default function App() {
       detectSilence()
     } catch (err) {
       console.warn('Microphone access denied:', err)
-      setTranscript('❌ Microphone access denied. Please allow microphone permissions.')
+      setTranscript('Microphone access denied. Please allow microphone permissions.')
       setTimeout(() => setTranscript(''), 3000)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1547,7 +1564,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               } else {
                 window.open(jLink, '_blank')
               }
-              return `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+              return `\n\n> **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
             }
           }
         } catch {}
@@ -1557,7 +1574,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
       const slug = promptText.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() || 'task'
       const ts = new Date().toISOString().slice(11, 19).replace(/:/g, '')
       const notebookName = `nemi_${slug}_${ts}.ipynb`
-      return `\n\n> 📓 **Fresh Dedicated Notebook Generated:** \`${notebookName}\`\n> Formatted with Python kernel execution cells, markdown explanations, and 1-click Colab export.\n\n`
+      return `\n\n> **Fresh Dedicated Notebook Generated:** \`${notebookName}\`\n> Formatted with Python kernel execution cells, markdown explanations, and 1-click Colab export.\n\n`
     }
 
     const recordAssistantResponse = (finalText: string) => {
@@ -1632,7 +1649,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             }
           }
           const nbBanner = jupyter.notebook_name 
-            ? `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jupyter.notebook_name}\`\n> Saved to \`Desktop/Notebooks/\` — 100% Kernel Verified.\n\n`
+            ? `\n\n> **Fresh Dedicated Notebook Created & Opened:** \`${jupyter.notebook_name}\`\n> Saved to \`Desktop/Notebooks/\` — 100% Kernel Verified.\n\n`
             : ''
           recordAssistantResponse(`${orchData.synthesis || ''}${nbBanner}`)
           return
@@ -1693,12 +1710,12 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           }
 
           const astInfo = botData.ast_validation?.valid
-            ? `> ✅ **AST Syntax Verified Clean** — ${botData.ast_validation?.detected_functions?.length || 0} functions, ${botData.ast_validation?.detected_classes?.length || 0} classes.\n\n`
+            ? `> **AST Syntax Verified Clean** — ${botData.ast_validation?.detected_functions?.length || 0} functions, ${botData.ast_validation?.detected_classes?.length || 0} classes.\n\n`
             : ''
           const nbBanner = jupyterName 
-            ? `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jupyterName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+            ? `\n\n> **Fresh Dedicated Notebook Created & Opened:** \`${jupyterName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
             : ''
-          const headerBadge = `> **${activeBot.emoji} ${activeBot.name} Output (${botData.latency_ms || 0}ms)**\n\n`
+          const headerBadge = `> **${activeBot.name} Output (${botData.latency_ms || 0}ms)**\n\n`
           recordAssistantResponse(`${headerBadge}${astInfo}${content}${nbBanner}`)
           return
         }
@@ -1822,7 +1839,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                                 m.id === assistantMsgId
                                   ? {
                                       ...m,
-                                      content: `*🧠 NEMI is synthesizing neural thoughts...*\n\n> ${accumulatedThinking.slice(-140).replace(/\n/g, ' ')}...`,
+                                      content: `*NEMI is synthesizing neural thoughts...*\n\n> ${accumulatedThinking.slice(-140).replace(/\n/g, ' ')}...`,
                                       streaming: true,
                                     }
                                   : m
@@ -1895,11 +1912,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         if (detectedCode) {
           const astVal = validateCodeBlock(detectedCode)
           if (astVal.valid) {
-            astBadge = `> ✅ **AST Syntax & Architecture Verified** — ${astVal.detectedFunctions?.length || 0} functions, ${astVal.detectedClasses?.length || 0} classes.\n\n`
+            astBadge = `> **AST Syntax & Architecture Verified** — ${astVal.detectedFunctions?.length || 0} functions, ${astVal.detectedClasses?.length || 0} classes.\n\n`
           }
         }
         const botBadge = selectedBotId !== 'orchestrator'
-          ? `> **${activeBot.emoji} ${activeBot.name} Response**\n\n`
+          ? `> **${activeBot.name} Response**\n\n`
           : ''
         recordAssistantResponse(`${botBadge}${astBadge}${replyText}${jupyterBanner}`)
       } else if (!ollamaRunning) {
@@ -1925,7 +1942,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
       }
     } catch (err) {
       console.error(err)
-      const errMessage = `❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}\n\n${modelMode === 'nvidia-nim' ? 'Check the NVIDIA NIM key in Settings.' : 'Make sure Ollama is running: `ollama serve`'}`
+      const errMessage = `Error: ${err instanceof Error ? err.message : 'Unknown error'}\n\n${modelMode === 'nvidia-nim' ? 'Check the NVIDIA NIM key in Settings.' : 'Make sure Ollama is running: `ollama serve`'}`
       recordAssistantResponse(errMessage)
     } finally {
       setIsThinking(false)
@@ -2049,7 +2066,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             title="Toggle Bot Swarm Fleet Sidebar"
           >
             <Bot className="w-3.5 h-3.5 text-purple-400" />
-            <span>Bot Fleet (10)</span>
+            <span>Bot Fleet (11)</span>
           </button>
 
           {/* ── JUPYTER BUTTON (Electron + Web) ── */}
@@ -2063,10 +2080,10 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                 window.open('https://colab.research.google.com/#create=true', '_blank')
               }
             }}
-            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all cursor-pointer"
             title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
           >
-            <span>📓</span>
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
             <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
           </button>
 
@@ -2103,7 +2120,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
               title="Train NEMI on High-Class GitHub Code Architectures"
             >
-              <span>🧠⚡</span>
+              <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
               <span>Train GitHub</span>
             </button>
             <button
@@ -2165,15 +2182,15 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         {githubLearningBanner && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90%] px-4 py-2.5 rounded-xl bg-purple-950/95 border border-purple-400/50 shadow-[0_0_24px_rgba(168,85,247,0.4)] backdrop-blur-md flex items-center justify-between text-xs text-purple-200">
             <div className="flex items-center gap-2">
-              <span className="text-base">🧠⚡</span>
+              <BrainCircuit className="w-4 h-4 text-purple-400 flex-shrink-0" />
               <span>{githubLearningBanner}</span>
             </div>
             <button
               onClick={() => setGithubLearningBanner(null)}
-              className="text-purple-400 hover:text-purple-100 ml-3 p-1 rounded transition-colors text-sm"
+              className="text-purple-400 hover:text-purple-100 ml-3 p-1 rounded transition-colors"
               title="Dismiss"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -2262,8 +2279,9 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#c084fc]" />
             <span className="text-xs font-semibold tracking-wide text-white/90 group-hover:text-white">Chat with {activeBot.shortName}</span>
             {memories.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-400/30">
-                🧠 {memories.length}
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-400/30 flex items-center gap-1">
+                <Brain className="w-2.5 h-2.5" />
+                <span>{memories.length}</span>
               </span>
             )}
             <kbd className="text-[10px] text-white/30 font-mono px-1 py-0.5 rounded bg-white/5 border border-white/10">⌘⇧C</kbd>
@@ -2394,15 +2412,15 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl w-full max-w-lg shadow-[0_0_30px_rgba(6,182,212,0.25)] overflow-hidden">
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🧠⚡</span>
+                <BrainCircuit className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                 <h3 className="text-sm font-semibold text-white">Ingest Public GitHub Repository</h3>
               </div>
               <button
                 onClick={() => setRepoModalOpen(false)}
-                className="text-white/40 hover:text-white text-sm p-1 rounded transition-colors"
+                className="text-white/40 hover:text-white p-1 rounded transition-colors"
                 title="Close"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 space-y-4">

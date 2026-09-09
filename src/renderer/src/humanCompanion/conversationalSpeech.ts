@@ -1,5 +1,5 @@
 /**
- * 🎙️ NEMI Conversational Speech Pre-Processor
+ * NEMI Conversational Speech Pre-Processor
  * Converts dense technical markdown, code blocks, tables, and lists
  * into warm, natural, human-like spoken English for Kokoro TTS.
  * The chat drawer retains the original rich visual markdown.

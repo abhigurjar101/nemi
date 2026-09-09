@@ -30,7 +30,8 @@ export interface N8nBot {
   id: string
   name: string
   shortName: string
-  emoji: string
+  icon: string
+  emoji?: string
   category: BotCategory
   description: string
   defaultWebhook: string
@@ -58,7 +59,8 @@ export interface BotExecutionResult {
   success: boolean
   botId: string
   botName: string
-  emoji: string
+  icon?: string
+  emoji?: string
   output: string
   detectedCode?: string
   explanation?: string
