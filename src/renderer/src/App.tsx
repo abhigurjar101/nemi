@@ -832,6 +832,7 @@ export default function App() {
   const toggleVoiceRef = useRef<() => void>(() => {})
   const latestTranscriptRef = useRef<string>('')
   const processedTranscriptRef = useRef<boolean>(false)
+  const sendToAIRef = useRef<(text: string) => Promise<void>>(async () => {})
 
   // Non-allocating audio level accessor for 60fps zero-render visual reactivity (3D Brain & ripples)
   // Measures active TTS output when speaking, or microphone input when listening
@@ -1209,13 +1210,13 @@ export default function App() {
       } else {
         const finalQuery = intent.query || raw
         setTranscript(finalQuery)
-        void sendToAI(finalQuery)
+        void sendToAIRef.current(finalQuery)
       }
     } else if (intent.hasWakeWord) {
       voiceSessionActivatedRef.current = true
       if (intent.query) {
         setTranscript(intent.query)
-        void sendToAI(intent.query)
+        void sendToAIRef.current(intent.query)
       } else {
         setTranscript('NEMI is ready. What would you like to do?')
         const isRagReady = serviceStatuses.find(s => s.name === 'RAG')?.state === 'ready'
@@ -1228,9 +1229,9 @@ export default function App() {
     } else {
       // Direct intent fallback: user tapped voice button and spoke query directly
       setTranscript(raw)
-      void sendToAI(raw)
+      void sendToAIRef.current(raw)
     }
-  }, [ollamaRunning, serviceStatuses, speakText, voiceServerRunning, sendToAI])
+  }, [ollamaRunning, serviceStatuses, speakText, voiceServerRunning])
 
   const handleSendVoiceNow = useCallback(() => {
     const text = (latestTranscriptRef.current || transcript || '').trim()
@@ -2083,6 +2084,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
       setIsThinking(false)
     }
   }, [messages, modelMode, ollamaRunning, ollamaModel, nvidiaNimKey, speakText, memories, activeConvId, conversations])
+  sendToAIRef.current = sendToAI
 
   const handleClearChat = useCallback(() => {
     setMessages([])

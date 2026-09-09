@@ -712,6 +712,91 @@ function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
 }
 
 // ──────────────────────────────────────────────────────────
+// RESILIENT 2D NEURAL ORB FALLBACK (Used if WebGL fails or is disabled)
+// ──────────────────────────────────────────────────────────
+export function NeuralOrbFallback({
+  isListening,
+  isThinking,
+  isSpeaking,
+  onBrainClick,
+}: {
+  isListening: boolean
+  isThinking: boolean
+  isSpeaking: boolean
+  onBrainClick?: () => void
+}) {
+  return (
+    <div
+      onClick={onBrainClick}
+      className="fixed inset-0 flex items-center justify-center pointer-events-auto cursor-pointer select-none z-0"
+    >
+      <div className="relative flex items-center justify-center">
+        {/* Outer ambient glow */}
+        <div
+          className={`absolute w-72 h-72 rounded-full blur-3xl transition-all duration-700 ${
+            isListening
+              ? 'bg-cyan-500/25 scale-125'
+              : isThinking
+              ? 'bg-purple-500/25 scale-110'
+              : isSpeaking
+              ? 'bg-pink-500/25 scale-120'
+              : 'bg-cyan-500/15 scale-100'
+          }`}
+        />
+
+        {/* Outer pulsing ring */}
+        <div
+          className={`w-64 h-64 rounded-full border border-cyan-400/20 animate-pulse flex items-center justify-center transition-all duration-500 ${
+            isListening ? 'border-cyan-400/50 scale-105' : ''
+          }`}
+        >
+          {/* Middle rotating dashed ring */}
+          <div
+            className="w-52 h-52 rounded-full border border-dashed border-purple-400/30 animate-spin flex items-center justify-center"
+            style={{ animationDuration: '24s' }}
+          >
+            {/* Inner glowing sphere */}
+            <div
+              className={`w-40 h-40 rounded-full shadow-[0_0_50px_rgba(6,182,212,0.4)] flex items-center justify-center transition-all duration-500 ${
+                isListening
+                  ? 'bg-gradient-to-tr from-cyan-600 via-teal-500 to-cyan-300'
+                  : isThinking
+                  ? 'bg-gradient-to-tr from-purple-700 via-indigo-600 to-purple-400'
+                  : isSpeaking
+                  ? 'bg-gradient-to-tr from-pink-600 via-rose-500 to-purple-400'
+                  : 'bg-gradient-to-tr from-cyan-900 via-slate-800 to-cyan-700'
+              }`}
+            >
+              <div className="w-16 h-16 rounded-full bg-white/20 blur-md" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export class BrainErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  componentDidCatch(error: any) {
+    console.warn('Brain 3D WebGL fallback triggered:', error)
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback
+    return this.props.children
+  }
+}
+
+// ──────────────────────────────────────────────────────────
 // MAIN NEMI BRAIN COMPONENT
 // ──────────────────────────────────────────────────────────
 export default function NemiBrain({
@@ -753,9 +838,34 @@ export default function NemiBrain({
     }
   }
 
+  const [webGlSupported] = useState<boolean>(() => {
+    try {
+      const canvas = document.createElement('canvas')
+      return !!(
+        window.WebGLRenderingContext &&
+        (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+      )
+    } catch {
+      return false
+    }
+  })
+
+  const fallbackNode = (
+    <NeuralOrbFallback
+      isListening={isListening}
+      isThinking={isThinking}
+      isSpeaking={isSpeaking}
+      onBrainClick={onBrainClick}
+    />
+  )
+
   return (
     <div className="fixed inset-0 pointer-events-none z-0">
-      <Canvas
+      {!webGlSupported ? (
+        fallbackNode
+      ) : (
+        <BrainErrorBoundary fallback={fallbackNode}>
+          <Canvas
         className="brain-canvas pointer-events-auto"
         dpr={[1, 1.5]}
         performance={{ min: 0.5 }}
@@ -808,6 +918,8 @@ export default function NemiBrain({
           />
         </EffectComposer>
       </Canvas>
+        </BrainErrorBoundary>
+      )}
 
       {/* ── Sleek Minimalist 3D Brain Camera HUD (Fixed Lower-Left) ── */}
       <div
