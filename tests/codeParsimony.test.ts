@@ -71,4 +71,51 @@ def hello():
     expect(systemPrompt).toContain('ZERO TRIVIAL COMMENTS')
     expect(systemPrompt).toContain('self-documenting code')
   })
+
+  it('verifies that all 11 bot directives enforce parsimony and zero comment clutter', async () => {
+    const { ALL_N8N_BOTS } = await import('../n8n/botEngine')
+    for (const bot of ALL_N8N_BOTS) {
+      const { systemPrompt } = compileBotSystemPrompt(bot.id)
+      expect(systemPrompt).toContain('MAXIMUM CODE PARSIMONY')
+      expect(systemPrompt).toContain('ZERO TRIVIAL COMMENTS')
+      // Bot individual directives also demand purity and zero placeholders
+      expect(bot.directive.length).toBeGreaterThan(50)
+    }
+  })
+
+  it('strips JS/TS double-slash trivial comment clutter properly', () => {
+    const tsCode = `
+// import modules
+import { useState } from 'react'
+
+// initialize state
+const [count, setCount] = useState(0)
+
+// return component
+return <div>{count}</div>
+`
+    const cleaned = stripTrivialComments(tsCode)
+    expect(cleaned).not.toContain('// import modules')
+    expect(cleaned).not.toContain('// initialize state')
+    expect(cleaned).not.toContain('// return component')
+    expect(cleaned).toContain("import { useState } from 'react'")
+    expect(cleaned).toContain('return <div>{count}</div>')
+  })
+
+  it('detects diverse weak placeholders with enhanced validateCodeBlock', async () => {
+    const { validateCodeBlock } = await import('../n8n/bots/validation')
+    const badCases = [
+      'def fn():\n    # TODO: implement rest\n',
+      'function test() {\n    // TODO: implement later\n}\n',
+      'def calc():\n    # FIXME: broken calculation\n',
+      'def run():\n    # ... rest of pipeline\n',
+      'const f = () => {\n    // ... rest of code\n}\n',
+    ]
+
+    for (const code of badCases) {
+      const res = validateCodeBlock(code)
+      expect(res.valid).toBe(false)
+      expect(res.syntaxErrors?.some((e) => e.includes('placeholder'))).toBe(true)
+    }
+  })
 })

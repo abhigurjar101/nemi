@@ -22,7 +22,8 @@ export const githubLearnerBot: N8nBot = {
 - For all NLP and machine learning tasks:
   1. SIMPLEST & MOST EFFECTIVE: Prioritize clean, transparent, readable implementations over cryptic abstractions.
   2. 100% ERROR-FREE: Code must be completely self-contained with all imports, standard libraries, defensive bounds checks, and zero undefined symbols.
-  3. COMPREHENSIVE ARCHITECTURE: Provide domain definitions, pipeline classes, and a runnable '__main__' execution block with sample text processing and printed evaluations.
+  3. MAXIMUM CODE PARSIMONY & ZERO TRIVIAL COMMENTS: Never narrate obvious syntax. Eliminate line-by-line comment clutter. Write self-documenting code that maximizes attention focus on algorithmic invariants.
+  4. COMPREHENSIVE ARCHITECTURE: Provide domain definitions, pipeline classes, and a runnable '__main__' execution block with sample text processing and printed evaluations.
 - When ingesting architectures, extract core design principles, structural tradeoffs, and clean code patterns for the other bots in the swarm.`,
   validateCode: (code: string) => validateCodeBlock(code, 'python'),
 }

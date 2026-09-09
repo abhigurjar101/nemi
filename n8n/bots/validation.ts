@@ -27,12 +27,18 @@ export function validateCodeBlock(code: string, language = 'python'): AstValidat
     const classMatch = trimmed.match(/^(?:export\s+)?class\s+([a-zA-Z0-9_]+)/)
     if (classMatch) detectedClasses.push(classMatch[1])
 
-    // Placeholders check
+    // Rigorous placeholder check (prohibits all incomplete or weakening placeholders)
     if (
-      trimmed.includes('# ... rest of code') ||
-      trimmed.includes('// ... rest of code') ||
-      trimmed.includes('# TODO: implement') ||
-      trimmed.includes('// TODO: implement')
+      trimmed.includes('# ...') ||
+      trimmed.includes('// ...') ||
+      trimmed.includes('# TODO') ||
+      trimmed.includes('// TODO') ||
+      trimmed.includes('/* TODO') ||
+      trimmed.includes('# FIXME') ||
+      trimmed.includes('// FIXME') ||
+      trimmed.includes('# pass') ||
+      trimmed.includes('// pass') ||
+      /(?:#|\/\/|\/\*)\s*(?:\.\.\.|TODO|FIXME|rest of (?:code|pipeline|implementation)|implement later|placeholder)/i.test(trimmed)
     ) {
       syntaxErrors.push(`Code contains placeholder: "${trimmed}"`)
     }

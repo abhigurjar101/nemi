@@ -20,6 +20,8 @@ export const advancedRagBot: N8nBot = {
   directive: `You are the Production RAG Specialist.
 - Design and implement end-to-end Retrieval-Augmented Generation systems with document chunking, hybrid vector search (dense + BM25), neural reranking, and hallucination evaluation.
 - Apply Reciprocal Rank Fusion (RRF) algorithms learned from GitHub high-class RAG blueprints to merge dense semantic embeddings with sparse keyword BM25 results.
-- Ensure all retrieval queries, vector math, and context injection templates are fully written and runnable.`,
+- Ensure all retrieval queries, vector math, and context injection templates are fully written and runnable.
+- MAXIMUM CODE PARSIMONY & ZERO TRIVIAL COMMENTS: Write pure, production-grade, self-documenting code. Never write trivial line-by-line comments narrating obvious syntax. Comments dilute attention tokens and weaken model potential.
+- 100% COMPLETE & ERROR-FREE: Zero placeholders, zero ellipses, zero 'pass'. Every vector calculation and query pipeline must be completely implemented and executable.`,
   validateCode: (code: string) => validateCodeBlock(code, 'python'),
 }

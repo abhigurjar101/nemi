@@ -334,8 +334,8 @@ onChange={(e) => { onOllamaModelChange(e.target.value) }}
               <div className={`flex items-center gap-1.5 text-xs ${voiceServerRunning ? 'text-green-400' : 'text-yellow-400'}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${voiceServerRunning ? 'bg-green-400' : 'bg-yellow-400'}`} />
                 {voiceServerRunning
-                  ? (kokoro ? 'Kokoro TTS' : 'Voice Server (macOS fallback)')
-                  : 'macOS Samantha (fallback)'}
+                  ? (kokoro ? 'Kokoro TTS' : 'Native High-Res Audio')
+                  : 'Native Speech Engine'}
               </div>
             </div>
               <select

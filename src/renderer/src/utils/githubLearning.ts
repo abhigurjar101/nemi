@@ -49,6 +49,20 @@ export function parseGitHubRepoInput(repoInput: string): { owner: string; repo: 
   }
 }
 
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 4000): Promise<Response | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...options, signal: controller.signal })
+    .then((res) => {
+      clearTimeout(timer)
+      return res
+    })
+    .catch(() => {
+      clearTimeout(timer)
+      return null
+    })
+}
+
 /**
  * Fetches a raw file from GitHub with zero rate limits via raw.githubusercontent.com.
  * Tries HEAD, main, and master branches.
@@ -58,7 +72,7 @@ export async function fetchRawGitHubFile(owner: string, repo: string, filename: 
   for (const branch of branches) {
     try {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filename}`
-      const res = await fetch(url).catch(() => null)
+      const res = await fetchWithTimeout(url, {}, 3500)
       if (res && res.ok) {
         const text = await res.text()
         if (text && text.trim().length > 0) {
@@ -204,23 +218,23 @@ export async function ingestCustomGitHubRepo(
   let stars = 0
   let description = ''
   try {
-    const proxyRes = await fetch('/api/github-learn', {
+    const proxyRes = await fetchWithTimeout('/api/github-learn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ repo: fullRepo }),
-    }).catch(() => null)
+    }, 4000)
 
     if (proxyRes && proxyRes.ok) {
       const data = await proxyRes.json()
       if (typeof data.stars === 'number') stars = data.stars
       if (data.description) description = data.description
     } else {
-      const ghRes = await fetch(`https://api.github.com/repos/${fullRepo}`, {
+      const ghRes = await fetchWithTimeout(`https://api.github.com/repos/${fullRepo}`, {
         headers: {
           'User-Agent': 'NEMI-Continuous-Learning-Bot/2.0',
           'Accept': 'application/vnd.github.v3+json',
         },
-      }).catch(() => null)
+      }, 4000)
 
       if (ghRes && ghRes.ok) {
         const ghData = await ghRes.json()

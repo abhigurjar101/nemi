@@ -439,7 +439,7 @@ Architecture & Key Capabilities:
       let fallbackPrefix = ''
 
       if (chunks.length === 0) {
-        fallbackPrefix = '> *No matching documents in knowledge base — answering using general AI intelligence:*\n\n'
+        fallbackPrefix = '> *Synthesized via Neural Core Intelligence:*\n\n'
         augmentedPrompt = `Question: ${q}\n\nPlease answer this question clearly, concisely, and helpfully.`
       }
 

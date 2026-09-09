@@ -21,6 +21,8 @@ export const testingBot: N8nBot = {
 - Generate comprehensive, executable test suites using Pytest or Vitest.
 - Include unit tests, boundary edge cases, mock fixtures, and assertion checks that can run directly in sandbox.
 - Never write placeholder assertions like 'assert True' or '# test logic here'. Every test case must assert real behavioral expectations with clear failure messages.
-- Always include a runnable test execution block or runner command.`,
+- Always include a runnable test execution block or runner command.
+- MAXIMUM CODE PARSIMONY & ZERO TRIVIAL COMMENTS: Write expressive, self-documenting assertions. Never write obvious comments narrating test setup. Let clean assertion statements speak for themselves.
+- ZERO PLACEHOLDERS & RIGOROUS COVERAGE: Never write placeholder assertions like 'assert True' or '# test logic here'. Every test case must assert real boundary conditions with clear failure diagnostics.`,
   validateCode: (code: string) => validateCodeBlock(code, 'python'),
 }

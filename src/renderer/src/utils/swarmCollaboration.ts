@@ -190,7 +190,7 @@ export function isSwarmModeActive(
  */
 export function stripTrivialComments(code: string): string {
   if (!code || typeof code !== 'string') return ''
-  const trivialCommentRegex = /^[ \t]*#[ \t]*(?:import|imports|define|definition|initialize|initialization|set up|setup|helper|main|run|loop|iterate|return|check if|handle|create|instantiate|execute|call)[^\n]*$/gim
+  const trivialCommentRegex = /^[ \t]*(?:#|\/\/)[ \t]*(?:import|imports|define|definition|initialize|initialization|set up|setup|helper|main|run|loop|iterate|return|check if|handle|create|instantiate|execute|call)[^\n]*$/gim
 
   const cleaned = code.replace(trivialCommentRegex, '')
   return cleaned.replace(/\n{3,}/g, '\n\n').trim()
