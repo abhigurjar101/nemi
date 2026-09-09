@@ -1595,6 +1595,8 @@ Personality & Conversational Style:
               const reader = chatRes.body.getReader()
               const decoder = new TextDecoder()
               let accumulated = ''
+              let accumulatedThinking = ''
+              let hasStartedContent = false
               let streamDone = false
               let buffer = ''
 
@@ -1613,14 +1615,33 @@ Personality & Conversational Style:
                       try {
                         const parsed = JSON.parse(dataStr)
                         if (parsed.error) throw new Error(parsed.error)
-                        const token = parsed.choices?.[0]?.delta?.content || ''
-                        if (token) {
-                          accumulated += token
-                          setMessages((prev) =>
-                            prev.map((m) =>
-                              m.id === assistantMsgId ? { ...m, content: accumulated, streaming: true } : m
+                        const delta = parsed.choices?.[0]?.delta
+                        if (delta) {
+                          if (delta.content) {
+                            if (!hasStartedContent) {
+                              accumulated = ''
+                              hasStartedContent = true
+                            }
+                            accumulated += delta.content
+                            setMessages((prev) =>
+                              prev.map((m) =>
+                                m.id === assistantMsgId ? { ...m, content: accumulated, streaming: true } : m
+                              )
                             )
-                          )
+                          } else if (delta.reasoning_content && !hasStartedContent) {
+                            accumulatedThinking += delta.reasoning_content
+                            setMessages((prev) =>
+                              prev.map((m) =>
+                                m.id === assistantMsgId
+                                  ? {
+                                      ...m,
+                                      content: `*🧠 NEMI is synthesizing neural thoughts...*\n\n> ${accumulatedThinking.slice(-140).replace(/\n/g, ' ')}...`,
+                                      streaming: true,
+                                    }
+                                  : m
+                              )
+                            )
+                          }
                         }
                       } catch (e: any) {
                         if (e?.message && !e.message.includes('JSON')) throw e
@@ -1629,7 +1650,7 @@ Personality & Conversational Style:
                   }
                 }
               }
-              replyText = accumulated
+              replyText = accumulated || accumulatedThinking
               success = Boolean(accumulated.trim())
             }
           } catch (streamErr) {

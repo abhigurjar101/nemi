@@ -1,7 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import * as crypto from 'crypto'
 
-function parseBody(req: IncomingMessage): Promise<any> {
+async function parseBody(req: IncomingMessage): Promise<any> {
+  if ((req as any).body) {
+    if (typeof (req as any).body === 'string') {
+      try {
+        return JSON.parse((req as any).body)
+      } catch {
+        return {}
+      }
+    }
+    return (req as any).body
+  }
   return new Promise((resolve) => {
     let data = ''
     req.on('data', (chunk) => {
@@ -13,6 +23,9 @@ function parseBody(req: IncomingMessage): Promise<any> {
       } catch {
         resolve({})
       }
+    })
+    req.on('error', () => {
+      resolve({})
     })
   })
 }
