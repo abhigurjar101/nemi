@@ -11,7 +11,12 @@ import {
   ChevronRight,
   Clock,
   Trash2,
+  Bot,
+  Sparkles,
+  Layers,
+  Play,
 } from 'lucide-react'
+import { N8N_BOTS, type N8nBot } from '../types_bots'
 
 export interface Conversation {
   id: string
@@ -32,6 +37,9 @@ interface SidebarProps {
   onDeleteConversation: (id: string) => void
   onPinConversation: (id: string) => void
   onOpenSettings: () => void
+  selectedBotId?: string
+  onSelectBot?: (botId: string) => void
+  onOpenChat?: () => void
 }
 
 function ConversationItem({
@@ -67,7 +75,7 @@ function ConversationItem({
         relative rounded-xl px-3 py-2.5 cursor-pointer
         transition-all duration-150 group
         ${isActive
-          ? 'bg-gradient-to-r from-cyan-500/15 to-purple-500/10 border border-cyan-400/20'
+          ? 'bg-gradient-to-r from-purple-500/15 to-cyan-500/10 border border-purple-400/20'
           : 'hover:bg-white/5 border border-transparent'
         }
       `}
@@ -78,7 +86,7 @@ function ConversationItem({
       <div className="flex items-start gap-2">
         <MessageSquare
           className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
-            isActive ? 'text-cyan-400' : 'text-white/30'
+            isActive ? 'text-purple-400' : 'text-white/30'
           }`}
         />
         <div className="flex-1 min-w-0">
@@ -111,7 +119,7 @@ function ConversationItem({
             <button
               onClick={onPin}
               className={`p-1 rounded-md transition-colors ${
-                conv.pinned ? 'text-cyan-400' : 'text-white/25 hover:text-white/60'
+                conv.pinned ? 'text-purple-400' : 'text-white/25 hover:text-white/60'
               }`}
             >
               <Pin className="w-3 h-3" />
@@ -139,7 +147,11 @@ export default function Sidebar({
   onDeleteConversation,
   onPinConversation,
   onOpenSettings,
+  selectedBotId = 'orchestrator',
+  onSelectBot,
+  onOpenChat,
 }: SidebarProps) {
+  const [activeTab, setActiveTab] = useState<'bots' | 'history'>('bots')
   const [searchQuery, setSearchQuery] = useState('')
 
   const pinned = conversations.filter((c) => c.pinned)
@@ -149,6 +161,14 @@ export default function Sidebar({
       (searchQuery === '' ||
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.preview.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
+
+  const filteredBots = N8N_BOTS.filter(
+    (b) =>
+      searchQuery === '' ||
+      b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.category.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   return (
@@ -180,25 +200,56 @@ export default function Sidebar({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            className="fixed left-5 top-8 bottom-8 w-64 z-40 flex flex-col glass-panel overflow-hidden"
+            className="fixed left-5 top-12 bottom-8 w-72 z-40 flex flex-col glass-panel overflow-hidden"
             onMouseEnter={() => window.nemi?.enterInteractiveMode()}
           >
-
             {/* Header */}
-            <div className="px-4 pt-4 pb-3">
+            <div className="px-4 pt-4 pb-2">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {/* NEMI wordmark */}
-                  <div className="text-base font-bold tracking-[0.2em] bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                  <div className="text-base font-bold tracking-[0.2em] bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
                     NEMI
                   </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                    BOT SWARM
+                  </span>
                 </div>
                 <button
                   onClick={onNewConversation}
-                  className="icon-btn text-cyan-400 hover:text-cyan-300"
+                  className="icon-btn text-purple-400 hover:text-purple-300"
                   title="New conversation"
                 >
                   <Plus className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Dual Tab Switcher */}
+              <div className="flex items-center p-1 bg-white/5 rounded-xl border border-white/5 mb-2.5">
+                <button
+                  onClick={() => setActiveTab('bots')}
+                  className={`
+                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all
+                    ${activeTab === 'bots'
+                      ? 'bg-purple-600/30 text-white border border-purple-400/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                      : 'text-white/40 hover:text-white/70'
+                    }
+                  `}
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>Bot Fleet (10)</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className={`
+                    flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded-lg transition-all
+                    ${activeTab === 'history'
+                      ? 'bg-purple-600/30 text-white border border-purple-400/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                      : 'text-white/40 hover:text-white/70'
+                    }
+                  `}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>History</span>
                 </button>
               </div>
 
@@ -207,33 +258,134 @@ export default function Sidebar({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder={activeTab === 'bots' ? 'Search 10 bots...' : 'Search conversations...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="
-                    w-full pl-8 pr-3 py-2 text-xs
+                    w-full pl-8 pr-3 py-1.5 text-xs
                     bg-white/5 rounded-lg border border-white/8
                     text-white/80 placeholder-white/25
-                    focus:outline-none focus:border-cyan-400/30
+                    focus:outline-none focus:border-purple-400/30
                     transition-colors duration-200
                   "
                 />
               </div>
             </div>
 
-            {/* Conversation list */}
-            <div className="flex-1 overflow-y-auto px-2 pb-2 nemi-scroll space-y-0.5">
-
-              {/* Pinned */}
-              {pinned.length > 0 && (
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto px-2 pb-2 nemi-scroll space-y-1">
+              {activeTab === 'bots' ? (
                 <>
-                  <div className="px-3 py-1.5 flex items-center gap-1.5">
-                    <Pin className="w-3 h-3 text-white/25" />
-                    <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">
-                      Pinned
+                  <div className="px-3 py-1 flex items-center justify-between text-[10px] font-semibold text-white/30 uppercase tracking-widest">
+                    <span>Active Swarm Nodes</span>
+                    <span className="text-emerald-400 flex items-center gap-1 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      10 ONLINE
                     </span>
                   </div>
-                  {pinned.map((conv) => (
+
+                  {filteredBots.map((bot) => {
+                    const isSelected = bot.id === selectedBotId
+                    return (
+                      <motion.div
+                        key={bot.id}
+                        onClick={() => {
+                          onSelectBot?.(bot.id)
+                          onOpenChat?.()
+                        }}
+                        className={`
+                          p-2.5 rounded-xl cursor-pointer border transition-all duration-150 group
+                          ${isSelected
+                            ? 'bg-purple-600/20 border-purple-400/40 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                            : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10'
+                          }
+                        `}
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{bot.emoji}</span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>
+                                  {bot.name}
+                                </span>
+                              </div>
+                              <span className="text-[9px] text-purple-300/60 font-mono">
+                                {bot.category}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-white/40 mt-1 line-clamp-2 leading-relaxed">
+                          {bot.description}
+                        </p>
+
+                        <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-white/5">
+                          <div className="flex flex-wrap gap-1">
+                            {bot.supportedTasks.slice(0, 3).map((task) => (
+                              <span
+                                key={task}
+                                className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-white/50 border border-white/5"
+                              >
+                                {task}
+                              </span>
+                            ))}
+                          </div>
+
+                          <span className={`text-[10px] font-medium flex items-center gap-1 ${isSelected ? 'text-purple-300' : 'text-white/30 group-hover:text-white/60'}`}>
+                            <Play className="w-2.5 h-2.5" />
+                            Launch
+                          </span>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  {/* Pinned */}
+                  {pinned.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 flex items-center gap-1.5">
+                        <Pin className="w-3 h-3 text-white/25" />
+                        <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">
+                          Pinned
+                        </span>
+                      </div>
+                      {pinned.map((conv) => (
+                        <ConversationItem
+                          key={conv.id}
+                          conv={conv}
+                          isActive={conv.id === activeConversationId}
+                          onSelect={() => onSelectConversation(conv.id)}
+                          onDelete={() => onDeleteConversation(conv.id)}
+                          onPin={() => onPinConversation(conv.id)}
+                        />
+                      ))}
+                      <div className="my-2 border-t border-white/5" />
+                    </>
+                  )}
+
+                  {/* Recent */}
+                  <div className="px-3 py-1.5 flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-white/25" />
+                    <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">
+                      Recent
+                    </span>
+                  </div>
+
+                  {recent.length === 0 && (
+                    <div className="px-3 py-6 text-center text-xs text-white/20">
+                      No conversations yet.<br />Start talking or typing!
+                    </div>
+                  )}
+
+                  {recent.map((conv) => (
                     <ConversationItem
                       key={conv.id}
                       conv={conv}
@@ -243,34 +395,8 @@ export default function Sidebar({
                       onPin={() => onPinConversation(conv.id)}
                     />
                   ))}
-                  <div className="my-2 border-t border-white/5" />
                 </>
               )}
-
-              {/* Recent */}
-              <div className="px-3 py-1.5 flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-white/25" />
-                <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">
-                  Recent
-                </span>
-              </div>
-
-              {recent.length === 0 && (
-                <div className="px-3 py-6 text-center text-xs text-white/20">
-                  No conversations yet.<br />Start talking or typing!
-                </div>
-              )}
-
-              {recent.map((conv) => (
-                <ConversationItem
-                  key={conv.id}
-                  conv={conv}
-                  isActive={conv.id === activeConversationId}
-                  onSelect={() => onSelectConversation(conv.id)}
-                  onDelete={() => onDeleteConversation(conv.id)}
-                  onPin={() => onPinConversation(conv.id)}
-                />
-              ))}
             </div>
 
             {/* Footer */}

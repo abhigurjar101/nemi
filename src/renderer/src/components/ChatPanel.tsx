@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import type { MemoryItem, ConversationSession } from '../chatMemory'
+import { N8N_BOTS, type N8nBot } from '../types_bots'
 
 export interface Message {
   id: string
@@ -55,6 +56,9 @@ export interface ChatPanelProps {
   isListening?: boolean
   onToggleVoice?: () => void
   modelBadge?: string
+  // Bot integration
+  selectedBotId?: string
+  onSelectBot?: (botId: string) => void
 }
 
 type TabMode = 'chat' | 'memory' | 'history'
@@ -81,7 +85,10 @@ export default function ChatPanel({
   isListening = false,
   onToggleVoice,
   modelBadge = 'NEURAL',
+  selectedBotId = 'orchestrator',
+  onSelectBot,
 }: ChatPanelProps) {
+  const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [input, setInput] = useState('')
@@ -153,10 +160,10 @@ export default function ChatPanel({
   )
 
   const quickStarters = [
-    '🧠 What do you remember about me?',
-    '⚡ What are your key capabilities?',
-    '💡 Help me brainstorm ideas',
-    '📁 How does the RAG search work?',
+    '⚡ Synthesize verified Python code (Coding Assistant)',
+    '🏛️ Decompose architecture into DAG (System Design)',
+    '🔬 Adversarial risk & failure pre-mortem (High Thinking)',
+    '📓 Create & paste to Desktop Jupyter Notebook',
   ]
 
   return (
@@ -169,7 +176,7 @@ export default function ChatPanel({
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           className={`
             fixed right-6 bottom-6 z-40 flex flex-col
-            ${isMinimized ? 'w-[240px] h-[46px]' : 'w-[300px] h-[420px] max-h-[68vh]'}
+            ${isMinimized ? 'w-[240px] h-[46px]' : 'w-[350px] h-[490px] max-h-[72vh]'}
             transition-all duration-300 ease-out
           `}
           onMouseEnter={() => window.nemi?.enterInteractiveMode()}
@@ -205,9 +212,10 @@ export default function ChatPanel({
 
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="text-[10px] font-bold text-white/70 tracking-wider">NEMI</span>
-                  <span className="text-[9px] text-white/25 truncate max-w-[90px] font-medium">
-                    {activeTab === 'memory' ? 'Memory Vault' : activeTab === 'history' ? 'History' : convTitle}
-                  </span>
+                  <div className="flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-500/20 border border-purple-400/30 text-[10px] text-purple-200 font-semibold truncate">
+                    <span>{activeBot.emoji}</span>
+                    <span className="truncate max-w-[90px]">{activeBot.shortName}</span>
+                  </div>
                 </div>
               </div>
 
@@ -287,6 +295,29 @@ export default function ChatPanel({
             {/* If Minimized, only header is rendered */}
             {!isMinimized && (
               <>
+                {/* ── BOT SWITCHER CHIP ROW ── */}
+                <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/5 bg-white/2 overflow-x-auto nemi-scroll z-10">
+                  {N8N_BOTS.map((bot) => {
+                    const isSelected = bot.id === activeBot.id
+                    return (
+                      <button
+                        key={bot.id}
+                        onClick={() => onSelectBot?.(bot.id)}
+                        className={`
+                          flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all whitespace-nowrap cursor-pointer border
+                          ${isSelected
+                            ? 'bg-purple-600/30 text-white border-purple-400/40 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
+                            : 'bg-white/3 text-white/50 hover:text-white/80 border-white/5 hover:bg-white/6'
+                          }
+                        `}
+                      >
+                        <span className="text-[10px]">{bot.emoji}</span>
+                        <span className="text-[10px]">{bot.shortName}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
                 {/* ── TAB 1: CHAT VIEW ── */}
                 {activeTab === 'chat' && (
                   <>
@@ -297,28 +328,31 @@ export default function ChatPanel({
                         setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 40)
                       }}
                     >
-                      {/* Empty state with interactive prompt starters */}
+                      {/* Empty state with interactive prompt starters tailored to activeBot */}
                       {messages.length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-full gap-2.5 py-6 px-2 text-center opacity-85">
-                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-600/20 border border-cyan-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(0,212,255,0.2)]">
-                            <Sparkles className="w-5 h-5 text-cyan-300" />
+                        <div className="flex flex-col items-center justify-center h-full gap-2 py-4 px-2 text-center opacity-90">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.25)] text-xl">
+                            {activeBot.emoji}
                           </div>
                           <div>
-                            <h4 className="text-xs font-semibold text-white/90">Chat with NEMI</h4>
-                            <p className="text-[11px] text-white/40 mt-0.5">
-                              Persistent memory & real-time desktop intelligence
+                            <div className="flex items-center justify-center gap-1.5">
+                              <h4 className="text-xs font-semibold text-white/90">{activeBot.name}</h4>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            </div>
+                            <p className="text-[10px] text-white/45 mt-0.5 max-w-xs leading-relaxed">
+                              {activeBot.description}
                             </p>
                           </div>
 
                           {/* Quick starters chips */}
                           <div className="flex flex-col gap-1.5 w-full mt-2">
-                            {quickStarters.map((starter, i) => (
+                            {activeBot.samplePrompts.map((starter, i) => (
                               <button
                                 key={i}
                                 onClick={() => {
                                   onSend(starter.replace(/^[^\w]+/, '').trim())
                                 }}
-                                className="px-3 py-1.5 rounded-xl text-left text-[11px] bg-white/5 hover:bg-white/10 border border-white/5 text-white/70 hover:text-white transition-all cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-xl text-left text-[11px] bg-white/5 hover:bg-white/10 border border-white/5 text-white/75 hover:text-white transition-all cursor-pointer"
                               >
                                 {starter}
                               </button>
@@ -390,7 +424,7 @@ export default function ChatPanel({
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={handleKeyDown}
-                          placeholder={isListening ? 'Listening via microphone...' : 'Chat with NEMI...'}
+                          placeholder={isListening ? 'Listening via microphone...' : activeBot.placeholder}
                           rows={1}
                           className="
                             flex-1 bg-transparent px-2.5 py-1.5

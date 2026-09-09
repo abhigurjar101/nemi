@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 
@@ -168,25 +168,25 @@ function generateConnections(neurons: NeuronData[], maxDist: number): [number, n
 // NEURON MESH (instanced for performance)
 // ──────────────────────────────────────────────────────────
 const NEURON_COLORS = {
-  idle:        new THREE.Color('#00bfff'),
-  listening:   new THREE.Color('#00ffcc'),
-  thinking:    new THREE.Color('#8b5cf6'),
-  speaking:    new THREE.Color('#ec4899'),
-  cortex:      new THREE.Color('#0088cc'),
-  limbic:      new THREE.Color('#5533aa'),
-  stem:        new THREE.Color('#cc3388'),
-  cerebellum:  new THREE.Color('#0055bb'),
+  idle:        new THREE.Color('#a855f7'),
+  listening:   new THREE.Color('#c084fc'),
+  thinking:    new THREE.Color('#d946ef'),
+  speaking:    new THREE.Color('#f472b6'),
+  cortex:      new THREE.Color('#8b5cf6'),
+  limbic:      new THREE.Color('#9333ea'),
+  stem:        new THREE.Color('#e879f9'),
+  cerebellum:  new THREE.Color('#7c3aed'),
 }
 
 const NIM_NEURON_COLORS = {
-  idle:        new THREE.Color('#39ff88'),
-  listening:   new THREE.Color('#b7ff5a'),
-  thinking:    new THREE.Color('#00e676'),
-  speaking:    new THREE.Color('#7cffc4'),
-  cortex:      new THREE.Color('#20d978'),
-  limbic:      new THREE.Color('#00b85c'),
-  stem:        new THREE.Color('#9cff57'),
-  cerebellum:  new THREE.Color('#18f08a'),
+  idle:        new THREE.Color('#c084fc'),
+  listening:   new THREE.Color('#f5d0fe'),
+  thinking:    new THREE.Color('#d946ef'),
+  speaking:    new THREE.Color('#e879f9'),
+  cortex:      new THREE.Color('#a855f7'),
+  limbic:      new THREE.Color('#7c3aed'),
+  stem:        new THREE.Color('#f0abfc'),
+  cerebellum:  new THREE.Color('#8b5cf6'),
 }
 
 function Neurons({
@@ -308,42 +308,70 @@ function Synapses({
   nimActive?: boolean
 }) {
   const lineRef = useRef<THREE.LineSegments>(null)
+  const frameCount = useRef(0)
 
-  const { positions, colors } = useMemo(() => {
+  const { positions, colors, baseColors } = useMemo(() => {
     const positions = new Float32Array(connections.length * 6)
     const colors = new Float32Array(connections.length * 6)
+    const baseColors = new Float32Array(connections.length * 6)
     connections.forEach(([a, b], i) => {
-      positions[i * 6]     = neurons[a].position.x
-      positions[i * 6 + 1] = neurons[a].position.y
-      positions[i * 6 + 2] = neurons[a].position.z
-      positions[i * 6 + 3] = neurons[b].position.x
-      positions[i * 6 + 4] = neurons[b].position.y
-      positions[i * 6 + 5] = neurons[b].position.z
+      const idx = i * 6
+      positions[idx]     = neurons[a].position.x
+      positions[idx + 1] = neurons[a].position.y
+      positions[idx + 2] = neurons[a].position.z
+      positions[idx + 3] = neurons[b].position.x
+      positions[idx + 4] = neurons[b].position.y
+      positions[idx + 5] = neurons[b].position.z
+
+      const mix = (neurons[a].position.y + 5) / 10
+      const r = nimActive ? 0.05 + mix * 0.45 : mix * 0.55
+      const g = nimActive ? 0.65 + (1 - mix) * 0.35 : 0.3 + (1 - mix) * 0.5
+      const bv = nimActive ? 0.22 + (1 - mix) * 0.2 : 1.0
+
+      baseColors[idx]     = r
+      baseColors[idx + 1] = g
+      baseColors[idx + 2] = bv
+      baseColors[idx + 3] = r
+      baseColors[idx + 4] = g
+      baseColors[idx + 5] = bv
+
+      colors[idx]     = r * 0.2
+      colors[idx + 1] = g * 0.2
+      colors[idx + 2] = bv * 0.2
+      colors[idx + 3] = r * 0.2
+      colors[idx + 4] = g * 0.2
+      colors[idx + 5] = bv * 0.2
     })
-    return { positions, colors }
-  }, [neurons, connections])
+    return { positions, colors, baseColors }
+  }, [neurons, connections, nimActive])
 
   useFrame(({ clock }) => {
     if (!lineRef.current) return
+    frameCount.current++
+    // Throttle color buffer updates to every 2nd frame to save CPU
+    if (frameCount.current % 2 !== 0) return
+
     const t = clock.getElapsedTime()
     const colAttr = lineRef.current.geometry.getAttribute('color') as THREE.BufferAttribute
-
+    const colArray = colAttr.array as Float32Array
     const baseAlpha = isListening ? 0.35 : isThinking ? 0.45 : 0.18
 
     for (let i = 0; i < connections.length; i++) {
       const [a, b] = connections[i]
       const pulse = Math.sin(t * 0.8 + neurons[a].phase + neurons[b].phase) * 0.5 + 0.5
       const brightness = baseAlpha + pulse * 0.15
+      const idx = i * 6
 
-      // The NIM palette uses a vivid emerald-to-lime neural gradient.
-      const mix = (neurons[a].position.y + 5) / 10
-      const r = nimActive ? 0.05 + mix * 0.45 : mix * 0.55
-      const g = nimActive ? 0.65 + (1 - mix) * 0.35 : 0.3 + (1 - mix) * 0.5
-      const bv = nimActive ? 0.22 + (1 - mix) * 0.2 : 1.0
+      const r = baseColors[idx] * brightness
+      const g = baseColors[idx + 1] * brightness
+      const bv = baseColors[idx + 2] * brightness
 
-      for (let v = 0; v < 2; v++) {
-        colAttr.setXYZ(i * 2 + v, r * brightness, g * brightness, bv * brightness)
-      }
+      colArray[idx]     = r
+      colArray[idx + 1] = g
+      colArray[idx + 2] = bv
+      colArray[idx + 3] = r
+      colArray[idx + 4] = g
+      colArray[idx + 5] = bv
     }
     colAttr.needsUpdate = true
   })
@@ -428,12 +456,13 @@ function SignalParticles({
           sig.progress = 0
           sig.speed = 0.4 + Math.random() * 0.8
           sig.active = true
-          if (nimActive) sig.color.set(isThinking ? '#b7ff5a' : '#39ff88')
-          else if (isListening) sig.color.set('#00ffaa')
-          else if (isThinking) sig.color.set('#a855f7')
+          if (nimActive) sig.color.set(isThinking ? '#f5d0fe' : '#c084fc')
+          else if (isListening) sig.color.set('#e879f9')
+          else if (isThinking) sig.color.set('#d946ef')
           else if (isSpeaking) sig.color.set('#f472b6')
-          else sig.color.set('#00d4ff')
+          else sig.color.set('#a855f7')
         }
+
         // Hide inactive signal
         dummy.scale.setScalar(0)
         dummy.updateMatrix()
@@ -595,10 +624,10 @@ function SceneLights({ isListening, isThinking, nimActive }: { isListening: bool
 
   return (
     <>
-      <ambientLight intensity={nimActive ? 0.22 : 0.15} color={nimActive ? '#063d1d' : '#001133'} />
-      <pointLight ref={lightRef} position={[0, 5, 5]} intensity={nimActive ? 2.8 : 2} color={nimActive ? '#39ff88' : '#00aaff'} />
-      <pointLight position={[-5, -3, 0]} intensity={nimActive ? 1.1 : 0.8} color={nimActive ? '#00b85c' : '#8833ff'} />
-      <pointLight position={[5, 0, -3]} intensity={nimActive ? 0.9 : 0.6} color={nimActive ? '#b7ff5a' : '#ff0066'} />
+      <ambientLight intensity={nimActive ? 0.25 : 0.20} color={nimActive ? '#150529' : '#0d041c'} />
+      <pointLight ref={lightRef} position={[0, 5, 5]} intensity={nimActive ? 2.8 : 2.2} color={nimActive ? '#c084fc' : '#a855f7'} />
+      <pointLight position={[-5, -3, 0]} intensity={nimActive ? 1.4 : 1.0} color={nimActive ? '#8b5cf6' : '#7c3aed'} />
+      <pointLight position={[5, 0, -3]} intensity={nimActive ? 1.1 : 0.8} color={nimActive ? '#d946ef' : '#9333ea'} />
     </>
   )
 }
@@ -611,13 +640,13 @@ function NimEnergyHalo() {
     const pulse = 1 + Math.sin(clock.getElapsedTime() * 1.8) * 0.035
     haloRef.current.scale.setScalar(pulse)
     const material = haloRef.current.material as THREE.MeshBasicMaterial
-    material.opacity = 0.12 + (Math.sin(clock.getElapsedTime() * 2.2) + 1) * 0.035
+    material.opacity = 0.15 + (Math.sin(clock.getElapsedTime() * 2.2) + 1) * 0.035
   })
 
   return (
     <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -1.5]}>
       <torusGeometry args={[5.25, 0.035, 12, 96]} />
-      <meshBasicMaterial color="#39ff88" transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
+      <meshBasicMaterial color="#c084fc" transparent opacity={0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
     </mesh>
   )
 }
@@ -646,9 +675,14 @@ export default function NemiBrain({
   return (
     <Canvas
       className="brain-canvas"
+      dpr={[1, 1.5]}
+      performance={{ min: 0.5 }}
       gl={{
         alpha: true,
-        antialias: true,
+        antialias: false,
+        powerPreference: 'high-performance',
+        stencil: false,
+        depth: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 1.2,
       }}
@@ -678,19 +712,14 @@ export default function NemiBrain({
         />
       </group>
 
-      {/* Post-processing: Bloom glow makes the brain look alive */}
-      <EffectComposer>
+      {/* Optimized Post-processing: Fast Mipmap Bloom without costly multi-pass convolution */}
+      <EffectComposer multisampling={0}>
         <Bloom
-          intensity={nimActive ? (isListening ? 3.2 : isThinking ? 2.8 : 2.2) : (isListening ? 2.5 : isThinking ? 2.0 : 1.4)}
-          luminanceThreshold={0.1}
-          luminanceSmoothing={0.9}
+          intensity={nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2)}
+          luminanceThreshold={0.15}
+          luminanceSmoothing={0.85}
+          mipmapBlur
           blendFunction={BlendFunction.ADD}
-        />
-        <ChromaticAberration
-          blendFunction={BlendFunction.NORMAL}
-          offset={[0.0006, 0.0006] as unknown as THREE.Vector2}
-          radialModulation={false}
-          modulationOffset={0}
         />
       </EffectComposer>
     </Canvas>

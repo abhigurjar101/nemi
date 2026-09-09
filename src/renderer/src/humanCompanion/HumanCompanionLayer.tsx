@@ -102,24 +102,9 @@ export default function HumanCompanionLayer({
       const safeAudio = Number.isFinite(rawAudio) ? Math.max(0, Math.min(1, rawAudio)) : 0
       smoothedAudio += (safeAudio - smoothedAudio) * Math.min(1, dt * 14)
 
-      // Calculate orb center coordinates relative to canvas (280x280)
+      // Orb center coordinates relative to canvas (fixed at bottom-right 224, 224)
       let cx = 224
       let cy = 224
-      try {
-        const orbBtn =
-          canvas.parentElement?.querySelector('button') ||
-          document.querySelector('.fixed.bottom-8.right-8 button')
-        if (orbBtn) {
-          const orbRect = orbBtn.getBoundingClientRect()
-          const canvasRect = canvas.getBoundingClientRect()
-          if (canvasRect.width > 0 && orbRect.width > 0) {
-            cx = orbRect.left + orbRect.width / 2 - canvasRect.left
-            cy = orbRect.top + orbRect.height / 2 - canvasRect.top
-          }
-        }
-      } catch {
-        // Safe fallback
-      }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 

@@ -29,8 +29,8 @@ export type HttpsRequestFn = (
 ) => http.ClientRequest
 
 export const NVIDIA_NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1'
-export const NVIDIA_NIM_DEFAULT_MODEL = 'nvidia/nemotron-3-super-120b-a12b'
-export const NVIDIA_NIM_FALLBACK_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b'
+export const NVIDIA_NIM_DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b'
+export const NVIDIA_NIM_FALLBACK_MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
 
 function parseResponseBody(chunks: Buffer[]): any {
   try {

@@ -82,12 +82,12 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     center: true,
-    show: true,
+    show: false,
     title: 'NEMI — AI Assistant',
     titleBarStyle: 'hiddenInset', // Modern macOS traffic light buttons
     vibrancy: 'under-window',
     visualEffectState: 'active',
-    backgroundColor: '#030712',
+    backgroundColor: '#00000000', // Must be transparent when vibrancy is active — opaque color causes black screen on hide/show
     hasShadow: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -882,6 +882,7 @@ function stopAllServices(): void {
 
 app.on('will-quit', stopAllServices)
 app.on('before-quit', () => {
+  ;(app as any).isQuitting = true
   mainWindow?.hide()
   ragWindow?.hide()
 })

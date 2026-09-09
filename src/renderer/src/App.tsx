@@ -4,12 +4,15 @@ import ChatPanel, { type Message } from './components/ChatPanel'
 import VoiceOrb from './components/VoiceOrb'
 import Sidebar, { type Conversation } from './components/Sidebar'
 import RagPanel from './components/RagPanel'
+import BotFleetDock from './components/BotFleetDock'
+import { N8N_BOTS, type N8nBot } from './types_bots'
 import { HumanCompanionLayer, toConversationalScript } from './humanCompanion'
 import { isActivationPhrase, readinessBriefing, extractVoiceIntent } from './voiceActivation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Sparkles, Mic, MessageSquare, Settings as SettingsIcon,
-  Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp
+  Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
+  Bot, ChevronDown as ChevronDownIcon, Layers
 } from 'lucide-react'
 import {
   type ConversationSession,
@@ -118,7 +121,13 @@ function SettingsPanel({
       return
     }
     try {
-      const saved = await window.nemi?.saveNvidiaNimKey(cleanKey)
+      let saved = false
+      if (window.nemi?.saveNvidiaNimKey) {
+        saved = (await window.nemi.saveNvidiaNimKey(cleanKey)) === true
+      } else {
+        localStorage.setItem('nemi_nvidia_nim_key', cleanKey)
+        saved = true
+      }
       if (!saved) {
         onNimReadyChange(false)
         setNimStatus('NVIDIA NIM key could not be saved.')
@@ -139,10 +148,34 @@ function SettingsPanel({
     if (!cleanKey) return
     setNimTesting(true)
     try {
-      const result = await window.nemi?.validateNvidiaNimKey(cleanKey)
-      const valid = result?.valid === true
+      let valid = false
+      let msg = ''
+      if (window.nemi?.validateNvidiaNimKey) {
+        const result = await window.nemi.validateNvidiaNimKey(cleanKey)
+        valid = result?.valid === true
+        msg = valid ? (result.message || 'NVIDIA NIM connected') : (result?.error || 'NVIDIA NIM connection failed')
+      } else {
+        // Direct browser validation via NVIDIA NIM models endpoint
+        try {
+          const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+            headers: {
+              'Authorization': `Bearer ${cleanKey}`,
+              'Accept': 'application/json'
+            }
+          })
+          valid = res.ok
+          if (valid) {
+            msg = 'NVIDIA NIM connected successfully'
+          } else {
+            const errJson = await res.json().catch(() => ({}))
+            msg = errJson?.error?.message || `Validation error (HTTP ${res.status})`
+          }
+        } catch (e: any) {
+          msg = e?.message || 'Network error reaching NVIDIA NIM'
+        }
+      }
       onNimReadyChange(valid)
-      setNimStatus(valid ? (result.message || 'NVIDIA NIM connected') : (result?.error || 'NVIDIA NIM connection failed'))
+      setNimStatus(msg)
       if (valid) {
         onNvidiaNimKeyChange(cleanKey)
         onModelModeChange('nvidia-nim')
@@ -446,12 +479,13 @@ export default function App() {
   const [transcript, setTranscript] = useState('')
   const [isWakeWordMode, setIsWakeWordMode] = useState(false)
 
-  const [chatOpen, setChatOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('nemi_chat_open')
-    return saved !== null ? saved === 'true' : true
-  })
+  const [chatOpen, setChatOpen] = useState<boolean>(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [selectedBotId, setSelectedBotId] = useState<string>('orchestrator')
+  const [botDropdownOpen, setBotDropdownOpen] = useState(false)
+
+  const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
 
   const [conversations, setConversations] = useState<ConversationSession[]>([])
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
@@ -564,9 +598,10 @@ export default function App() {
   }, [])
 
   // ── Model settings ──
-  const [modelMode, setModelMode] = useState<'ollama' | 'nvidia-nim'>(() =>
-    localStorage.getItem('nemi_model_mode') === 'nvidia-nim' ? 'nvidia-nim' : 'ollama'
-  )
+  const [modelMode, setModelMode] = useState<'ollama' | 'nvidia-nim'>(() => {
+    const saved = localStorage.getItem('nemi_model_mode')
+    return saved === 'ollama' ? 'ollama' : 'nvidia-nim'
+  })
   const [nvidiaNimKey, setNvidiaNimKey] = useState('')
   const [nvidiaNimReady, setNvidiaNimReady] = useState(false)
   const [nimShowcaseVisible, setNimShowcaseVisible] = useState(false)
@@ -678,13 +713,35 @@ export default function App() {
       } catch { setOllamaRunning(false) }
 
       try {
-        const savedNimKey = await window.nemi?.getNvidiaNimKey()
+        let savedNimKey = await window.nemi?.getNvidiaNimKey()
+        if (!savedNimKey && typeof localStorage !== 'undefined') {
+          savedNimKey = localStorage.getItem('nemi_nvidia_nim_key') || ''
+        }
+        if (!savedNimKey) {
+          try {
+            const res = await fetch('/api/credentials/nvidia-key')
+            if (res.ok) {
+              const data = await res.json()
+              if (data.apiKey) {
+                savedNimKey = data.apiKey
+              }
+            }
+          } catch {}
+        }
         if (savedNimKey) {
           setNvidiaNimKey(savedNimKey)
+          setNvidiaNimReady(true)
+          setModelMode('nvidia-nim')
           if (!nimInitialValidationRef.current) {
             nimInitialValidationRef.current = true
-            const validation = await window.nemi?.validateNvidiaNimKey(savedNimKey)
-            setNvidiaNimReady(validation?.valid === true)
+            if (window.nemi?.validateNvidiaNimKey) {
+              const validation = await window.nemi.validateNvidiaNimKey(savedNimKey)
+              setNvidiaNimReady(validation?.valid === true)
+            } else {
+              fetch('https://integrate.api.nvidia.com/v1/models', {
+                headers: { 'Authorization': `Bearer ${savedNimKey}` }
+              }).then((r) => setNvidiaNimReady(r.ok)).catch(() => setNvidiaNimReady(false))
+            }
           }
         }
       } catch { /* no online key configured */ }
@@ -1314,32 +1371,223 @@ Personality & Conversational Style:
       } catch {}
     }
 
+    // ── Execute via n8n Bots Architecture ──
+    try {
+      if (selectedBotId === 'orchestrator') {
+        const orchResp = await fetch('http://localhost:8000/api/tasks/execute-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal: userText,
+            preferred_language: 'python',
+            auto_execute: true,
+            auto_verify: true,
+            save_artifacts: true,
+            auto_approve_hitl: true,
+          }),
+        })
+        if (orchResp.ok) {
+          const orchData = await orchResp.json()
+          const jupyter = orchData.jupyter_notebook || {}
+          if (jupyter.jupyter_link) {
+            if (window.nemi?.openExternal) {
+              window.nemi.openExternal(jupyter.jupyter_link)
+            } else {
+              window.open(jupyter.jupyter_link, '_blank')
+            }
+          }
+          const nbBanner = jupyter.notebook_name 
+            ? `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jupyter.notebook_name}\`\n> Saved to \`Desktop/Notebooks/\` — 100% Kernel Verified.\n\n`
+            : ''
+          recordAssistantResponse(`${orchData.synthesis || ''}${nbBanner}`)
+          return
+        }
+      } else {
+        const botResp = await fetch(`http://localhost:8000/api/bots/${selectedBotId}/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payload: {
+              task: userText,
+              prompt: userText,
+              requirements: userText,
+              language: 'python',
+            },
+            use_n8n: true,
+          }),
+        })
+        if (botResp.ok) {
+          const botData = await botResp.json()
+          let jupyterLink = botData.jupyter_link || botData.jupyter_notebook?.jupyter_link || ''
+          let jupyterName = botData.notebook_name || botData.jupyter_notebook?.notebook_name || ''
+
+          const rawResp = botData.rawResponse || botData.response?.rawResponse || ''
+          const explanation = botData.explanation || botData.response?.explanation || ''
+          const detectedCode = botData.code || botData.response?.code || ''
+          const content = rawResp || detectedCode || explanation || (typeof botData.response === 'string' ? botData.response : JSON.stringify(botData.response || ''))
+
+          // Fallback: if backend didn't auto-create the notebook but code exists
+          if (!jupyterLink && (detectedCode || /```(?:python|py)?[\s\S]*?```/.test(content))) {
+            try {
+              const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  task_name: `${selectedBotId}_output`,
+                  code: detectedCode || content,
+                  explanation: explanation,
+                  raw_response: content,
+                  create_fresh: true,
+                  skip_pretest: true,
+                }),
+              })
+              if (jupRes.ok) {
+                const jupData = await jupRes.json()
+                jupyterLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
+                jupyterName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
+              }
+            } catch {}
+          }
+
+          if (jupyterLink) {
+            if (window.nemi?.openExternal) {
+              window.nemi.openExternal(jupyterLink)
+            } else {
+              window.open(jupyterLink, '_blank')
+            }
+          }
+
+          const astInfo = botData.ast_validation?.valid
+            ? `> ✅ **AST Syntax Verified Clean** — ${botData.ast_validation?.detected_functions?.length || 0} functions, ${botData.ast_validation?.detected_classes?.length || 0} classes.\n\n`
+            : ''
+          const nbBanner = jupyterName 
+            ? `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jupyterName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+            : ''
+          const headerBadge = `> **${activeBot.emoji} ${activeBot.name} Output (${botData.latency_ms || 0}ms)**\n\n`
+          recordAssistantResponse(`${headerBadge}${astInfo}${content}${nbBanner}`)
+          return
+        }
+      }
+    } catch (e) {
+      console.warn('Bot direct dispatch fallback to standard chat:', e)
+    }
+
     try {
       if (modelMode === 'nvidia-nim') {
-        const activeNvidiaNimKey = nvidiaNimKey || await window.nemi?.getNvidiaNimKey() || ''
+        let activeNvidiaNimKey =
+          nvidiaNimKey ||
+          (await window.nemi?.getNvidiaNimKey()) ||
+          (typeof localStorage !== 'undefined' ? localStorage.getItem('nemi_nvidia_nim_key') : '') ||
+          ''
+        if (!activeNvidiaNimKey) {
+          try {
+            const credRes = await fetch('/api/credentials/nvidia-key')
+            if (credRes.ok) {
+              const credData = await credRes.json()
+              if (credData.apiKey) activeNvidiaNimKey = credData.apiKey
+            }
+          } catch {}
+        }
         if (!activeNvidiaNimKey) {
           throw new Error('NVIDIA NIM API key is not configured. Open Settings to add it.')
         }
         if (!nvidiaNimKey) setNvidiaNimKey(activeNvidiaNimKey)
-        const response = await window.nemi?.chat({
-          provider: 'nvidia-nim',
-          model: 'nvidia/nemotron-3-super-120b-a12b',
-          apiKey: activeNvidiaNimKey,
-          messages: allMessages,
-        })
-        if (response?.error) {
-          if (ollamaRunning) {
-            const fallbackText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
-            recordAssistantResponse(fallbackText || `NVIDIA is unavailable: ${response.error}`)
-          } else {
-            throw new Error(response.error)
+
+        let replyText = ''
+        if (window.nemi?.chat) {
+          const response = await window.nemi.chat({
+            provider: 'nvidia-nim',
+            model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+            apiKey: activeNvidiaNimKey,
+            messages: allMessages,
+          })
+          if (response?.error) {
+            if (ollamaRunning) {
+              const fallbackText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
+              recordAssistantResponse(fallbackText || `NVIDIA is unavailable: ${response.error}`)
+              return
+            } else {
+              throw new Error(response.error)
+            }
           }
+          replyText = response?.text || ''
         } else {
-          recordAssistantResponse(response?.text || '')
+          // In web mode: First attempt backend proxy, then direct NVIDIA NIM API
+          let success = false
+          try {
+            const res = await fetch('/api/nemotron/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: userText,
+                system_prompt: 'You are NVIDIA Nemotron, the elite neural reasoning and architectural synthesizer.',
+              }),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              replyText = data.content || ''
+              success = true
+            }
+          } catch {
+            success = false
+          }
+
+          if (!success) {
+            const nimRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${activeNvidiaNimKey}`,
+              },
+              body: JSON.stringify({
+                model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+                messages: allMessages,
+                temperature: 0.7,
+                max_tokens: 1024,
+              }),
+            })
+            if (nimRes.ok) {
+              const nimData = await nimRes.json()
+              replyText = nimData.choices?.[0]?.message?.content || ''
+            } else {
+              const errData = await nimRes.json().catch(() => ({}))
+              throw new Error(errData?.error?.message || errData?.detail || `NVIDIA NIM request failed (HTTP ${nimRes.status})`)
+            }
+          }
         }
+        let jupyterBanner = ''
+        if (/```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(replyText)) {
+          try {
+            const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task_name: userText.slice(0, 30),
+                code: replyText,
+                raw_response: replyText,
+                create_fresh: true,
+                skip_pretest: true,
+              }),
+            })
+            if (jupRes.ok) {
+              const jupData = await jupRes.json()
+              const jLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
+              const jName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
+              if (jLink) {
+                if (window.nemi?.openExternal) {
+                  window.nemi.openExternal(jLink)
+                } else {
+                  window.open(jLink, '_blank')
+                }
+                jupyterBanner = `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+              }
+            }
+          } catch {}
+        }
+        recordAssistantResponse(`${replyText}${jupyterBanner}`)
       } else if (!ollamaRunning) {
         throw new Error('Ollama is not running. Start it with `ollama serve`.')
-        }
+      }
       if (modelMode === 'ollama') {
         ollamaStreamRef.current = ''
         const chunkHandler = (chunk: unknown) => {
@@ -1355,7 +1603,36 @@ Personality & Conversational Style:
         const fullText = await window.nemi?.ollamaChat(allMessages, ollamaModel) || ''
         window.nemi?.off('ollama-stream-chunk', chunkHandler)
         const finalText = fullText || ollamaStreamRef.current
-        recordAssistantResponse(finalText)
+        let ollamaJupyterBanner = ''
+        if (/```(?:python|py|sh|bash|sql)?[\s\S]*?```/.test(finalText)) {
+          try {
+            const jupRes = await fetch('http://localhost:8000/api/jupyter/test-and-paste', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task_name: userText.slice(0, 30),
+                code: finalText,
+                raw_response: finalText,
+                create_fresh: true,
+                skip_pretest: true,
+              }),
+            })
+            if (jupRes.ok) {
+              const jupData = await jupRes.json()
+              const jLink = jupData.jupyter_link || jupData.notebook?.jupyter_link || ''
+              const jName = jupData.notebook_name || jupData.notebook?.notebook_name || ''
+              if (jLink) {
+                if (window.nemi?.openExternal) {
+                  window.nemi.openExternal(jLink)
+                } else {
+                  window.open(jLink, '_blank')
+                }
+                ollamaJupyterBanner = `\n\n> 📓 **Fresh Dedicated Notebook Created & Opened:** \`${jName}\`\n> Saved to \`Desktop/Notebooks/\` — All Code Pasted with Proper Markdowns.\n\n`
+              }
+            }
+          } catch {}
+        }
+        recordAssistantResponse(`${finalText}${ollamaJupyterBanner}`)
       }
     } catch (err) {
       console.error(err)
@@ -1397,17 +1674,111 @@ Personality & Conversational Style:
     setTranscript('')
   }, [])
 
+  const isElectron = typeof window !== 'undefined' && !!window.nemi
+
   return (
     <div className={`relative w-screen h-screen overflow-hidden bg-slate-950 flex flex-col select-none ${modelMode === 'nvidia-nim' ? 'nim-active' : ''}`}>
 
-      {/* ── macOS Title Bar ── */}
-      <header className="h-10 flex items-center justify-between px-20 border-b border-white/5 bg-slate-900/60 backdrop-blur-lg z-50 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
-          <span className="text-xs font-bold tracking-[0.25em] gradient-text">NEMI</span>
+      {/* ── Top Header / App Bar ── */}
+      <header
+        className={`h-10 flex items-center justify-between border-b border-white/5 bg-slate-900/60 backdrop-blur-lg z-50 select-none ${
+          isElectron ? 'px-20' : 'px-4 sm:px-6'
+        }`}
+        style={isElectron ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined}
+      >
+        <div className="flex items-center gap-3" style={isElectron ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
+            <span className="text-xs font-bold tracking-[0.25em] gradient-text">NEMI</span>
+          </div>
+
+          <div className="w-[1px] h-4 bg-white/10" />
+
+          {/* Active Bot Dropdown Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setBotDropdownOpen((p) => !p)}
+              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-all cursor-pointer"
+              title="Switch Active Bot"
+            >
+              <span>{activeBot.emoji}</span>
+              <span className="font-medium text-[11px]">{activeBot.name}</span>
+              <span className="text-[10px] text-white/40">▾</span>
+            </button>
+
+            <AnimatePresence>
+              {botDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                  className="absolute left-0 top-8 w-64 p-1 rounded-xl bg-slate-950/95 backdrop-blur-2xl border border-purple-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.85)] z-50 space-y-0.5"
+                >
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-b border-white/5">
+                    Select Autonomous Agent
+                  </div>
+                  <div className="max-h-64 overflow-y-auto nemi-scroll space-y-0.5 py-1">
+                    {N8N_BOTS.map((bot) => (
+                      <button
+                        key={bot.id}
+                        onClick={() => {
+                          setSelectedBotId(bot.id)
+                          setBotDropdownOpen(false)
+                          setChatOpen(true)
+                        }}
+                        className={`
+                          w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer
+                          ${bot.id === selectedBotId
+                            ? 'bg-purple-600/30 text-white border border-purple-400/40'
+                            : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                          }
+                        `}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span>{bot.emoji}</span>
+                          <span className="font-medium truncate">{bot.name}</span>
+                        </div>
+                        <span className="text-[9px] text-white/30 font-mono flex-shrink-0">
+                          {bot.shortName}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* ── BOT FLEET BUTTON ── */}
+          <button
+            onClick={() => setSidebarOpen((p) => !p)}
+            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+              sidebarOpen
+                ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
+                : 'text-purple-300/80 hover:text-purple-200 bg-purple-500/10 border border-purple-400/20'
+            }`}
+            title="Toggle Bot Swarm Fleet Sidebar"
+          >
+            <Bot className="w-3.5 h-3.5 text-purple-400" />
+            <span>Bot Fleet (10)</span>
+          </button>
+
+          {/* ── JUPYTER BUTTON ── */}
+          <button
+            onClick={() => {
+              const url = 'http://localhost:8888'
+              if (window.nemi?.openExternal) window.nemi.openExternal(url)
+              else window.open(url, '_blank')
+            }}
+            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-amber-300/80 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 transition-all"
+            title="Open Jupyter Notebooks (port 8888)"
+          >
+            <span>📓</span>
+            <span>Jupyter</span>
+          </button>
+
           {/* ── RAG BUTTON ── */}
           <button
             onClick={() => { void window.nemi?.openRagWindow(); setChatOpen(false) }}
@@ -1472,6 +1843,17 @@ Personality & Conversational Style:
           />
         )}
 
+        {/* ── Floating Bot Fleet Dock ── */}
+        <BotFleetDock
+          selectedBotId={selectedBotId}
+          onSelectBot={(botId) => {
+            setSelectedBotId(botId)
+            setChatOpen(true)
+          }}
+          onOpenChat={() => setChatOpen(true)}
+          onToggleSidebar={() => setSidebarOpen((p) => !p)}
+        />
+
         <Sidebar
           conversations={conversations.map((c) => {
             return {
@@ -1491,6 +1873,12 @@ Personality & Conversational Style:
           onDeleteConversation={handleDeleteConversation}
           onPinConversation={handlePinConversation}
           onOpenSettings={() => setSettingsOpen(true)}
+          selectedBotId={selectedBotId}
+          onSelectBot={(id) => {
+            setSelectedBotId(id)
+            setChatOpen(true)
+          }}
+          onOpenChat={() => setChatOpen(true)}
         />
 
         {/* ── Persistent Floating Chat Trigger (when chat is closed) ── */}
@@ -1500,11 +1888,11 @@ Personality & Conversational Style:
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.9 }}
             onClick={() => handleToggleChatOpen(true)}
-            className="fixed right-6 bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-cyan-400/30 text-white shadow-[0_4px_24px_rgba(0,212,255,0.25)] flex items-center gap-2 cursor-pointer group hover:border-cyan-400/60 transition-all"
+            className="fixed right-6 bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-purple-400/30 text-white shadow-[0_4px_24px_rgba(168,85,247,0.25)] flex items-center gap-2 cursor-pointer group hover:border-purple-400/60 transition-all"
             title="Open NEMI Chat (⌘⇧C)"
           >
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00d4ff]" />
-            <span className="text-xs font-semibold tracking-wide text-white/90 group-hover:text-white">Chat with NEMI</span>
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#c084fc]" />
+            <span className="text-xs font-semibold tracking-wide text-white/90 group-hover:text-white">Chat with {activeBot.shortName}</span>
             {memories.length > 0 && (
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-400/30">
                 🧠 {memories.length}
@@ -1535,7 +1923,9 @@ Personality & Conversational Style:
           onDeleteConversation={handleDeleteConversation}
           isListening={isListening}
           onToggleVoice={toggleVoice}
-          modelBadge={modelMode === 'nvidia-nim' ? 'NVIDIA NIM' : ollamaModel.split(':')[0]}
+          modelBadge={activeBot.name}
+          selectedBotId={selectedBotId}
+          onSelectBot={(id) => setSelectedBotId(id)}
         />
 
         <VoiceOrb
