@@ -1,86 +1,58 @@
-import type { IncomingMessage, ServerResponse } from 'http'
-
-async function parseBody(req: IncomingMessage): Promise<any> {
-  if ((req as any).body) {
-    if (typeof (req as any).body === 'string') {
-      try {
-        return JSON.parse((req as any).body)
-      } catch {
-        return {}
-      }
-    }
-    return (req as any).body
-  }
-  if ((req as any).readableEnded || !(req as any).readable) {
-    return {}
-  }
-  return new Promise((resolve) => {
-    let data = ''
-    const timer = setTimeout(() => {
-      try {
-        resolve(data ? JSON.parse(data) : {})
-      } catch {
-        resolve({})
-      }
-    }, 1500)
-
-    req.on('data', (chunk) => {
-      data += chunk
-    })
-    req.on('end', () => {
-      clearTimeout(timer)
-      try {
-        resolve(JSON.parse(data))
-      } catch {
-        resolve({})
-      }
-    })
-    req.on('error', () => {
-      clearTimeout(timer)
-      resolve({})
-    })
-  })
+export const config = {
+  runtime: 'edge',
 }
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key')
-
+export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') {
-    res.statusCode = 200
-    res.end()
-    return
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key',
+      },
+    })
   }
 
   if (req.method !== 'POST') {
-    res.statusCode = 405
-    res.setHeader('Content-Type', 'application/json')
-    res.end(JSON.stringify({ error: 'Method not allowed' }))
-    return
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
   }
 
   const apiKey =
-    (req.headers['x-api-key'] as string) ||
+    req.headers.get('x-api-key') ||
     process.env.NVIDIA_NIM_API_KEY ||
     ''
 
   if (!apiKey) {
-    res.statusCode = 500
-    res.setHeader('Content-Type', 'application/json')
-    res.end(
+    return new Response(
       JSON.stringify({
         error:
-          'NVIDIA NIM API key is not configured on the server. Please set NVIDIA_NIM_API_KEY in Vercel settings or provide a key in client settings.',
-      })
+          'NVIDIA NIM API key is not configured on the server. Please set NVIDIA_NIM_API_KEY in Vercel settings.',
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
     )
-    return
   }
 
-  const body = await parseBody(req)
-  const isStream = body.stream !== false
+  let body: any = {}
+  try {
+    body = await req.json()
+  } catch {
+    body = {}
+  }
 
-  // Handle both standard chat messages and prompt format
+  const isStream = body.stream !== false
   let messages = body.messages || []
   if (!messages.length && body.prompt) {
     messages = [
@@ -114,70 +86,35 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       body: payload,
     })
 
-    if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => '')
-      let errMsg = `NVIDIA NIM returned HTTP ${upstreamRes.status}`
-      try {
-        const parsed = JSON.parse(errText)
-        errMsg = parsed?.error?.message || parsed?.detail || errMsg
-      } catch {}
+    const headers = new Headers({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key',
+    })
 
-      if (isStream) {
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        })
-        res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`)
-        res.write('data: [DONE]\n\n')
-        res.end()
-      } else {
-        res.writeHead(upstreamRes.status, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: errMsg }))
-      }
-      return
-    }
-
-    if (isStream && upstreamRes.body) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      })
-
-      const reader = upstreamRes.body.getReader()
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          res.write(Buffer.from(value))
-          if (typeof (res as any).flush === 'function') {
-            (res as any).flush()
-          }
-        }
-      }
-      res.end()
-    } else {
-      const data = await upstreamRes.json()
-      const replyText = data.choices?.[0]?.message?.content || ''
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ content: replyText, text: replyText, raw: data }))
-    }
-  } catch (err: any) {
     if (isStream) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-      })
-      res.write(`data: ${JSON.stringify({ error: err?.message || 'Upstream connection error' })}\n\n`)
-      res.write('data: [DONE]\n\n')
-      res.end()
+      headers.set('Content-Type', 'text/event-stream; charset=utf-8')
+      headers.set('Cache-Control', 'no-cache, no-transform')
+      headers.set('Connection', 'keep-alive')
+      headers.set('X-Accel-Buffering', 'no')
     } else {
-      res.writeHead(502, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: err?.message || 'Upstream connection error' }))
+      headers.set('Content-Type', 'application/json')
     }
+
+    return new Response(upstreamRes.body, {
+      status: upstreamRes.status,
+      headers,
+    })
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err?.message || 'Upstream connection error' }),
+      {
+        status: 502,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    )
   }
 }
