@@ -21,7 +21,7 @@ export default function BotFleetDock({
 
   return (
     <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[95vw] select-none"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[95vw] select-none hidden md:block"
       onMouseEnter={() => window.nemi?.enterInteractiveMode()}
     >
       {/* Tooltip on hover */}

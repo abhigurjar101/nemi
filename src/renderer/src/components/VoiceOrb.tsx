@@ -122,7 +122,7 @@ export default function VoiceOrb({
     : 'shadow-[0_0_10px_rgba(0,0,0,0.3)]'
 
   return (
-    <div className="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-50">
+    <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 flex flex-col items-end gap-3 z-50">
 
       {/* ── LIVE TRANSCRIPT BAR — floats above orb, doesn't cover content ── */}
       <AnimatePresence>
@@ -205,7 +205,7 @@ export default function VoiceOrb({
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.93 }}
           className={`
-            relative w-16 h-16 rounded-full
+            relative w-14 h-14 sm:w-16 sm:h-16 rounded-full
             bg-gradient-to-br ${orbGradient}
             ${orbGlow}
             flex items-center justify-center
@@ -223,7 +223,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1, rotate: 0 }}
                 exit={{ scale: 0, rotate: 180 }}
               >
-                <Loader2 className="w-6 h-6 text-white animate-spin" strokeWidth={1.65} />
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-white animate-spin" strokeWidth={1.65} />
               </motion.div>
             ) : isListening ? (
               <motion.div
@@ -232,7 +232,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Mic className="w-6 h-6 text-white" strokeWidth={1.65} />
+                <Mic className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.65} />
               </motion.div>
             ) : isSpeaking ? (
               <motion.div
@@ -241,7 +241,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Volume2 className="w-6 h-6 text-white" strokeWidth={1.65} />
+                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.65} />
               </motion.div>
             ) : (
               <motion.div
@@ -250,7 +250,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Mic className="w-6 h-6 text-white/80" strokeWidth={1.65} />
+                <Mic className="w-5 h-5 sm:w-6 sm:h-6 text-white/80" strokeWidth={1.65} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -264,7 +264,7 @@ export default function VoiceOrb({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="text-[10px] text-white/25 text-center tabular-nums"
+            className="text-[10px] text-white/25 text-center tabular-nums hidden sm:block"
           >
             ⌘⇧Space
           </motion.div>
