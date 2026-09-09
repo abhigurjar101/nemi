@@ -72,7 +72,7 @@ export default async function handler(req: Request) {
     model,
     messages,
     temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
-    max_tokens: typeof body.max_tokens === 'number' ? body.max_tokens : 1536,
+    max_tokens: typeof body.max_tokens === 'number' ? Math.min(body.max_tokens, 8192) : 4096,
     stream: isStream,
   })
 

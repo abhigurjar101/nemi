@@ -99,7 +99,7 @@ export function proxyNvidiaNimChat(
       messages: request.messages,
       stream: false,
       temperature: 0.7,
-      max_tokens: 2048,
+      max_tokens: 4096,
     })
     const options: https.RequestOptions = {
       hostname: 'integrate.api.nvidia.com',

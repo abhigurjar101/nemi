@@ -1413,8 +1413,18 @@ Personality & Conversational Style:
 
     // ── Memory context augmentation ──
     const memoryAugmentation = formatMemoriesForSystemPrompt(memories)
-    const botPersona = (!isElectron && selectedBotId !== 'orchestrator' && activeBot)
-      ? `\n\n[Active Bot Persona: ${activeBot.name} - ${activeBot.role}. ${activeBot.description}]`
+    const botPersona = activeBot
+      ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} (${activeBot.emoji}) ===
+Role & Objective: ${activeBot.description}
+Category: ${activeBot.category}
+Specialist Directive:
+${activeBot.directive || ''}
+
+CRITICAL CODE GENERATION & EXECUTION RULES:
+1. 100% COMPLETE IMPLEMENTATION ONLY: Never truncate code. Never emit placeholders like '# ... rest of code', '// TODO', or ellipses (...). Every single function, class, and method must be completely written out.
+2. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
+3. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed.
+4. SWARM SYNCHRONIZATION: When acting as Swarm Orchestrator, break down the request into synchronized, numbered stages (Phase 1: NLP Intent / Semantic Structure -> Phase 2: System DAG -> Phase 3: Complete Verified Code -> Phase 4: Test Verification -> Phase 5: Execution Demo).`
       : ''
 
     const historyMessages = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }))
@@ -1684,7 +1694,7 @@ Personality & Conversational Style:
                 messages: allMessages,
                 stream: true,
                 temperature: 0.7,
-                max_tokens: 1536,
+                max_tokens: 4096,
               }),
             })
 
@@ -1786,7 +1796,7 @@ Personality & Conversational Style:
                   model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
                   messages: allMessages,
                   temperature: 0.7,
-                  max_tokens: 1024,
+                  max_tokens: 4096,
                 }),
               })
               if (nimRes.ok) {

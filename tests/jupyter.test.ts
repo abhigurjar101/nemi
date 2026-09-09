@@ -77,8 +77,33 @@ print("Computed result: 30")
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
   })
 
+  it('executes NLP tokenization, strings, and Counter in the sandbox runner', async () => {
+    const nlpCode = `
+import re
+from collections import Counter
+
+text = "NLP natural language processing is great and natural"
+tokens = text.lower().split()
+counts = Counter(tokens)
+
+print("Total tokens:", len(tokens))
+print("Unique words:", len(counts))
+`
+    const result = await executeCodeSnippet(nlpCode)
+    expect(result.success).toBe(true)
+    expect(result.output).toContain('Total tokens: 8')
+    expect(result.output).toContain('Unique words: 7')
+  })
+
   it('catches syntax errors like unmatched parentheses', async () => {
     const brokenCode = `print("Missing close parenthesis"`
+    const result = await executeCodeSnippet(brokenCode)
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('SyntaxError')
+  })
+
+  it('catches syntax errors like unmatched brackets', async () => {
+    const brokenCode = `data = [1, 2, 3`
     const result = await executeCodeSnippet(brokenCode)
     expect(result.success).toBe(false)
     expect(result.error).toContain('SyntaxError')

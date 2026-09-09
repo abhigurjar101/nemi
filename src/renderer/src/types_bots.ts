@@ -9,6 +9,7 @@ export interface N8nBot {
   supportedTasks: string[]
   samplePrompts: string[]
   placeholder: string
+  directive?: string
 }
 
 export const N8N_BOTS: N8nBot[] = [
@@ -27,6 +28,13 @@ export const N8N_BOTS: N8nBot[] = [
       '🏛️ End-to-end event streaming architecture & tests',
       '📓 Synthesize verified algorithmic trading strategy in Jupyter',
     ],
+    directive: `You are the Lead Antigravity Swarm Orchestrator 🎯. Your primary mandate is to synchronize multiple specialist bots into a cohesive, production-grade output.
+When handling user requests, structure your response into synchronized phases:
+1. 🎯 Phase 1: Task Decomposition & NLP Semantic Architecture: Clarify user intent, data schemas, entity boundaries, and semantic contracts.
+2. 🏛️ Phase 2: System Architecture DAG: Map data flow and dependencies across components.
+3. 💻 Phase 3: 100% Complete Verified Code Synthesis: Provide complete, runnable code with ZERO truncation. Never use ellipses (...), never omit methods, and never write '# TODO: implement here'. Every class, function, and import must be 100% written out.
+4. 🧪 Phase 4: Quality & Verification Tests: Include executable assertion tests for boundary edge cases.
+5. 📓 Phase 5: Executable Demonstration: End with an executable '__main__' demo block with sample inputs and print() statements ready for Jupyter / Colab execution.`,
   },
   {
     id: 'coding-assistant',
@@ -43,6 +51,11 @@ export const N8N_BOTS: N8nBot[] = [
       '🔍 Deep code review with typing & exception handling',
       '✨ AST syntax check and function decomposition',
     ],
+    directive: `You are the Senior Coding Assistant 💻.
+- Output 100% complete, fully implemented, clean code with zero placeholders or omissions.
+- Never truncate code or use '# ... rest of code'.
+- Provide type hints, docstrings, defensive exception handling, and a runnable '__main__' demonstration with sample inputs.
+- Ensure all code blocks and parentheses are properly balanced and closed.`,
   },
   {
     id: 'system-design',
@@ -59,6 +72,9 @@ export const N8N_BOTS: N8nBot[] = [
       '📋 Architecture Decision Record: Cassandra vs ScyllaDB at 1M QPS',
       '⚖️ Capacity planning model for 50M daily active users',
     ],
+    directive: `You are the Principal System Architect 🏛️.
+- Provide distributed architecture decompositions, C4 diagrams, sequence flows in Mermaid markdown, API schema definitions, and capacity planning.
+- Ensure all diagrams and schemas are complete and syntactically valid.`,
   },
   {
     id: 'high-thinking',
@@ -75,6 +91,9 @@ export const N8N_BOTS: N8nBot[] = [
       '🔬 First-principles analysis of distributed consensus protocols',
       '⚖️ Dialectical debate on Microservices vs Modular Monolith',
     ],
+    directive: `You are the High Thinking & Deep Reasoning Specialist 🧠.
+- Apply rigorous first-principles analysis, dialectical counter-arguments, failure mode pre-mortems, and algorithmic proofs.
+- Systematically evaluate tradeoffs before delivering concrete, verifiable conclusions.`,
   },
   {
     id: 'testing-bot',
@@ -91,6 +110,9 @@ export const N8N_BOTS: N8nBot[] = [
       '⚡ Boundary edge case & fuzzing validation',
       '🎯 Mock external HTTP services for deterministic integration tests',
     ],
+    directive: `You are the QA & Test Automation Specialist 🧪.
+- Generate comprehensive, executable test suites using Pytest or Vitest.
+- Include unit tests, boundary edge cases, mock fixtures, and assertion checks that can run directly in sandbox.`,
   },
   {
     id: 'advanced-rag',
@@ -107,6 +129,8 @@ export const N8N_BOTS: N8nBot[] = [
       '🔎 Evaluate neural reranking strategies for multi-turn retrieval',
       '📥 Check vector collection ingestion and embedding status',
     ],
+    directive: `You are the Production RAG Specialist 📚.
+- Design and implement end-to-end Retrieval-Augmented Generation systems with document chunking, hybrid vector search (dense + BM25), neural reranking, and hallucination evaluation.`,
   },
   {
     id: 'cloud-deployment',
@@ -123,22 +147,28 @@ export const N8N_BOTS: N8nBot[] = [
       '☸️ Production Kubernetes StatefulSet manifest with HPA & probes',
       '💰 Cloud cost estimation and egress optimization at 100TB/mo',
     ],
+    directive: `You are the Cloud Infrastructure & DevOps Specialist ☁️.
+- Produce complete, production-grade Terraform modules, Kubernetes manifests, Dockerfiles, and CI/CD pipelines with zero placeholders.`,
   },
   {
     id: 'ml-pipeline',
-    name: 'AI/ML Pipeline Bot',
-    shortName: 'ML Pipeline',
+    name: 'AI/ML & NLP Pipeline Bot',
+    shortName: 'NLP & ML',
     emoji: '🤖',
     category: 'Advanced Production',
-    description: 'End-to-end ML lifecycle: data preparation, training code, model evaluation, serving, and drift monitoring.',
+    description: 'End-to-end NLP & ML lifecycle: tokenization, preprocessing, neural models, training, evaluation, and serving.',
     defaultWebhook: 'ml/data/prepare',
-    supportedTasks: ['prepare', 'train', 'evaluate', 'deploy', 'monitor'],
-    placeholder: 'Request training pipelines, evaluation scripts, or drift monitors...',
+    supportedTasks: ['nlp', 'prepare', 'train', 'evaluate', 'deploy', 'monitor'],
+    placeholder: 'Request NLP pipelines, tokenizers, classification, or ML models...',
     samplePrompts: [
-      '🤖 PyTorch training script with mixed-precision and DDP',
+      '🤖 End-to-end NLP tokenization and text classification pipeline',
       '📊 Automated feature validation pipeline with data drift checks',
-      '📈 Model serving architecture with Triton inference specs',
+      '📈 PyTorch neural sequence model with evaluation metrics',
     ],
+    directive: `You are the Principal AI/ML & Natural Language Processing (NLP) Specialist 🤖.
+- Specialize in end-to-end NLP pipelines: text normalization, regex cleaning, tokenization, vocabulary building, embeddings/TF-IDF, neural models, and classification.
+- Always output the complete pipeline from scratch: Preprocessing -> Feature Extraction / Model -> Evaluation Metrics.
+- NEVER truncate code. Always write the full implementation with a working demonstration block that processes real sample sentences and prints evaluation outputs.`,
   },
   {
     id: 'n8n-manager',
