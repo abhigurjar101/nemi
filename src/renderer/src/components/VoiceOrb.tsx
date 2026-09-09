@@ -156,10 +156,12 @@ export default function VoiceOrb({
 
               {/* Dismiss button */}
               <button
+                type="button"
                 onClick={onStop}
-                className="ml-auto text-white/30 hover:text-white/70 transition-colors"
+                aria-label="Stop audio or voice listening"
+                className="ml-auto text-white/40 hover:text-white/80 transition-colors p-1 rounded-md focus-visible:ring-2 focus-visible:ring-cyan-400/50"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" strokeWidth={1.65} />
               </button>
             </div>
 
@@ -189,7 +191,17 @@ export default function VoiceOrb({
 
         {/* Main orb */}
         <motion.button
+          type="button"
           onClick={onToggle}
+          aria-label={
+            isThinking
+              ? 'NEMI is thinking'
+              : isListening
+              ? 'Stop voice listening'
+              : isSpeaking
+              ? 'Stop audio response'
+              : 'Start voice conversation'
+          }
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.93 }}
           className={`
@@ -199,6 +211,7 @@ export default function VoiceOrb({
             flex items-center justify-center
             cursor-pointer select-none
             transition-all duration-300
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60
           `}
         >
           {/* Icon */}
@@ -210,7 +223,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1, rotate: 0 }}
                 exit={{ scale: 0, rotate: 180 }}
               >
-                <Loader2 className="w-7 h-7 text-white animate-spin" />
+                <Loader2 className="w-6 h-6 text-white animate-spin" strokeWidth={1.65} />
               </motion.div>
             ) : isListening ? (
               <motion.div
@@ -219,7 +232,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Mic className="w-7 h-7 text-white" />
+                <Mic className="w-6 h-6 text-white" strokeWidth={1.65} />
               </motion.div>
             ) : isSpeaking ? (
               <motion.div
@@ -228,7 +241,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Volume2 className="w-7 h-7 text-white" />
+                <Volume2 className="w-6 h-6 text-white" strokeWidth={1.65} />
               </motion.div>
             ) : (
               <motion.div
@@ -237,7 +250,7 @@ export default function VoiceOrb({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <Mic className="w-7 h-7 text-white/70" />
+                <Mic className="w-6 h-6 text-white/80" strokeWidth={1.65} />
               </motion.div>
             )}
           </AnimatePresence>

@@ -674,7 +674,7 @@ function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
     const target = controls.target || new THREE.Vector3(0, 0, 0)
     const dir = new THREE.Vector3().subVectors(camera.position, target)
     let newDist = dir.length() * factor
-    if (newDist < 2.5) newDist = 2.5
+    if (newDist < 1.2) newDist = 1.2
     if (newDist > 40) newDist = 40
     dir.setLength(newDist)
     camera.position.copy(target).add(dir)
@@ -699,12 +699,13 @@ function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
       enableRotate={true}
       enableZoom={true}
       enablePan={true}
-      minDistance={2.5}
+      screenSpacePanning={true}
+      minDistance={1.2}
       maxDistance={40}
       dampingFactor={0.06}
       enableDamping={true}
-      rotateSpeed={0.8}
-      zoomSpeed={1.0}
+      rotateSpeed={0.85}
+      zoomSpeed={1.05}
       makeDefault
     />
   )

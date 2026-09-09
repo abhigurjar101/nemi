@@ -40,7 +40,8 @@ describe('Ultra-Premium Iconography & Universal Accessibility', () => {
     expect(content).toContain('enableRotate={true}')
     expect(content).toContain('enableZoom={true}')
     expect(content).toContain('enablePan={true}')
-    expect(content).toContain('minDistance={2.5}')
+    expect(content).toContain('screenSpacePanning={true}')
+    expect(content).toContain('minDistance={1.2}')
     expect(content).toContain('maxDistance={40}')
     expect(content).toContain('touchAction: \'none\'')
     expect(content).toContain('aria-label="Zoom in on NEMI Brain"')
@@ -69,18 +70,18 @@ describe('3D Brain Orbit & Camera Discrimination Logic', () => {
     expect(isDrag(100, 100, 200, 200)).toBe(true)
   })
 
-  it('clamps zoom distance within safe interactive range [2.5, 40]', () => {
+  it('clamps zoom distance within safe interactive range [1.2, 40]', () => {
     const clampDistance = (dist: number, factor: number) => {
       let newDist = dist * factor
-      if (newDist < 2.5) newDist = 2.5
+      if (newDist < 1.2) newDist = 1.2
       if (newDist > 40) newDist = 40
       return newDist
     }
 
     // Zooming in from 14
     expect(clampDistance(14, 0.72)).toBeCloseTo(10.08, 1)
-    // Deep zoom in clamps at 2.5
-    expect(clampDistance(3, 0.5)).toBe(2.5)
+    // Deep zoom in clamps at 1.2
+    expect(clampDistance(1.5, 0.5)).toBe(1.2)
     // Macro zoom out clamps at 40
     expect(clampDistance(35, 1.5)).toBe(40)
   })
