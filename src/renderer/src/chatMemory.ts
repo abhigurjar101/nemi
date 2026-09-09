@@ -5,6 +5,8 @@ export interface Message {
   timestamp: Date
   streaming?: boolean
   appliedBlueprints?: string[]
+  collaboratingBots?: string[]
+  isSwarmConsensus?: boolean
 }
 
 export interface ConversationSession {

@@ -31,6 +31,10 @@ import {
   startAutonomousLearningDaemon,
   calculateSwarmMastery,
 } from './utils/autonomousLearning'
+import {
+  compileSwarmConsensusPrompt,
+  isSwarmModeActive,
+} from './utils/swarmCollaboration'
 import AuthModal, { type UserProfile } from './components/AuthModal'
 import {
   type ConversationSession,
@@ -853,6 +857,7 @@ export default function App() {
   // ── Universal Command Palette, Learning Hub & Toast Notifications ──
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [learningModalOpen, setLearningModalOpen] = useState(false)
+  const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg)
@@ -1597,8 +1602,15 @@ export default function App() {
     setIsThinking(true)
     setChatOpen(true)
 
-    // ── Continuous GitHub architecture learning bridge ──
+    // ── Continuous GitHub architecture learning bridge & Swarm Consensus ──
+    const isSwarm = swarmModeEnabled || isSwarmModeActive(selectedBotId, userText)
+    const consensusConfig = isSwarm ? compileSwarmConsensusPrompt(userText, memories) : null
+    const collaboratingBots = consensusConfig ? consensusConfig.collaboratingBots.map((c) => c.shortName) : undefined
+
     const { promptBlock: learnedArchitectureContext, appliedBlueprints } = buildLearnedPromptContext(selectedBotId, memories)
+    const finalAppliedBlueprints = consensusConfig?.appliedBlueprints?.length
+      ? consensusConfig.appliedBlueprints
+      : appliedBlueprints
 
     const assistantMsgId = genUid()
     const assistantMsg: Message = {
@@ -1607,7 +1619,9 @@ export default function App() {
       content: '',
       timestamp: new Date(),
       streaming: true,
-      appliedBlueprints,
+      appliedBlueprints: finalAppliedBlueprints,
+      collaboratingBots,
+      isSwarmConsensus: isSwarm,
     }
     setMessages((prev) => [...prev, assistantMsg])
 
@@ -1710,7 +1724,9 @@ Personality & Conversational Style:
 
     // ── Continuous GitHub architecture learning bridge applied ──
 
-    const botPersona = activeBot
+    const botPersona = consensusConfig
+      ? `\n\n${consensusConfig.systemPrompt}`
+      : activeBot
       ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} ===
 Role & Objective: ${activeBot.description}
 Category: ${activeBot.category}
@@ -1720,12 +1736,10 @@ ${activeBot.directive || ''}
 ${learnedArchitectureContext}
 
 CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
-1. SIMPLEST AND MOST EFFECTIVE: Prioritize clean, transparent, readable, and highly idiomatic implementations over unnecessary complexity or convoluted abstractions. Make code elegant, concise, and Pythonic.
+1. MAXIMUM CODE PARSIMONY: Prioritize the absolute shortest, cleanest, and most idiomatic code that 100% completes the logic. Eliminate unnecessary boilerplate classes, verbose getters/setters, duplicate comments, and redundant scaffolding.
 2. 100% ERROR-FREE & COMPLETE: Code must be completely self-contained. Always import all required modules. Never use '# ... rest of code', '// TODO', or ellipses (...). Every single function, class, and method must be completely written out with zero missing symbols.
-3. NLP CODE STANDARD: When providing NLP code, provide pure, self-contained, working tokenization, feature extraction, and classification with standard libraries. Ensure zero undefined variables or missing dependencies.
-4. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
-5. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed so the code renders immediately.
-6. SWARM SYNCHRONIZATION: When acting as Swarm Orchestrator, break down the request into synchronized, numbered stages (Phase 1: NLP Intent / Semantic Structure -> Phase 2: System DAG -> Phase 3: Complete Verified Code -> Phase 4: Test Verification -> Phase 5: Execution Demo).`
+3. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
+4. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed so the code renders immediately.`
       : ''
 
     const historyMessages = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }))
@@ -1786,7 +1800,9 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         ...assistantMsg,
         content: finalText,
         streaming: false,
-        appliedBlueprints: appliedBlueprints?.length ? appliedBlueprints : assistantMsg.appliedBlueprints,
+        appliedBlueprints: finalAppliedBlueprints?.length ? finalAppliedBlueprints : assistantMsg.appliedBlueprints,
+        collaboratingBots: collaboratingBots || assistantMsg.collaboratingBots,
+        isSwarmConsensus: isSwarm || assistantMsg.isSwarmConsensus,
       }
       const updatedMessages: Message[] = [...messages, userMsg, updatedAssistant]
       setMessages(updatedMessages)
@@ -2142,7 +2158,9 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             astBadge = `> **AST Syntax & Architecture Verified** — ${astVal.detectedFunctions?.length || 0} functions, ${astVal.detectedClasses?.length || 0} classes.\n\n`
           }
         }
-        const botBadge = selectedBotId !== 'orchestrator'
+        const botBadge = consensusConfig
+          ? `> **⚡ NEMI Swarm Consensus (All Bots United)** — High-Thinking, System Architect, Senior Coder & QA Collaborating for Maximum Parsimony & Complete Logic\n\n`
+          : selectedBotId !== 'orchestrator'
           ? `> **${activeBot.name} Response**\n\n`
           : ''
         recordAssistantResponse(`${botBadge}${astBadge}${replyText}${jupyterBanner}`)
@@ -2317,6 +2335,25 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           >
             <Bot className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
             <span>Bot Fleet (11)</span>
+          </button>
+
+          {/* Swarm Mode Toggle (All Bots United vs Single Bot) */}
+          <button
+            type="button"
+            onClick={() => {
+              setSwarmModeEnabled((p) => !p)
+              showToast(swarmModeEnabled ? 'Swarm Mode: Single Specialist Bot' : '⚡ Swarm Mode: All 11 Bots United (Consensus Active)')
+            }}
+            aria-label="Toggle Swarm Collaboration Mode: All Bots United"
+            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+              swarmModeEnabled
+                ? 'bg-purple-500/20 text-purple-200 border-purple-400/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                : 'text-white/60 hover:text-white bg-white/[0.04] border-white/10'
+            }`}
+            title="Toggle Swarm Collaboration Mode: All 11 Bots United vs Single Bot"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${swarmModeEnabled ? 'text-purple-400 animate-pulse' : 'text-white/40'}`} strokeWidth={1.65} />
+            <span>Swarm {swarmModeEnabled ? 'United' : 'Solo'}</span>
           </button>
 
           {/* Jupyter / Colab */}
@@ -2603,6 +2640,37 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-cyan-300/60" />
+                </button>
+
+                {/* 0.8. Swarm Mode: All Bots United */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setSwarmModeEnabled((p) => !p)
+                    showToast(swarmModeEnabled ? 'Swarm Mode: Single Specialist Bot' : '⚡ Swarm Mode: All 11 Bots United (Consensus Active)')
+                  }}
+                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left ${
+                    swarmModeEnabled
+                      ? 'bg-purple-500/15 border-purple-400/40 shadow-[0_0_16px_rgba(168,85,247,0.2)]'
+                      : 'bg-white/[0.03] border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+                      <Sparkles className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">Swarm Mode: All Bots United</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-400/20 text-purple-300 border border-purple-400/30">
+                          {swarmModeEnabled ? 'ACTIVE' : 'OFF'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-purple-200/60">Collaborative consensus for shortest, 100% working code</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-purple-300/60" />
                 </button>
 
                 {/* 1. Bot Fleet */}
@@ -3252,6 +3320,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         onNewChat={handleNewConversation}
         onToast={showToast}
         onOpenLearningHub={() => setLearningModalOpen(true)}
+        swarmModeEnabled={swarmModeEnabled}
+        onToggleSwarmMode={() => {
+          setSwarmModeEnabled((p) => !p)
+          showToast(swarmModeEnabled ? 'Swarm Mode: Single Specialist Bot' : '⚡ Swarm Mode: All 11 Bots United (Consensus Active)')
+        }}
       />
 
       {/* Autonomous Learning & Swarm Mastery Hub */}

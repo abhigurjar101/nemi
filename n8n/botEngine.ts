@@ -68,6 +68,7 @@ ABSOLUTE MANDATES FOR PRODUCTION EXCELLENCE:
 2. ERROR-FREE ARCHITECTURE: Use explicit typing, robust parameter validation, defensive exception handling, and verified mathematical/tokenization formulas.
 3. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block with concrete sample data and print() statements ready for Jupyter / Colab execution.
 4. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences are completely closed.
+5. MAXIMUM CODE PARSIMONY: Write the shortest, cleanest, and most idiomatic code that completely solves the problem. Eliminate unnecessary boilerplate classes, verbose getters/setters, duplicate comments, and redundant scaffolding.
 `
 
   return { systemPrompt, appliedBlueprints }

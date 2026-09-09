@@ -42,6 +42,8 @@ export interface CommandPaletteProps {
   onNewChat: () => void
   onToast?: (message: string) => void
   onOpenLearningHub?: () => void
+  swarmModeEnabled?: boolean
+  onToggleSwarmMode?: () => void
 }
 
 export default function CommandPalette({
@@ -56,6 +58,8 @@ export default function CommandPalette({
   onNewChat,
   onToast,
   onOpenLearningHub,
+  swarmModeEnabled,
+  onToggleSwarmMode,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -133,6 +137,23 @@ export default function CommandPalette({
         onClose()
       },
     })
+
+    if (onToggleSwarmMode) {
+      list.push({
+        id: 'toggle-swarm-consensus',
+        title: swarmModeEnabled
+          ? 'Swarm Mode: Active (All 11 Bots United)'
+          : 'Enable Swarm Mode (All 11 Bots United)',
+        subtitle: 'Collaborative consensus across all bots for shortest, 100% complete working code',
+        icon: Sparkles,
+        category: 'Bots',
+        badge: swarmModeEnabled ? 'ACTIVE' : 'OFF',
+        run: () => {
+          onToggleSwarmMode()
+          onClose()
+        },
+      })
+    }
 
     if (onOpenLearningHub) {
       list.push({

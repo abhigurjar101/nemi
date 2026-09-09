@@ -461,6 +461,11 @@ function CodeBlock({
           <span className="text-[9px] text-white/40 font-mono">
             {lines.length} {lines.length === 1 ? 'line' : 'lines'}
           </span>
+          {lines.length <= 45 && (
+            <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-300 font-mono border border-emerald-400/20 hidden xs:inline">
+              Short & Complete
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -778,6 +783,29 @@ export default function MessageBubble({
           bg-slate-900/60 backdrop-blur-md border border-white/8
           shadow-[0_4px_16px_rgba(0,0,0,0.3)] space-y-1
         ">
+          {/* Swarm Multi-Agent Collaboration Consensus Badge */}
+          {message.collaboratingBots && message.collaboratingBots.length > 0 && !message.streaming && (
+            <div className="mb-2 pb-1.5 border-b border-purple-500/20 flex items-center justify-between gap-2 flex-wrap bg-gradient-to-r from-purple-500/10 via-cyan-500/5 to-transparent px-2.5 py-1.5 rounded-lg border border-purple-400/25">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-purple-300 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5 text-purple-400 animate-pulse" />
+                  Swarm Consensus (All Bots United):
+                </span>
+                {message.collaboratingBots.map((bot, i) => (
+                  <span
+                    key={i}
+                    className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-500/15 border border-purple-400/30 text-purple-200"
+                  >
+                    {bot}
+                  </span>
+                ))}
+              </div>
+              <span className="text-[9px] font-mono text-emerald-400 font-medium">
+                ⚡ Max Parsimony (Short & Complete)
+              </span>
+            </div>
+          )}
+
           {/* Applied World-Class Learned Architectures Pill Banner */}
           {message.appliedBlueprints && message.appliedBlueprints.length > 0 && !message.streaming && (
             <div className="mb-2 pb-1.5 border-b border-white/5 flex items-center justify-between gap-2 flex-wrap">
