@@ -69,6 +69,7 @@ ABSOLUTE MANDATES FOR PRODUCTION EXCELLENCE:
 3. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block with concrete sample data and print() statements ready for Jupyter / Colab execution.
 4. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences are completely closed.
 5. MAXIMUM CODE PARSIMONY: Write the shortest, cleanest, and most idiomatic code that completely solves the problem. Eliminate unnecessary boilerplate classes, verbose getters/setters, duplicate comments, and redundant scaffolding.
+6. ZERO TRIVIAL COMMENTS (CODE PURITY): Never write obvious, line-by-line comments (e.g. '# import modules', '# initialize list', '# loop through items', '# return result'). Trivial comments dilute attention tokens, clutter the screen, and reduce model potential. Write self-documenting code with clear variable and function names. Use concise docstrings for public classes/methods, and comments strictly for non-obvious mathematical invariants.
 `
 
   return { systemPrompt, appliedBlueprints }

@@ -33,7 +33,6 @@ class MinimalNLPPipeline:
         self.inverse_vocab = {idx: token for token, idx in self.vocab.items()}
 
     def clean_text(self, text: str) -> str:
-        # Normalize casing and strip extraneous punctuation cleanly
         return re.sub(r'[^\\w\\s]', '', text.lower()).strip()
 
     def tokenize(self, text: str) -> list[str]:
@@ -96,8 +95,6 @@ class SlidingWindowRateLimiter:
     def is_allowed(self, user_key: str) -> tuple[bool, int]:
         now = time.time()
         window_start = now - self.window
-        
-        # Purge timestamps outside the active sliding window
         self.requests[user_key] = [t for t in self.requests[user_key] if t > window_start]
         current_count = len(self.requests[user_key])
 
@@ -214,17 +211,15 @@ class MinimalCausalSelfAttention:
         self.head_dim = d_model // n_head
 
     def forward(self, q: list[list[float]], k: list[list[float]], v: list[list[float]]) -> list[list[float]]:
-        # Scaled dot-product attention with causal mask (token i only attends to <= i)
         seq_len = len(q)
         scores = [[0.0] * seq_len for _ in range(seq_len)]
         scale = 1.0 / math.sqrt(self.head_dim)
 
         for i in range(seq_len):
-            for j in range(i + 1):  # Causal mask: j <= i
+            for j in range(i + 1):
                 dot = sum(q[i][d] * k[j][d] for d in range(self.head_dim))
                 scores[i][j] = dot * scale
 
-        # Softmax normalization over row
         output = []
         for i in range(seq_len):
             row = scores[i][:i + 1]

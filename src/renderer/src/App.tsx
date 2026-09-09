@@ -1736,7 +1736,7 @@ ${activeBot.directive || ''}
 ${learnedArchitectureContext}
 
 CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
-1. MAXIMUM CODE PARSIMONY: Prioritize the absolute shortest, cleanest, and most idiomatic code that 100% completes the logic. Eliminate unnecessary boilerplate classes, verbose getters/setters, duplicate comments, and redundant scaffolding.
+1. MAXIMUM CODE PARSIMONY & ZERO COMMENT CLUTTER: Prioritize the absolute shortest, cleanest, and most idiomatic code that 100% completes the logic. NEVER write trivial line-by-line comments (e.g. '# import', '# initialize', '# loop', '# return'). Trivial comments dilute attention tokens, reduce reasoning potential, and clutter code. Let clean, self-documenting code speak for itself.
 2. 100% ERROR-FREE & COMPLETE: Code must be completely self-contained. Always import all required modules. Never use '# ... rest of code', '// TODO', or ellipses (...). Every single function, class, and method must be completely written out with zero missing symbols.
 3. RUNNABLE EXECUTION DEMO: Always include a complete, executable demonstration block (e.g. \`if __name__ == '__main__':\`) with concrete sample data and print() outputs so that clicking 'Run' in the Jupyter sandbox executes cleanly with real output.
 4. SYNTAX INTEGRITY: Ensure all parentheses, brackets, and code fences (\`\`\`) are completely and properly closed so the code renders immediately.`

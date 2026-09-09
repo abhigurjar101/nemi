@@ -141,12 +141,18 @@ SUPREME MANDATES FOR BEST RESULTS & ULTRA-COMPACT WORKING CODE:
    - Eliminate unnecessary boilerplate classes, verbose getters/setters, duplicate comments, and redundant scaffolding.
    - The best code is concise, readable, and mathematically optimal.
 
-2. 100% ERROR-FREE & COMPLETE (NO PLACEHOLDERS):
+2. ZERO TRIVIAL COMMENTS (CODE PURITY):
+   - NEVER write redundant, line-by-line comments (e.g. '# import modules', '# define function', '# loop through items', '# return result').
+   - Trivial comments dilute attention tokens, reduce reasoning potential, and clutter code readability.
+   - Write clean, self-documenting code with clear variable and function names.
+   - Only include a concise docstring for public interfaces, and comments ONLY for non-obvious mathematical invariants.
+
+3. 100% ERROR-FREE & COMPLETE (NO PLACEHOLDERS):
    - Code must be completely self-contained with ALL necessary imports.
    - NEVER use placeholders like '# ... rest of code', 'pass', or '// TODO'.
    - Every single function, class, and method must be completely written out with zero missing symbols.
 
-3. STRUCTURED SWARM CONSENSUS RESPONSE FORMAT:
+4. STRUCTURED SWARM CONSENSUS RESPONSE FORMAT:
    Structure your answer cleanly into 3 focused sections:
    - **⚡ Swarm Consensus Strategy**: 2-3 high-density bullet points from the collaborating bots (algorithm chosen, time/space complexity, and key invariant).
    - **💻 Definitive Complete Working Code**: The concise, 100% functional, and self-contained code snippet enclosed in standard fences (\`\`\`python ... \`\`\`).
@@ -174,6 +180,47 @@ export function isSwarmModeActive(
   if (!userQuery) return false
 
   // Trigger swarm if prompt asks for multi-agent, swarm, collaboration, or end-to-end full system
-  const multiAgentRegex = /(?:swarm|all bots|working together|collaborat|end-to-end|full system|best code|pipeline)/i
+  const multiAgentRegex = /(?:swarm|all bots|working together|collaborat|end-to-end|full system|best code|pipeline|short code|fix comments|comments)/i
   return multiAgentRegex.test(userQuery)
+}
+
+/**
+ * Strips obvious trivial single-line comments from code to maximize density and eliminate comment spam.
+ * Preserves docstrings, shebangs, and complex mathematical explanations.
+ */
+export function stripTrivialComments(code: string): string {
+  if (!code || typeof code !== 'string') return ''
+  const trivialCommentRegex = /^[ \t]*#[ \t]*(?:import|imports|define|definition|initialize|initialization|set up|setup|helper|main|run|loop|iterate|return|check if|handle|create|instantiate|execute|call)[^\n]*$/gim
+
+  const cleaned = code.replace(trivialCommentRegex, '')
+  return cleaned.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/**
+ * Computes code density and signal-to-noise ratio.
+ */
+export function calculateCodeDensity(code: string): {
+  totalLines: number
+  codeLines: number
+  commentLines: number
+  densityPercent: number
+} {
+  const lines = code.split('\n')
+  let commentLines = 0
+  let codeLines = 0
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    if (trimmed.startsWith('#') || trimmed.startsWith('//')) {
+      commentLines++
+    } else {
+      codeLines++
+    }
+  }
+
+  const totalLines = codeLines + commentLines
+  const densityPercent = totalLines > 0 ? Math.round((codeLines / totalLines) * 100) : 100
+
+  return { totalLines, codeLines, commentLines, densityPercent }
 }
