@@ -34,7 +34,7 @@ import {
   uid as genUid,
 } from './chatMemory'
 import { playThoughtSpark, playActivationChime } from './humanCompanion/soundscape'
-import { triggerDailyGitHubLearning } from './utils/githubLearning'
+import { triggerDailyGitHubLearning, ingestCustomGitHubRepo } from './utils/githubLearning'
 
 declare global {
   interface Window {
@@ -582,8 +582,29 @@ export default function App() {
   const [memories, setMemories] = useState<MemoryItem[]>([])
   const [speakingMsgText, setSpeakingMsgText] = useState<string | null>(null)
   const [githubLearningBanner, setGithubLearningBanner] = useState<string | null>(null)
+  const [repoModalOpen, setRepoModalOpen] = useState(false)
+  const [customRepoInput, setCustomRepoInput] = useState('')
+  const [isIngestingRepo, setIsIngestingRepo] = useState(false)
 
-  // ── Load persistent conversations & long-term memories on launch ──
+  const handleIngestCustomRepo = async () => {
+    if (!customRepoInput.trim()) return
+    setIsIngestingRepo(true)
+    try {
+      const res = await ingestCustomGitHubRepo(customRepoInput, memories)
+      setMemories(res.newMemories)
+      setGithubLearningBanner(res.summary)
+      setRepoModalOpen(false)
+      setCustomRepoInput('')
+      setTimeout(() => setGithubLearningBanner(null), 8000)
+    } catch (err: any) {
+      setGithubLearningBanner(`Ingestion failed: ${err?.message || 'Unknown error'}`)
+      setTimeout(() => setGithubLearningBanner(null), 5000)
+    } finally {
+      setIsIngestingRepo(false)
+    }
+  }
+
+  // ── Load persistent conversations & long-term memories on launch & connection ──
   useEffect(() => {
     const initStorage = async () => {
       try {
@@ -611,6 +632,39 @@ export default function App() {
       }
     }
     void initStorage()
+
+    // Continuous GitHub synthesis triggers on connection events
+    const handleOnline = () => {
+      void loadStoredMemories().then((currentMems) => {
+        void triggerDailyGitHubLearning(currentMems, true, true).then((learnRes) => {
+          if (learnRes.trained && learnRes.count > 0) {
+            setMemories(learnRes.newMemories)
+            setGithubLearningBanner(`⚡ Connection Sync: Ingested ${learnRes.count} GitHub architectures.`)
+            setTimeout(() => setGithubLearningBanner(null), 6000)
+          }
+        })
+      })
+    }
+
+    const handleFocus = () => {
+      void loadStoredMemories().then((currentMems) => {
+        void triggerDailyGitHubLearning(currentMems, false, true).then((learnRes) => {
+          if (learnRes.trained && learnRes.count > 0) {
+            setMemories(learnRes.newMemories)
+            setGithubLearningBanner(learnRes.summary)
+            setTimeout(() => setGithubLearningBanner(null), 6000)
+          }
+        })
+      })
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   const handleToggleChatOpen = useCallback((open: boolean) => {
@@ -2037,20 +2091,29 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <span>Advanced RAG</span>
           </button>
 
-          {/* ── GITHUB ARCHITECTURE TRAINING BUTTON ── */}
-          <button
-            onClick={async () => {
-              const res = await triggerDailyGitHubLearning(memories, true)
-              setMemories(res.newMemories)
-              setGithubLearningBanner(res.summary)
-              setTimeout(() => setGithubLearningBanner(null), 8000)
-            }}
-            className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
-            title="Train NEMI on High-Class GitHub Code Architectures"
-          >
-            <span>🧠⚡</span>
-            <span>Train GitHub</span>
-          </button>
+          {/* ── GITHUB ARCHITECTURE TRAINING & INGESTION BUTTONS ── */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                const res = await triggerDailyGitHubLearning(memories, true)
+                setMemories(res.newMemories)
+                setGithubLearningBanner(res.summary)
+                setTimeout(() => setGithubLearningBanner(null), 8000)
+              }}
+              className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 text-purple-300 bg-purple-500/15 border border-purple-400/30 hover:bg-purple-500/25 transition-all cursor-pointer"
+              title="Train NEMI on High-Class GitHub Code Architectures"
+            >
+              <span>🧠⚡</span>
+              <span>Train GitHub</span>
+            </button>
+            <button
+              onClick={() => setRepoModalOpen(true)}
+              className="px-2 py-1 rounded-lg text-xs flex items-center gap-1 text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 hover:bg-cyan-500/25 transition-all cursor-pointer"
+              title="Ingest Any Public GitHub Repository into NEMI"
+            >
+              <span>+ Ingest</span>
+            </button>
+          </div>
 
           {/* ── AUTH / ACCESS BUTTON ── */}
           <button
@@ -2324,6 +2387,80 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           }
         }}
       />
+
+      {/* ── GitHub Repository Ingestion Modal ── */}
+      {repoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl w-full max-w-lg shadow-[0_0_30px_rgba(6,182,212,0.25)] overflow-hidden">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🧠⚡</span>
+                <h3 className="text-sm font-semibold text-white">Ingest Public GitHub Repository</h3>
+              </div>
+              <button
+                onClick={() => setRepoModalOpen(false)}
+                className="text-white/40 hover:text-white text-sm p-1 rounded transition-colors"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-xs text-white/70 leading-relaxed">
+                Teach all 11 specialist bots modern code architectures from any GitHub repository. Enter an <span className="font-mono text-cyan-300">owner/repo</span> or full repository URL.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customRepoInput}
+                  onChange={(e) => setCustomRepoInput(e.target.value)}
+                  placeholder="e.g. vllm-project/vllm or astral-sh/uv"
+                  className="flex-1 bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-cyan-400 font-mono"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customRepoInput.trim()) {
+                      void handleIngestCustomRepo()
+                    }
+                  }}
+                />
+                <button
+                  disabled={isIngestingRepo || !customRepoInput.trim()}
+                  onClick={() => void handleIngestCustomRepo()}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isIngestingRepo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  <span>{isIngestingRepo ? 'Ingesting...' : 'Ingest'}</span>
+                </button>
+              </div>
+
+              {/* Quick suggestions */}
+              <div>
+                <span className="text-[10px] text-white/40 uppercase font-mono tracking-wider">Trending Architecture Blueprints</span>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    'vllm-project/vllm',
+                    'karpathy/nanoGPT',
+                    'astral-sh/uv',
+                    'tiangolo/fastapi',
+                    'huggingface/transformers',
+                    'redis/redis-py',
+                    'pallets/flask',
+                  ].map((rec) => (
+                    <button
+                      key={rec}
+                      onClick={() => {
+                        setCustomRepoInput(rec)
+                      }}
+                      className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-cyan-300 transition-colors cursor-pointer"
+                    >
+                      {rec}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

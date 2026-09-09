@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
   triggerDailyGitHubLearning,
+  ingestCustomGitHubRepo,
   GITHUB_ARCHITECTURE_BLUEPRINTS,
-  type GitHubArchitectureBlueprint,
 } from '../src/renderer/src/utils/githubLearning'
 import type { MemoryItem } from '../src/renderer/src/chatMemory'
 
@@ -26,34 +26,40 @@ describe('GitHub Architecture & Continuous Learning Bot Engine', () => {
     }
   })
 
-  describe('Curated Blueprints Integrity', () => {
-    it('contains valid blueprints across required domains including NLP & ML', () => {
-      expect(GITHUB_ARCHITECTURE_BLUEPRINTS.length).toBeGreaterThanOrEqual(4)
-      const nlpBlueprint = GITHUB_ARCHITECTURE_BLUEPRINTS.find((b) => b.category === 'NLP & ML')
-      expect(nlpBlueprint).toBeDefined()
-      expect(nlpBlueprint?.repo).toBe('huggingface/transformers')
-      expect(nlpBlueprint?.codeSnippet).toContain('MinimalNLPPipeline')
-      expect(nlpBlueprint?.principles.length).toBeGreaterThan(0)
+  describe('Curated Blueprints Integrity (8 World-Class Blueprints)', () => {
+    it('contains all 8 world-class blueprints across NLP, Distributed Systems, Clean Architecture, and APIs', () => {
+      expect(GITHUB_ARCHITECTURE_BLUEPRINTS.length).toBe(8)
+
+      const repos = GITHUB_ARCHITECTURE_BLUEPRINTS.map((b) => b.repo)
+      expect(repos).toContain('huggingface/transformers')
+      expect(repos).toContain('karpathy/nanoGPT')
+      expect(repos).toContain('vllm-project/vllm')
+      expect(repos).toContain('astral-sh/uv')
+      expect(repos).toContain('redis/redis-py')
+      expect(repos).toContain('tiangolo/fastapi')
+      expect(repos).toContain('anthropics/anthropic-sdk-python')
+      expect(repos).toContain('qdrant/qdrant-client')
     })
 
-    it('ensures each blueprint has executable, non-empty code snippets and summaries', () => {
+    it('ensures each blueprint has executable, non-empty code snippets and principles', () => {
       for (const bp of GITHUB_ARCHITECTURE_BLUEPRINTS) {
         expect(bp.repo).toBeTruthy()
         expect(bp.title).toBeTruthy()
         expect(bp.codeSnippet.trim().length).toBeGreaterThan(50)
         expect(bp.summary).toBeTruthy()
+        expect(bp.principles.length).toBeGreaterThan(0)
       }
     })
   })
 
-  describe('triggerDailyGitHubLearning', () => {
-    it('populates initial memories with architecture blueprints on first login', async () => {
+  describe('triggerDailyGitHubLearning on Connection & Login', () => {
+    it('populates initial memories with all 8 architecture blueprints on first connection', async () => {
       const initialMemories: MemoryItem[] = []
       const res = await triggerDailyGitHubLearning(initialMemories)
 
       expect(res.trained).toBe(true)
-      expect(res.count).toBe(GITHUB_ARCHITECTURE_BLUEPRINTS.length)
-      expect(res.newMemories.length).toBe(GITHUB_ARCHITECTURE_BLUEPRINTS.length)
+      expect(res.count).toBe(8)
+      expect(res.newMemories.length).toBe(8)
       expect(res.summary).toContain('Auto-trained NEMI')
       expect(storage['nemi_last_github_training_date']).toBe(new Date().toISOString().slice(0, 10))
     })
@@ -70,36 +76,49 @@ describe('GitHub Architecture & Continuous Learning Bot Engine', () => {
       expect(res2.summary).toContain('already trained')
     })
 
-    it('forces training on user login when force is true', async () => {
+    it('forces training and sync on connection event when force is true', async () => {
       const initialMemories: MemoryItem[] = []
       const res1 = await triggerDailyGitHubLearning(initialMemories)
       expect(res1.trained).toBe(true)
 
-      // User logs in and forces refresh
+      // Connection event forces refresh
       const res2 = await triggerDailyGitHubLearning(res1.newMemories, true)
       expect(res2.trained).toBe(true)
-      // Because all blueprints are already in memory, deduplication prevents duplicates
       expect(res2.count).toBe(0)
       expect(res2.summary).toContain('verified up-to-date')
     })
 
-    it('deduplicates properly against existing repository memories', async () => {
-      const existing: MemoryItem[] = [
-        {
-          id: 'existing-1',
-          content: 'Architecture notes from huggingface/transformers NLP pipeline',
-          category: 'project',
-          timestamp: Date.now(),
-        },
-      ]
+    it('supports silent sync mode during focus / background reconnects', async () => {
+      const initialMemories: MemoryItem[] = []
+      const res1 = await triggerDailyGitHubLearning(initialMemories)
+      expect(res1.trained).toBe(true)
 
-      const res = await triggerDailyGitHubLearning(existing, true)
-      expect(res.trained).toBe(true)
-      // huggingface/transformers should not be added again
-      const hfCount = res.newMemories.filter((m) =>
-        m.content.toLowerCase().includes('huggingface/transformers')
-      ).length
-      expect(hfCount).toBe(1)
+      // Silent sync when already trained
+      const res2 = await triggerDailyGitHubLearning(res1.newMemories, false, true)
+      expect(res2.trained).toBe(false)
+      expect(res2.summary).toBe('')
+    })
+  })
+
+  describe('Custom GitHub Repository Ingestion on the Fly', () => {
+    it('ingests any custom repository into NEMI neural memory and updates count', async () => {
+      const existing: MemoryItem[] = []
+      const res = await ingestCustomGitHubRepo('vllm-project/vllm', existing)
+
+      expect(res.success).toBe(true)
+      expect(res.repo).toBe('vllm-project/vllm')
+      expect(res.newMemories.length).toBe(1)
+      expect(res.newMemories[0].content).toContain('[GitHub Ingested Architecture: vllm-project/vllm]')
+      expect(res.summary).toContain('All 11 bots upgraded')
+      expect(storage['nemi_github_learned_count']).toBe('1')
+    })
+
+    it('strips full github.com URLs down to owner/repo cleanly', async () => {
+      const existing: MemoryItem[] = []
+      const res = await ingestCustomGitHubRepo('https://github.com/karpathy/nanoGPT/', existing)
+
+      expect(res.success).toBe(true)
+      expect(res.repo).toBe('karpathy/nanoGPT')
     })
   })
 })

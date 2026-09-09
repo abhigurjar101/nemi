@@ -299,10 +299,11 @@ function renderInline(text: string): React.ReactNode {
   return <>{parts}</>
 }
 
-// ── Code block with copy button, Colab launch, .ipynb download, and execution console ──
+// ── Code block with line numbers, copy button, Colab launch, .ipynb/raw download, and execution console ──
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
+  const [showLines, setShowLines] = useState(true)
   const [execResult, setExecResult] = useState<{
     success: boolean
     output: string
@@ -335,6 +336,31 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     downloadNotebookFile(notebook, `nemi_cell_${Date.now()}.ipynb`)
   }
 
+  const handleDownloadRaw = () => {
+    const extMap: Record<string, string> = {
+      python: 'py',
+      py: 'py',
+      typescript: 'ts',
+      ts: 'ts',
+      javascript: 'js',
+      js: 'js',
+      rust: 'rs',
+      rs: 'rs',
+      bash: 'sh',
+      sh: 'sh',
+      sql: 'sql',
+      json: 'json',
+    }
+    const ext = extMap[(language || '').toLowerCase()] || 'py'
+    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `nemi_code_${Date.now()}.${ext}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleColab = async () => {
     const notebook = buildNotebookFromResponse({
       taskName: 'Code Cell',
@@ -345,23 +371,38 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   }
 
   const isExecutable = !language || ['python', 'py', 'sh', 'bash', 'sql'].includes(language.toLowerCase())
+  const lines = code.split('\n')
 
   return (
-    <div className="relative rounded-xl overflow-hidden my-2.5 border border-white/10 bg-slate-950/70 shadow-md group">
+    <div className="relative rounded-xl overflow-hidden my-2.5 border border-white/10 bg-slate-950/80 shadow-lg group">
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5">
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
             {language || 'code'}
           </span>
           {isExecutable && (
-            <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">
-              Jupyter Ready
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
+              ⚡ Sandbox Ready
             </span>
           )}
+          <span className="text-[9px] text-white/40 font-mono">
+            {lines.length} {lines.length === 1 ? 'line' : 'lines'}
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Toggle line numbers */}
+          <button
+            onClick={() => setShowLines((prev) => !prev)}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+              showLines ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/5 text-white/40 hover:text-white'
+            }`}
+            title={showLines ? 'Hide line numbers' : 'Show line numbers'}
+          >
+            #
+          </button>
+
           {/* Run button */}
           {isExecutable && (
             <button
@@ -387,11 +428,21 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
             </button>
           )}
 
+          {/* Download Raw file button */}
+          <button
+            onClick={handleDownloadRaw}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-medium transition-colors cursor-pointer"
+            title={`Download raw file (.${(language || 'py').toLowerCase()})`}
+          >
+            <Download className="w-2.5 h-2.5" />
+            <span>Raw</span>
+          </button>
+
           {/* Download .ipynb button */}
           {isExecutable && (
             <button
               onClick={handleDownloadIpynb}
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer"
+              className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-medium transition-colors cursor-pointer"
               title="Download as Jupyter Notebook (.ipynb)"
             >
               <Download className="w-2.5 h-2.5" />
@@ -413,9 +464,16 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         </div>
       </div>
 
-      {/* Code content */}
-      <pre className="px-3.5 py-2.5 overflow-x-auto nemi-scroll">
-        <code className="text-[11px] font-mono text-white/90 leading-relaxed whitespace-pre">
+      {/* Code content with optional line numbering */}
+      <pre className="px-3.5 py-2.5 overflow-x-auto nemi-scroll flex gap-3 text-[11px] font-mono leading-relaxed">
+        {showLines && (
+          <div className="select-none text-white/25 text-right font-mono pr-2 border-r border-white/5 flex flex-col">
+            {lines.map((_, idx) => (
+              <span key={idx}>{idx + 1}</span>
+            ))}
+          </div>
+        )}
+        <code className="text-white/90 whitespace-pre flex-1">
           {code}
         </code>
       </pre>
