@@ -5,7 +5,13 @@ import VoiceOrb from './components/VoiceOrb'
 import Sidebar, { type Conversation } from './components/Sidebar'
 import RagPanel from './components/RagPanel'
 import BotFleetDock from './components/BotFleetDock'
-import { N8N_BOTS, type N8nBot } from './types_bots'
+import {
+  N8N_BOTS,
+  type N8nBot,
+  buildLearnedPromptContext,
+  extractCodeFromMarkdown,
+  validateCodeBlock,
+} from './types_bots'
 import { HumanCompanionLayer, toConversationalScript } from './humanCompanion'
 import { isActivationPhrase, readinessBriefing, extractVoiceIntent } from './voiceActivation'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -1425,12 +1431,18 @@ Personality & Conversational Style:
 
     // ── Memory context augmentation ──
     const memoryAugmentation = formatMemoriesForSystemPrompt(memories)
+
+    // ── Continuous GitHub architecture learning bridge ──
+    const { promptBlock: learnedArchitectureContext } = buildLearnedPromptContext(selectedBotId, memories)
+
     const botPersona = activeBot
       ? `\n\n=== ACTIVE BOT SPECIALIST: ${activeBot.name} (${activeBot.emoji}) ===
 Role & Objective: ${activeBot.description}
 Category: ${activeBot.category}
 Specialist Directive:
 ${activeBot.directive || ''}
+
+${learnedArchitectureContext}
 
 CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
 1. SIMPLEST AND MOST EFFECTIVE: Prioritize clean, transparent, readable, and highly idiomatic implementations over unnecessary complexity or convoluted abstractions. Make code elegant, concise, and Pythonic.
@@ -1824,7 +1836,18 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           }
         }
         const jupyterBanner = await generateJupyterNotebookBanner(replyText, userText)
-        recordAssistantResponse(`${replyText}${jupyterBanner}`)
+        const detectedCode = extractCodeFromMarkdown(replyText)
+        let astBadge = ''
+        if (detectedCode) {
+          const astVal = validateCodeBlock(detectedCode)
+          if (astVal.valid) {
+            astBadge = `> ✅ **AST Syntax & Architecture Verified** — ${astVal.detectedFunctions?.length || 0} functions, ${astVal.detectedClasses?.length || 0} classes.\n\n`
+          }
+        }
+        const botBadge = selectedBotId !== 'orchestrator'
+          ? `> **${activeBot.emoji} ${activeBot.name} Response**\n\n`
+          : ''
+        recordAssistantResponse(`${botBadge}${astBadge}${replyText}${jupyterBanner}`)
       } else if (!ollamaRunning) {
         throw new Error('Ollama is not running. Start it with `ollama serve`.')
       }
