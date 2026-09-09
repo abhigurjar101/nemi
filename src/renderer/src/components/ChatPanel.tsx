@@ -18,6 +18,9 @@ import {
   Send,
   Minimize2,
   Maximize2,
+  Paperclip,
+  Upload,
+  FileText,
 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import type { MemoryItem, ConversationSession } from '../chatMemory'
@@ -91,10 +94,49 @@ export default function ChatPanel({
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [input, setInput] = useState('')
   const [atBottom, setAtBottom] = useState(true)
   const [activeTab, setActiveTab] = useState<TabMode>('chat')
   const [isMinimized, setIsMinimized] = useState(false)
+  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; size: number; content: string }>>([])
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+
+  // File upload reader
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = typeof reader.result === 'string' ? reader.result : ''
+        setAttachedFiles((prev) => [
+          ...prev,
+          { name: file.name, size: file.size, content: text },
+        ])
+      }
+      reader.readAsText(file)
+    })
+    e.target.value = ''
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDraggingOver(false)
+    const files = e.dataTransfer.files
+    if (!files || files.length === 0) return
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = typeof reader.result === 'string' ? reader.result : ''
+        setAttachedFiles((prev) => [
+          ...prev,
+          { name: file.name, size: file.size, content: text },
+        ])
+      }
+      reader.readAsText(file)
+    })
+  }
 
   // Memory manager local state
   const [memorySearch, setMemorySearch] = useState('')
@@ -121,12 +163,22 @@ export default function ChatPanel({
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text || isThinking) return
+    if ((!text && attachedFiles.length === 0) || isThinking) return
     setInput('')
     if (inputRef.current) {
       inputRef.current.style.height = '38px'
     }
-    onSend(text)
+
+    let fullPrompt = text
+    if (attachedFiles.length > 0) {
+      const filesContext = attachedFiles
+        .map((f) => `### Attached File: \`${f.name}\` (${(f.size / 1024).toFixed(1)} KB)\n\`\`\`\n${f.content}\n\`\`\``)
+        .join('\n\n')
+      fullPrompt = fullPrompt ? `${filesContext}\n\n${fullPrompt}` : `${filesContext}\n\nPlease analyze and explain this uploaded file.`
+      setAttachedFiles([])
+    }
+
+    onSend(fullPrompt)
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
@@ -180,6 +232,16 @@ export default function ChatPanel({
             transition-all duration-300 ease-out
           `}
           onMouseEnter={() => window.nemi?.enterInteractiveMode()}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setIsDraggingOver(true)
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setIsDraggingOver(false)
+            }
+          }}
+          onDrop={handleDrop}
         >
           {/* ── MINIMALIST GLASS CONTAINER ── */}
           <div className="
@@ -190,6 +252,15 @@ export default function ChatPanel({
             {/* Ambient subtle glow background */}
             <div className="absolute top-0 right-1/4 w-40 h-20 bg-cyan-500/10 blur-3xl pointer-events-none rounded-full" />
             <div className="absolute bottom-0 left-1/4 w-40 h-20 bg-purple-500/10 blur-3xl pointer-events-none rounded-full" />
+
+            {/* Drag & Drop files overlay */}
+            {isDraggingOver && (
+              <div className="absolute inset-0 z-50 rounded-2xl bg-slate-950/92 backdrop-blur-md border-2 border-dashed border-cyan-400 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                <Upload className="w-8 h-8 text-cyan-400 animate-bounce" />
+                <p className="text-xs font-semibold text-cyan-200">Drop files here to attach</p>
+                <p className="text-[10px] text-white/50">Text, code, markdown, JSON, PDF</p>
+              </div>
+            )}
 
             {/* ── HEADER ── */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/8 bg-white/3 z-10">
@@ -418,16 +489,59 @@ export default function ChatPanel({
 
                     {/* ── INPUT BAR ── */}
                     <div className="border-t border-white/8 p-2 bg-white/2 z-10">
+                      {/* Attached files preview chips */}
+                      {attachedFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-1 px-1 pb-2">
+                          {attachedFiles.map((file, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[10px]"
+                            >
+                              <FileText className="w-3 h-3 text-cyan-400 shrink-0" />
+                              <span className="truncate max-w-[120px] font-mono">{file.name}</span>
+                              <span className="text-[9px] text-white/40">({(file.size / 1024).toFixed(1)}k)</span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                className="text-white/40 hover:text-rose-300 ml-0.5 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="relative flex items-end gap-1.5 bg-white/5 rounded-2xl p-1 border border-white/8 focus-within:border-cyan-400/30 transition-colors">
+                        {/* Hidden File Input */}
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileSelect}
+                          multiple
+                          accept=".txt,.py,.js,.ts,.tsx,.jsx,.json,.csv,.md,.html,.css,.sql,.pdf,.ipynb"
+                          className="hidden"
+                        />
+
+                        {/* File Upload Button */}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 text-white/40 hover:text-cyan-300 hover:bg-white/5"
+                          title="Upload file or code to chat"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                        </button>
+
                         <textarea
                           ref={inputRef}
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={handleKeyDown}
-                          placeholder={isListening ? 'Listening via microphone...' : activeBot.placeholder}
+                          placeholder={isListening ? 'Listening via microphone...' : attachedFiles.length > 0 ? 'Ask a question about uploaded file...' : activeBot.placeholder}
                           rows={1}
                           className="
-                            flex-1 bg-transparent px-2.5 py-1.5
+                            flex-1 bg-transparent px-2 py-1.5
                             text-xs text-white/95 placeholder-white/25
                             border-none focus:outline-none resize-none
                             max-h-24 overflow-y-auto nemi-scroll
@@ -440,8 +554,8 @@ export default function ChatPanel({
                           }}
                         />
 
-                        {/* Voice Dictation Button */}
-                        {onToggleVoice && (
+                        {/* Voice Dictation Button — automatically disappears when files are attached or uploading so it never obstructs upload! */}
+                        {onToggleVoice && attachedFiles.length === 0 && (
                           <button
                             type="button"
                             onClick={onToggleVoice}
@@ -460,10 +574,10 @@ export default function ChatPanel({
                         <button
                           type="button"
                           onClick={handleSend}
-                          disabled={!input.trim() || isThinking}
+                          disabled={(!input.trim() && attachedFiles.length === 0) || isThinking}
                           className={`
                             p-2 rounded-xl flex items-center justify-center flex-shrink-0 transition-all
-                            ${input.trim() && !isThinking
+                            ${(input.trim() || attachedFiles.length > 0) && !isThinking
                               ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-[0_0_12px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
                               : 'text-white/20 cursor-not-allowed'
                             }

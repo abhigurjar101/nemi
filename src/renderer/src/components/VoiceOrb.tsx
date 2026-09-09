@@ -10,6 +10,7 @@ interface VoiceOrbProps {
   onToggle: () => void
   onStop: () => void
   nimActive?: boolean
+  hidden?: boolean
 }
 
 // ── Audio level visualizer bars ──
@@ -88,7 +89,9 @@ export default function VoiceOrb({
   onToggle,
   onStop,
   nimActive = false,
+  hidden = false,
 }: VoiceOrbProps) {
+  if (hidden) return null
   const hasContent = isListening || isThinking || isSpeaking || !!transcript
 
   // Orb color states

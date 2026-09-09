@@ -561,6 +561,7 @@ export default function App() {
   const [isWakeWordMode, setIsWakeWordMode] = useState(false)
 
   const [chatOpen, setChatOpen] = useState<boolean>(true)
+  const [ragOpen, setRagOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedBotId, setSelectedBotId] = useState<string>('orchestrator')
@@ -1968,17 +1969,26 @@ Personality & Conversational Style:
             <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
           </button>
 
-          {/* ── RAG BUTTON (Electron only) ── */}
-          {isElectron && (
-            <button
-              onClick={() => { void window.nemi?.openRagWindow(); setChatOpen(false) }}
-              className="px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25 transition-all"
-              title="Open Advanced RAG workspace"
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Advanced RAG</span>
-            </button>
-          )}
+          {/* ── ADVANCED RAG / DOCUMENT UPLOAD ── */}
+          <button
+            onClick={() => {
+              if (isElectron && window.nemi?.openRagWindow) {
+                void window.nemi.openRagWindow()
+              } else {
+                setRagOpen((prev) => !prev)
+              }
+              setChatOpen(false)
+            }}
+            className={`px-3 py-1 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer ${
+              ragOpen
+                ? 'text-violet-200 bg-violet-500/30 border-violet-400/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
+                : 'text-violet-300 bg-violet-500/15 border border-violet-400/30 hover:bg-violet-500/25'
+            }`}
+            title="Open Document Upload & Advanced RAG workspace"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Advanced RAG</span>
+          </button>
 
           {/* ── AUTH / ACCESS BUTTON ── */}
           <button
@@ -2144,6 +2154,16 @@ Personality & Conversational Style:
           onSelectBot={(id) => setSelectedBotId(id)}
         />
 
+        <RagPanel
+          isVisible={ragOpen}
+          onClose={() => setRagOpen(false)}
+          onThinkingChange={setIsThinking}
+          ollamaRunning={ollamaRunning}
+          ollamaModel={ollamaModel}
+          modelMode={modelMode}
+          nvidiaNimKey={nvidiaNimKey}
+        />
+
         <VoiceOrb
           isListening={isListening}
           isThinking={isThinking}
@@ -2152,6 +2172,7 @@ Personality & Conversational Style:
           onToggle={toggleVoice}
           onStop={handleStop}
           nimActive={modelMode === 'nvidia-nim'}
+          hidden={chatOpen || ragOpen || settingsOpen || authModalOpen}
         />
       </div>
 
