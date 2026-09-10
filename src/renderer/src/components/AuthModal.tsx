@@ -57,6 +57,18 @@ export default function AuthModal({
   const [successMsg, setSuccessMsg] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Escape key listener for accessible closing
+  React.useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   // Reset errors when switching modes
   const switchMode = (newMode: AuthMode) => {
     setMode(newMode)
@@ -240,345 +252,368 @@ export default function AuthModal({
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.93, y: 14 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.93, y: 14 }}
-            className="relative w-full max-w-md p-6 rounded-3xl bg-slate-900/95 border border-purple-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.85)] text-white overflow-hidden select-none"
-          >
-            {/* Ambient Background Glows */}
-            <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none" />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="auth-modal-title"
+              aria-describedby="auth-modal-desc"
+              className="relative w-full max-w-md p-6 rounded-3xl bg-slate-900/95 border border-purple-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.85)] text-white overflow-hidden select-none"
+            >
+              {/* Ambient Background Glows */}
+              <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.3)]">
-                  {isAuthenticated ? <ShieldCheck size={20} className="text-emerald-400" /> : <Lock size={20} />}
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.3)]">
+                    {isAuthenticated ? <ShieldCheck size={20} className="text-emerald-400" /> : <Lock size={20} />}
+                  </div>
+                  <div>
+                    <h2 id="auth-modal-title" className="text-base font-semibold tracking-wide flex items-center gap-1.5">
+                      NEMI Neural Access
+                      <Sparkles size={14} className="text-cyan-400 animate-pulse" />
+                    </h2>
+                    <p id="auth-modal-desc" className="text-xs text-white/50">
+                      {isAuthenticated
+                        ? 'Secure Verified Session'
+                        : mode === 'signup'
+                        ? 'Create new database account'
+                        : 'Sign in to access your AI companion'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-semibold tracking-wide flex items-center gap-1.5">
-                    NEMI Neural Access
-                    <Sparkles size={14} className="text-cyan-400 animate-pulse" />
-                  </h2>
-                  <p className="text-xs text-white/50">
-                    {isAuthenticated
-                      ? 'Secure Verified Session'
-                      : mode === 'signup'
-                      ? 'Create new database account'
-                      : 'Sign in to access your AI companion'}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close authentication dialog"
+                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
 
-            {/* If Authenticated: Profile Dashboard */}
-            {isAuthenticated ? (
-              <div className="space-y-4 py-2">
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center font-bold text-base text-slate-950 shadow-md">
-                    {(currentUser?.name || currentUser?.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-emerald-100 text-sm truncate">
-                      {currentUser?.name || 'Authenticated User'}
+              {/* If Authenticated: Profile Dashboard */}
+              {isAuthenticated ? (
+                <div className="space-y-4 py-2">
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center font-bold text-base text-slate-950 shadow-md">
+                      {(currentUser?.name || currentUser?.email || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <div className="text-xs text-white/60 truncate font-mono">
-                      {currentUser?.email || (isGuest ? 'guest@nemi.ai' : 'owner@nemi.ai')}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
-                        {isGuest ? 'Guest Session' : (currentUser?.role || 'Owner').toUpperCase()}
-                      </span>
-                      <span className="text-[10px] text-white/40">Database Verified</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-medium text-xs transition-all shadow-lg shadow-purple-600/30 cursor-pointer"
-                  >
-                    Continue Session
-                  </button>
-                  <button
-                    onClick={() => {
-                      onLogout()
-                      switchMode('signin')
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-red-500/20 hover:text-red-300 text-xs font-medium border border-white/10 transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <LogOut size={14} />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                {/* Mode Tabs */}
-                <div className="flex p-1 mb-4 rounded-xl bg-white/5 border border-white/10 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('signin')}
-                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-all ${
-                      mode === 'signin'
-                        ? 'bg-purple-600 text-white shadow-md'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    <LogIn size={13} />
-                    <span>Sign In</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('signup')}
-                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-all ${
-                      mode === 'signup'
-                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    <UserPlus size={13} />
-                    <span>Sign Up</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('passcode')}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                      mode === 'passcode'
-                        ? 'bg-white/15 text-white'
-                        : 'text-white/40 hover:text-white/70'
-                    }`}
-                  >
-                    Passcode
-                  </button>
-                </div>
-
-                {/* Error & Success alerts */}
-                {error && (
-                  <div className="mb-3 flex items-center gap-2 text-xs text-rose-300 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                    <AlertCircle size={15} className="shrink-0 text-rose-400" />
-                    <span>{error}</span>
-                  </div>
-                )}
-                {successMsg && (
-                  <div className="mb-3 flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-                    <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />
-                    <span>{successMsg}</span>
-                  </div>
-                )}
-
-                {/* TAB 1: SIGN IN FORM */}
-                {mode === 'signin' && (
-                  <form onSubmit={handleSignIn} className="space-y-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          autoFocus
-                          className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/50 text-xs text-white placeholder-white/30"
-                        />
-                        <Mail size={15} className="absolute left-3 top-3 text-white/30 pointer-events-none" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-emerald-100 text-sm truncate">
+                        {currentUser?.name || 'Authenticated User'}
+                      </div>
+                      <div className="text-xs text-white/60 truncate font-mono">
+                        {currentUser?.email || (isGuest ? 'guest@nemi.ai' : 'owner@nemi.ai')}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                          {isGuest ? 'Guest Session' : (currentUser?.role || 'Owner').toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-white/40">Database Verified</span>
                       </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Enter your password..."
-                          className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/50 text-xs text-white placeholder-white/30"
-                        />
-                        <KeyRound size={15} className="absolute left-3 top-3 text-white/30 pointer-events-none" />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-2.5 text-white/40 hover:text-white"
-                        >
-                          {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                        </button>
-                      </div>
-                    </div>
-
+                  <div className="flex gap-2 pt-2">
                     <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:opacity-95 font-semibold text-xs tracking-wide transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-medium text-xs transition-all shadow-lg shadow-purple-600/30 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
                     >
-                      <Unlock size={14} />
-                      <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
+                      Continue Session
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onLogout()
+                        switchMode('signin')
+                      }}
+                      aria-label="Sign out of account"
+                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-red-500/20 hover:text-red-300 text-xs font-medium border border-white/10 transition-all cursor-pointer flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-400/50"
+                    >
+                      <LogOut size={14} />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {/* Mode Tabs */}
+                  <div className="flex p-1 mb-4 rounded-xl bg-white/5 border border-white/10 text-xs" role="tablist" aria-label="Authentication Options">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === 'signin'}
+                      aria-controls="signin-panel"
+                      onClick={() => switchMode('signin')}
+                      className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+                        mode === 'signin'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <LogIn size={13} />
+                      <span>Sign In</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === 'signup'}
+                      aria-controls="signup-panel"
+                      onClick={() => switchMode('signup')}
+                      className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-all focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
+                        mode === 'signup'
+                          ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <UserPlus size={13} />
+                      <span>Sign Up</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === 'passcode'}
+                      aria-controls="passcode-panel"
+                      onClick={() => switchMode('passcode')}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+                        mode === 'passcode'
+                          ? 'bg-white/15 text-white'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      Passcode
+                    </button>
+                  </div>
 
-                    <div className="text-center pt-1">
-                      <button
-                        type="button"
-                        onClick={() => switchMode('signup')}
-                        className="text-[11px] text-cyan-400 hover:underline"
-                      >
-                        Don't have an account? Sign up with email
-                      </button>
+                  {/* Error & Success alerts */}
+                  {error && (
+                    <div role="alert" aria-live="polite" className="mb-3 flex items-center gap-2 text-xs text-rose-300 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                      <AlertCircle size={15} className="shrink-0 text-rose-400" />
+                      <span>{error}</span>
                     </div>
-                  </form>
-                )}
-
-                {/* TAB 2: SIGN UP FORM */}
-                {mode === 'signup' && (
-                  <form onSubmit={handleSignUp} className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1">
-                        Display Name <span className="text-white/40 font-normal">(optional)</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="Alex Mercer"
-                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/50 text-xs text-white placeholder-white/30"
-                        />
-                        <User size={15} className="absolute left-3 top-2.5 text-white/30 pointer-events-none" />
-                      </div>
+                  )}
+                  {successMsg && (
+                    <div role="alert" aria-live="polite" className="mb-3 flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                      <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />
+                      <span>{successMsg}</span>
                     </div>
+                  )}
 
-                    <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/50 text-xs text-white placeholder-white/30"
-                        />
-                        <Mail size={15} className="absolute left-3 top-2.5 text-white/30 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
+                  {/* TAB 1: SIGN IN FORM */}
+                  {mode === 'signin' && (
+                    <form id="signin-panel" onSubmit={handleSignIn} className="space-y-3.5">
                       <div>
-                        <label className="block text-xs font-medium text-white/70 mb-1">
+                        <label htmlFor="auth-signin-email" className="block text-xs font-medium text-white/70 mb-1">
+                          Email Address
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="auth-signin-email"
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            autoFocus
+                            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/50 text-xs text-white placeholder-white/30"
+                          />
+                          <Mail size={15} className="absolute left-3 top-3 text-white/30 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="auth-signin-password" className="block text-xs font-medium text-white/70 mb-1">
                           Password
                         </label>
                         <div className="relative">
                           <input
+                            id="auth-signin-password"
                             type={showPassword ? 'text' : 'password'}
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Min 6 chars"
-                            className="w-full pl-8 pr-2 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none text-xs text-white placeholder-white/30"
+                            placeholder="Enter your password..."
+                            className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/50 text-xs text-white placeholder-white/30"
                           />
-                          <KeyRound size={14} className="absolute left-2.5 top-2.5 text-white/30 pointer-events-none" />
+                          <KeyRound size={15} className="absolute left-3 top-3 text-white/30 pointer-events-none" />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3 top-2.5 text-white/40 hover:text-white p-0.5 rounded"
+                          >
+                            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
                         </div>
                       </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:opacity-95 font-semibold text-xs tracking-wide transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-purple-400/50"
+                      >
+                        <Unlock size={14} />
+                        <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
+                      </button>
+
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => switchMode('signup')}
+                          className="text-[11px] text-cyan-400 hover:underline"
+                        >
+                          Don't have an account? Sign up with email
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* TAB 2: SIGN UP FORM */}
+                  {mode === 'signup' && (
+                    <form id="signup-panel" onSubmit={handleSignUp} className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-white/70 mb-1">
-                          Confirm Password
+                        <label htmlFor="auth-signup-name" className="block text-xs font-medium text-white/70 mb-1">
+                          Display Name <span className="text-white/40 font-normal">(optional)</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="auth-signup-name"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Alex Mercer"
+                            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/50 text-xs text-white placeholder-white/30"
+                          />
+                          <User size={15} className="absolute left-3 top-2.5 text-white/30 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="auth-signup-email" className="block text-xs font-medium text-white/70 mb-1">
+                          Email Address
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="auth-signup-email"
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/50 text-xs text-white placeholder-white/30"
+                          />
+                          <Mail size={15} className="absolute left-3 top-2.5 text-white/30 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label htmlFor="auth-signup-password" className="block text-xs font-medium text-white/70 mb-1">
+                            Password
+                          </label>
+                          <div className="relative">
+                            <input
+                              id="auth-signup-password"
+                              type={showPassword ? 'text' : 'password'}
+                              required
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              placeholder="Min 6 chars"
+                              className="w-full pl-8 pr-2 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none text-xs text-white placeholder-white/30"
+                            />
+                            <KeyRound size={14} className="absolute left-2.5 top-2.5 text-white/30 pointer-events-none" />
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor="auth-signup-confirm-password" className="block text-xs font-medium text-white/70 mb-1">
+                            Confirm Password
+                          </label>
+                          <input
+                            id="auth-signup-confirm-password"
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Re-enter password"
+                            className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none text-xs text-white placeholder-white/30"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[11px] text-cyan-300/80 flex items-center gap-1.5">
+                        <Sparkles size={13} className="shrink-0 text-cyan-400" />
+                        <span>Credentials are salted with scrypt & stored in database.</span>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full mt-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:opacity-95 font-semibold text-xs tracking-wide transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+                      >
+                        <UserPlus size={14} />
+                        <span>{loading ? 'Creating Account...' : 'Create Account & Sign In'}</span>
+                      </button>
+
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => switchMode('signin')}
+                          className="text-[11px] text-purple-300 hover:underline"
+                        >
+                          Already have an account? Sign in
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* TAB 3: PASSCODE FALLBACK */}
+                  {mode === 'passcode' && (
+                    <form id="passcode-panel" onSubmit={handlePasscodeSubmit} className="space-y-3.5">
+                      <div>
+                        <label htmlFor="auth-passcode-input" className="block text-xs font-medium text-white/70 mb-1">
+                          Access Passcode
                         </label>
                         <input
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter password"
-                          className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-white/15 focus:border-cyan-400 focus:outline-none text-xs text-white placeholder-white/30"
+                          id="auth-passcode-input"
+                          type="password"
+                          value={passcode}
+                          onChange={(e) => setPasscode(e.target.value)}
+                          placeholder="nemi2026"
+                          autoFocus
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none text-xs text-white placeholder-white/30"
                         />
                       </div>
-                    </div>
-
-                    <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[11px] text-cyan-300/80 flex items-center gap-1.5">
-                      <Sparkles size={13} className="shrink-0 text-cyan-400" />
-                      <span>Credentials are salted with scrypt & stored in database.</span>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full mt-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:opacity-95 font-semibold text-xs tracking-wide transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <UserPlus size={14} />
-                      <span>{loading ? 'Creating Account...' : 'Create Account & Sign In'}</span>
-                    </button>
-
-                    <div className="text-center pt-1">
                       <button
-                        type="button"
-                        onClick={() => switchMode('signin')}
-                        className="text-[11px] text-purple-300 hover:underline"
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl bg-white/15 hover:bg-white/20 font-medium text-xs transition-all flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-purple-400/50"
                       >
-                        Already have an account? Sign in
+                        <KeyRound size={14} />
+                        <span>Unlock with Passcode</span>
                       </button>
-                    </div>
-                  </form>
-                )}
+                    </form>
+                  )}
 
-                {/* TAB 3: PASSCODE FALLBACK */}
-                {mode === 'passcode' && (
-                  <form onSubmit={handlePasscodeSubmit} className="space-y-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1">
-                        Access Passcode
-                      </label>
-                      <input
-                        type="password"
-                        value={passcode}
-                        onChange={(e) => setPasscode(e.target.value)}
-                        placeholder="nemi2026"
-                        autoFocus
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 focus:border-purple-400 focus:outline-none text-xs text-white placeholder-white/30"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full py-2.5 rounded-xl bg-white/15 hover:bg-white/20 font-medium text-xs transition-all flex items-center justify-center gap-2"
-                    >
-                      <KeyRound size={14} />
-                      <span>Unlock with Passcode</span>
-                    </button>
-                  </form>
-                )}
+                  <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-white/10" />
+                    <span className="flex-shrink mx-3 text-[10px] text-white/40 uppercase tracking-widest">or</span>
+                    <div className="flex-grow border-t border-white/10" />
+                  </div>
 
-                <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-white/10" />
-                  <span className="flex-shrink mx-3 text-[10px] text-white/40 uppercase tracking-widest">or</span>
-                  <div className="flex-grow border-t border-white/10" />
+                  <button
+                    type="button"
+                    onClick={handleGuestAccess}
+                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/80 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50"
+                  >
+                    <User size={14} className="text-white/40" />
+                    <span>Continue as Guest / Demo Mode</span>
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleGuestAccess}
-                  className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/80 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <User size={14} className="text-white/40" />
-                  <span>Continue as Guest / Demo Mode</span>
-                </button>
-              </div>
-            )}
-          </motion.div>
+              )}
+            </div>
         </div>
       )}
     </AnimatePresence>

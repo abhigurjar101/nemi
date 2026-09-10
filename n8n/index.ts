@@ -26,3 +26,7 @@ export { cloudDeploymentBot } from './bots/cloudDeployment'
 export { mlPipelineBot } from './bots/mlPipeline'
 export { n8nManagerBot } from './bots/n8nManager'
 export { ragBot } from './bots/ragBot'
+
+// World's Hardest 100 Coding Problems Benchmark
+export * from './benchmarks/hardest100Catalog'
+export * from './benchmarks/benchmarkEngine'

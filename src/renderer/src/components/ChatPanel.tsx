@@ -52,6 +52,7 @@ export interface ChatPanelProps {
   onDeleteConversation?: (id: string) => void
   // Voice dictation
   isListening?: boolean
+  transcript?: string
   onToggleVoice?: () => void
   modelBadge?: string
   // Bot integration
@@ -84,6 +85,7 @@ export default function ChatPanel({
   onNewConversation,
   onDeleteConversation,
   isListening = false,
+  transcript = '',
   onToggleVoice,
   modelBadge = 'NEURAL',
   selectedBotId = 'orchestrator',
@@ -529,6 +531,28 @@ export default function ChatPanel({
                               </button>
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Live Voice Dictation Status Banner */}
+                      {isListening && (
+                        <div className="mb-2 px-3 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-xs text-cyan-200 flex items-center justify-between shadow-[0_0_12px_rgba(6,182,212,0.25)] animate-pulse">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-red-400 animate-ping shrink-0" />
+                            <span className="font-semibold text-cyan-300 text-[11px] shrink-0 uppercase tracking-wider">Listening:</span>
+                            <span className="truncate italic text-[11px] text-white/90">
+                              {transcript || 'Speak into microphone...'}
+                            </span>
+                          </div>
+                          {onToggleVoice && (
+                            <button
+                              type="button"
+                              onClick={onToggleVoice}
+                              className="text-[10px] px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-white/80 shrink-0 cursor-pointer ml-2"
+                            >
+                              Stop
+                            </button>
+                          )}
                         </div>
                       )}
 

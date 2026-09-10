@@ -20,11 +20,12 @@ import {
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
-  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search
+  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search, Trophy
 } from 'lucide-react'
 import BotIcon from './components/BotIcon'
 import CommandPalette from './components/CommandPalette'
 import AutonomousLearningModal from './components/AutonomousLearningModal'
+import Hardest100BenchmarkModal from './components/Hardest100BenchmarkModal'
 import { downloadNotebookFile, buildNotebookFromResponse } from './utils/jupyter'
 import {
   recordAutonomousLearning,
@@ -50,6 +51,16 @@ import {
 } from './chatMemory'
 import { playThoughtSpark, playActivationChime } from './humanCompanion/soundscape'
 import { triggerDailyGitHubLearning, ingestCustomGitHubRepo } from './utils/githubLearning'
+import { SwarmDagModal } from './components/SwarmDagModal'
+import { CodeSandboxModal } from './components/CodeSandboxModal'
+import { CryptoVaultModal } from './components/CryptoVaultModal'
+import { VoiceEngineModal } from './components/VoiceEngineModal'
+import { BranchingContextModal } from './components/BranchingContextModal'
+import { P2PMeshModal } from './components/P2PMeshModal'
+import { OfflineModeModal } from './components/OfflineModeModal'
+import { TelemetryHUD } from './components/TelemetryHUD'
+import { UniversalCommandPalette } from './components/UniversalCommandPalette'
+import { globalVectorIndex } from './services/vectorIndex'
 
 declare global {
   interface Window {
@@ -857,6 +868,16 @@ export default function App() {
   // ── Universal Command Palette, Learning Hub & Toast Notifications ──
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [learningModalOpen, setLearningModalOpen] = useState(false)
+  const [hardest100ModalOpen, setHardest100ModalOpen] = useState(false)
+  const [swarmDagModalOpen, setSwarmDagModalOpen] = useState(false)
+  const [codeSandboxModalOpen, setCodeSandboxModalOpen] = useState(false)
+  const [cryptoVaultModalOpen, setCryptoVaultModalOpen] = useState(false)
+  const [voiceEngineModalOpen, setVoiceEngineModalOpen] = useState(false)
+  const [branchingModalOpen, setBranchingModalOpen] = useState(false)
+  const [p2pMeshModalOpen, setP2PMeshModalOpen] = useState(false)
+  const [offlineModeModalOpen, setOfflineModeModalOpen] = useState(false)
+  const [telemetryHudOpen, setTelemetryHudOpen] = useState(false)
+  const [universalPaletteOpen, setUniversalPaletteOpen] = useState(false)
   const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const showToast = useCallback((msg: string) => {
@@ -866,6 +887,41 @@ export default function App() {
       setToastMessage((curr) => (curr === msg ? null : curr))
     }, 3200)
   }, [])
+
+  const handleUniversalAction = useCallback((key: string) => {
+    switch (key) {
+      case 'open_swarm_dag':
+        setSwarmDagModalOpen(true)
+        break
+      case 'open_code_sandbox':
+        setCodeSandboxModalOpen(true)
+        break
+      case 'open_hardest_100':
+        setHardest100ModalOpen(true)
+        break
+      case 'open_crypto_vault':
+        setCryptoVaultModalOpen(true)
+        break
+      case 'open_voice_engine':
+        setVoiceEngineModalOpen(true)
+        break
+      case 'open_branching_tree':
+        setBranchingModalOpen(true)
+        break
+      case 'open_p2p_mesh':
+        setP2PMeshModalOpen(true)
+        break
+      case 'open_offline_mode':
+        setOfflineModeModalOpen(true)
+        break
+      case 'toggle_telemetry_hud':
+        setTelemetryHudOpen((prev) => !prev)
+        break
+      case 'open_vector_search':
+        showToast(`HNSW Vector Index: ${globalVectorIndex.size()} documents indexed in memory.`)
+        break
+    }
+  }, [showToast])
 
   const memoriesRef = useRef(memories)
   useEffect(() => {
@@ -1316,7 +1372,7 @@ export default function App() {
 
   const startBrowserRecognition = useCallback(() => {
     primeMobileAudio()
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const Recognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!Recognition) return false
 
     if (recognitionRef.current) {
@@ -1324,85 +1380,88 @@ export default function App() {
       recognitionRef.current = null
     }
 
-    const recognition = new Recognition()
-    recognitionRef.current = recognition
-    recognition.lang = 'en-US'
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.maxAlternatives = 1
-    latestTranscriptRef.current = ''
-    processedTranscriptRef.current = false
-
-    recognition.onstart = () => {
-      setIsListening(true)
-      setTranscript('Listening... speak now')
-    }
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = ''
-      let final = ''
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const item = event.results[i]
-        const text = item[0]?.transcript || ''
-        if (item.isFinal) {
-          final += text
-        } else {
-          interim += text
-        }
-      }
-      const activeText = (final || interim || '').trim()
-      if (activeText) {
-        latestTranscriptRef.current = activeText
-        setTranscript(activeText)
-      }
-
-      if (final.trim() && !processedTranscriptRef.current) {
-        processedTranscriptRef.current = true
-        recognition.stop()
-        recognitionRef.current = null
-        setIsListening(false)
-        handleVoiceTranscript(final.trim())
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      const err = event?.error
-      if (err === 'no-speech') {
-        // Normal pause on mobile
-        return
-      }
-      if (err === 'aborted') {
-        recognitionRef.current = null
-        setIsListening(false)
-        return
-      }
-      recognitionRef.current = null
-      setIsListening(false)
-      setTranscript(err === 'not-allowed' ? 'Microphone permission required.' : 'Voice recognition stopped.')
-      setTimeout(() => setTranscript(''), 2500)
-    }
-
-    recognition.onend = () => {
-      if (recognitionRef.current === recognition) {
-        recognitionRef.current = null
-        setIsListening(false)
-        const captured = latestTranscriptRef.current.trim()
-        if (captured && !processedTranscriptRef.current) {
-          processedTranscriptRef.current = true
-          handleVoiceTranscript(captured)
-        }
-      }
-    }
-
     try {
+      const recognition = new Recognition()
+      recognitionRef.current = recognition
+      recognition.lang = 'en-US'
+      recognition.continuous = false
+      recognition.interimResults = true
+      recognition.maxAlternatives = 1
+      latestTranscriptRef.current = ''
+      processedTranscriptRef.current = false
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        setTranscript('Listening... speak now')
+      }
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interim = ''
+        let final = ''
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i]
+          const text = item[0]?.transcript || ''
+          if (item.isFinal) {
+            final += text
+          } else {
+            interim += text
+          }
+        }
+        const activeText = (final || interim || '').trim()
+        if (activeText) {
+          latestTranscriptRef.current = activeText
+          setTranscript(activeText)
+        }
+
+        if (final.trim() && !processedTranscriptRef.current) {
+          processedTranscriptRef.current = true
+          try { recognition.stop() } catch {}
+          recognitionRef.current = null
+          setIsListening(false)
+          handleVoiceTranscript(final.trim())
+        }
+      }
+
+      recognition.onerror = (event: any) => {
+        const err = event?.error
+        if (err === 'no-speech') {
+          // Normal brief pause
+          return
+        }
+        if (err === 'aborted') {
+          recognitionRef.current = null
+          setIsListening(false)
+          return
+        }
+        recognitionRef.current = null
+        setIsListening(false)
+        const errMsg = err === 'not-allowed' ? 'Microphone permission required.' : 'Voice recognition stopped.'
+        setTranscript(errMsg)
+        showToast(errMsg)
+        setTimeout(() => setTranscript(''), 2500)
+      }
+
+      recognition.onend = () => {
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null
+          setIsListening(false)
+          const captured = latestTranscriptRef.current.trim()
+          if (captured && !processedTranscriptRef.current) {
+            processedTranscriptRef.current = true
+            handleVoiceTranscript(captured)
+          }
+        }
+      }
+
       recognition.start()
       return true
     } catch (err) {
       console.warn('Speech recognition start error:', err)
       recognitionRef.current = null
+      setIsListening(false)
       return false
     }
-  }, [handleVoiceTranscript, primeMobileAudio])
+  }, [handleVoiceTranscript, primeMobileAudio, showToast])
 
   const startListeningWhisper = useCallback(async () => {
     try {
@@ -1527,17 +1586,33 @@ export default function App() {
     shouldListenRef.current = true
     voiceSessionActivatedRef.current = isDirectIntent
 
-    try {
-      const permissionGranted = await window.nemi?.requestMicPermission()
-      if (permissionGranted === false) {
-        throw new Error('Microphone permission is required.')
+    if (window.nemi?.requestMicPermission) {
+      try {
+        const permissionGranted = await window.nemi.requestMicPermission()
+        if (permissionGranted === false) {
+          throw new Error('Microphone permission is required.')
+        }
+      } catch (error) {
+        console.warn('Microphone permission request failed:', error)
+        shouldListenRef.current = false
+        setTranscript('Allow microphone access in System Settings.')
+        showToast('Microphone permission required in System Settings')
+        setTimeout(() => setTranscript(''), 3000)
+        return
       }
-    } catch (error) {
-      console.warn('Microphone permission request failed:', error)
-      shouldListenRef.current = false
-      setTranscript('Allow microphone access in System Settings.')
-      setTimeout(() => setTranscript(''), 3000)
-      return
+    } else if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        testStream.getTracks().forEach((track) => track.stop())
+      } catch (permErr: any) {
+        console.warn('Browser microphone permission request failed:', permErr)
+        shouldListenRef.current = false
+        setIsListening(false)
+        setTranscript('Microphone access denied. Please allow microphone permissions.')
+        showToast('Please allow microphone permissions in browser')
+        setTimeout(() => setTranscript(''), 3000)
+        return
+      }
     }
 
     // The local recorder is the reliable Electron path when Whisper is running.
@@ -1549,11 +1624,13 @@ export default function App() {
     }
 
     if (!startBrowserRecognition()) {
-      setTranscript('Start the local voice service to enable dictation.')
+      setTranscript('Start the local voice service or enable microphone to dictate.')
+      showToast('Speech recognition unavailable in current browser')
       shouldListenRef.current = false
+      setIsListening(false)
       setTimeout(() => setTranscript(''), 3000)
     }
-  }, [startBrowserRecognition, startListeningWhisper, sttMode, voiceServerRunning])
+  }, [showToast, startBrowserRecognition, startListeningWhisper, sttMode, voiceServerRunning])
 
   const toggleVoice = useCallback(() => {
     primeMobileAudio()
@@ -1860,10 +1937,9 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         return updated
       })
 
-      void speakText(finalText)
-      try {
-        playActivationChime()
-      } catch {}
+      if (voiceSessionActivatedRef.current) {
+        void speakText(finalText)
+      }
     }
 
     // ── Execute via n8n Bots Architecture (Electron Desktop Only) ──
@@ -2429,6 +2505,19 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-400/20 text-cyan-300 font-mono">LIVE</span>
           </button>
 
+          {/* World's Hardest 100 Benchmark */}
+          <button
+            type="button"
+            onClick={() => setHardest100ModalOpen(true)}
+            aria-label="Open World's Hardest 100 Coding Problems Benchmark"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-yellow-300 hover:text-white bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-400/60 hover:bg-yellow-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(234,179,8,0.15)]"
+            title="Open World's Hardest 100 Coding Problems Benchmark"
+          >
+            <Trophy className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" strokeWidth={1.65} />
+            <span className="font-medium">100 Hardest</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-yellow-400/20 text-yellow-300 font-mono">100%</span>
+          </button>
+
           {/* Ingest */}
           <button
             type="button"
@@ -2640,6 +2729,30 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-cyan-300/60" />
+                </button>
+
+                {/* 0.7. World's Hardest 100 Benchmark */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    setHardest100ModalOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-yellow-500/15 via-amber-500/10 to-orange-500/15 border border-yellow-400/40 active:bg-yellow-500/25 transition-all text-left shadow-[0_0_20px_rgba(234,179,8,0.15)]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-yellow-500/20 border border-yellow-400/50 flex items-center justify-center text-yellow-300">
+                      <Trophy className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">World's 100 Hardest Benchmark</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">100%</span>
+                      </div>
+                      <div className="text-xs text-yellow-300/70">Competitive, LeetCode Hard, Distributed & ML</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-yellow-300/60" />
                 </button>
 
                 {/* 0.8. Swarm Mode: All Bots United */}
@@ -2971,6 +3084,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             setChatOpen(true)
           }}
           onOpenChat={() => setChatOpen(true)}
+          isAuthenticated={isAuthenticated}
+          currentUser={currentUser}
+          authRole={authRole}
+          onOpenAuth={() => setAuthModalOpen(true)}
+          onOpenUniversalPalette={() => setUniversalPaletteOpen(true)}
         />
 
         {/* ── Persistent Floating Chat Trigger (when chat is closed) ── */}
@@ -3015,6 +3133,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           onNewConversation={handleNewConversation}
           onDeleteConversation={handleDeleteConversation}
           isListening={isListening}
+          transcript={transcript}
           onToggleVoice={toggleVoice}
           modelBadge={activeBot.name}
           selectedBotId={selectedBotId}
@@ -3334,6 +3453,53 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         memories={memories}
         onUpdateMemories={setMemories}
         onToast={showToast}
+      />
+
+      {/* ── 15 World-Class Innovation Modals & Overlays ── */}
+      <UniversalCommandPalette
+        isOpen={universalPaletteOpen}
+        onClose={() => setUniversalPaletteOpen(false)}
+        onTriggerAction={handleUniversalAction}
+      />
+
+      <SwarmDagModal
+        isOpen={swarmDagModalOpen}
+        onClose={() => setSwarmDagModalOpen(false)}
+      />
+
+      <CodeSandboxModal
+        isOpen={codeSandboxModalOpen}
+        onClose={() => setCodeSandboxModalOpen(false)}
+      />
+
+      <CryptoVaultModal
+        isOpen={cryptoVaultModalOpen}
+        onClose={() => setCryptoVaultModalOpen(false)}
+      />
+
+      <VoiceEngineModal
+        isOpen={voiceEngineModalOpen}
+        onClose={() => setVoiceEngineModalOpen(false)}
+      />
+
+      <BranchingContextModal
+        isOpen={branchingModalOpen}
+        onClose={() => setBranchingModalOpen(false)}
+      />
+
+      <P2PMeshModal
+        isOpen={p2pMeshModalOpen}
+        onClose={() => setP2PMeshModalOpen(false)}
+      />
+
+      <OfflineModeModal
+        isOpen={offlineModeModalOpen}
+        onClose={() => setOfflineModeModalOpen(false)}
+      />
+
+      <TelemetryHUD
+        isOpen={telemetryHudOpen}
+        onClose={() => setTelemetryHudOpen(false)}
       />
     </div>
   )

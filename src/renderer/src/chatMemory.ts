@@ -104,9 +104,13 @@ export async function saveStoredConversations(conversations: ConversationSession
       await window.nemi.saveStoredConversations(conversations)
     }
     if (typeof fetch !== 'undefined' && typeof window !== 'undefined' && !window.nemi) {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('nemi_session_token') : null
       fetch('/api/conversations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: serialized,
       }).catch(() => {})
     }
@@ -179,9 +183,13 @@ export async function saveStoredMemories(memories: MemoryItem[]): Promise<void> 
       await window.nemi.saveStoredMemories(memories)
     }
     if (typeof fetch !== 'undefined' && typeof window !== 'undefined' && !window.nemi) {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('nemi_session_token') : null
       fetch('/api/memories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: serialized,
       }).catch(() => {})
     }

@@ -17,6 +17,7 @@ import {
   X,
   ChevronRight,
   Terminal,
+  Trophy,
 } from 'lucide-react'
 import { N8N_BOTS } from '../types_bots'
 
@@ -42,6 +43,7 @@ export interface CommandPaletteProps {
   onNewChat: () => void
   onToast?: (message: string) => void
   onOpenLearningHub?: () => void
+  onOpenHardest100?: () => void
   swarmModeEnabled?: boolean
   onToggleSwarmMode?: () => void
 }
@@ -58,6 +60,7 @@ export default function CommandPalette({
   onNewChat,
   onToast,
   onOpenLearningHub,
+  onOpenHardest100,
   swarmModeEnabled,
   onToggleSwarmMode,
 }: CommandPaletteProps) {
@@ -165,6 +168,21 @@ export default function CommandPalette({
         badge: 'Mastery',
         run: () => {
           onOpenLearningHub()
+          onClose()
+        },
+      })
+    }
+
+    if (onOpenHardest100) {
+      list.push({
+        id: 'open-hardest-100',
+        title: "World's Hardest 100 Coding Problems Benchmark",
+        subtitle: 'Inspect 100 competitive, LeetCode apex hard, distributed & deep learning problems (100% verified)',
+        icon: Trophy,
+        category: 'Tools',
+        badge: '100%',
+        run: () => {
+          onOpenHardest100()
           onClose()
         },
       })

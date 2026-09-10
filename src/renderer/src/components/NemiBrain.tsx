@@ -5,6 +5,7 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { ZoomIn, ZoomOut, RotateCcw, Compass } from 'lucide-react'
+import { updateOrbitalProximity } from '../services/orbitalMusic'
 
 // ──────────────────────────────────────────────────────────
 // TYPES
@@ -633,22 +634,169 @@ function SceneLights({ isListening, isThinking, nimActive }: { isListening: bool
   )
 }
 
-function NimEnergyHalo() {
-  const haloRef = useRef<THREE.Mesh>(null)
+// ──────────────────────────────────────────────────────────
+// ABHI GURJAR MINIMALIST MOVING ORBITAL RING
+// ──────────────────────────────────────────────────────────
+function createOrbitalTextTexture(nameText: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 4096
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
 
-  useFrame(({ clock }) => {
-    if (!haloRef.current) return
-    const pulse = 1 + Math.sin(clock.getElapsedTime() * 1.8) * 0.035
-    haloRef.current.scale.setScalar(pulse)
-    const material = haloRef.current.material as THREE.MeshBasicMaterial
-    material.opacity = 0.15 + (Math.sin(clock.getElapsedTime() * 2.2) + 1) * 0.035
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  // Subtle luminous guiding baseline
+  ctx.strokeStyle = 'rgba(6, 182, 212, 0.3)'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(0, canvas.height / 2)
+  ctx.lineTo(canvas.width, canvas.height / 2)
+  ctx.stroke()
+
+  // High-class minimalist typography
+  ctx.font = '600 32px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  const items = [
+    `✦  ${nameText}  ✦`,
+    `NEMI NEURAL ARCHITECT`,
+    `✦  ${nameText}  ✦`,
+    `LIVING AI BRAIN`,
+    `✦  ${nameText}  ✦`,
+    `SYSTEM CORE ONLINE`,
+    `✦  ${nameText}  ✦`,
+    `SYNAPTIC MATRIX`,
+  ]
+
+  const segmentWidth = canvas.width / items.length
+  items.forEach((item, idx) => {
+    const x = idx * segmentWidth + segmentWidth / 2
+    const isName = item.includes(nameText)
+
+    if (isName) {
+      // Sleek cyan-violet gradient with glow for ABHI GURJAR
+      const grad = ctx.createLinearGradient(x - 150, 0, x + 150, 0)
+      grad.addColorStop(0, '#c084fc') // soft purple
+      grad.addColorStop(0.5, '#38bdf8') // luminous cyan
+      grad.addColorStop(1, '#e879f9') // soft magenta
+      ctx.fillStyle = grad
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.9)'
+      ctx.shadowBlur = 12
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+    }
+
+    ctx.fillText(item, x, canvas.height / 2)
+  })
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.repeat.set(1, 1)
+  texture.needsUpdate = true
+  return texture
+}
+
+function AbhiGurjarOrbitalRing({
+  isListening,
+  isThinking,
+  isSpeaking,
+  audioLevel,
+}: {
+  isListening: boolean
+  isThinking: boolean
+  isSpeaking: boolean
+  audioLevel?: number | (() => number)
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const textureRef = useRef<THREE.CanvasTexture | null>(null)
+  const ringMeshRef = useRef<THREE.Mesh>(null)
+
+  const textTexture = useMemo(() => {
+    const tex = createOrbitalTextTexture('ABHI GURJAR')
+    textureRef.current = tex
+    return tex
+  }, [])
+
+  useFrame(({ camera, clock }, delta) => {
+    const t = clock.getElapsedTime()
+    const camDist = camera.position.length()
+    const prox = updateOrbitalProximity(camDist)
+
+    // Smooth orbital rotation in 3D
+    if (groupRef.current) {
+      groupRef.current.rotation.z = Math.PI / 14 + Math.sin(t * 0.3) * 0.04
+      groupRef.current.rotation.y += delta * (0.08 + prox * 0.06)
+    }
+
+    // Smooth continuous text scrolling along the ring
+    if (textureRef.current) {
+      const scrollSpeed = (isListening ? 0.06 : isThinking ? 0.08 : isSpeaking ? 0.07 : 0.035) + prox * 0.04
+      textureRef.current.offset.x -= delta * scrollSpeed
+    }
+
+    // Subtle breathing pulse, audio reactivity and proximity bloom
+    if (ringMeshRef.current) {
+      let rawAudio = 0
+      if (typeof audioLevel === 'function') {
+        try { rawAudio = audioLevel() } catch {}
+      } else if (typeof audioLevel === 'number') {
+        rawAudio = audioLevel
+      }
+      const audioPulse = Math.min(0.2, rawAudio * 0.15)
+      const pulse = 1 + Math.sin(t * 1.5) * 0.015 + audioPulse + prox * 0.035
+      ringMeshRef.current.scale.set(pulse, pulse, pulse)
+
+      const mat = ringMeshRef.current.material as THREE.MeshBasicMaterial
+      if (mat) {
+        mat.opacity = 0.85 + prox * 0.15
+      }
+    }
   })
 
   return (
-    <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -1.5]}>
-      <torusGeometry args={[5.25, 0.035, 12, 96]} />
-      <meshBasicMaterial color="#c084fc" transparent opacity={0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
-    </mesh>
+    <group ref={groupRef} rotation={[Math.PI / 2.3, 0, Math.PI / 14]} position={[0, 0, 0]}>
+      {/* 1. Sleek Thin Outer Glowing Torus Wire */}
+      <mesh>
+        <torusGeometry args={[5.4, 0.02, 16, 128]} />
+        <meshBasicMaterial
+          color="#a855f7"
+          transparent
+          opacity={isListening ? 0.6 : 0.35}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* 2. Concentric Inner Accent Orbit Line */}
+      <mesh>
+        <torusGeometry args={[5.28, 0.008, 12, 96]} />
+        <meshBasicMaterial
+          color="#06b6d4"
+          transparent
+          opacity={0.25}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* 3. Cylindrical Moving Text Ribbon with ABHI GURJAR */}
+      <mesh ref={ringMeshRef}>
+        <cylinderGeometry args={[5.4, 5.4, 0.42, 128, 1, true]} />
+        <meshBasicMaterial
+          map={textTexture}
+          transparent
+          opacity={0.9}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   )
 }
 
@@ -746,10 +894,22 @@ export function NeuralOrbFallback({
 
         {/* Outer pulsing ring */}
         <div
-          className={`w-64 h-64 rounded-full border border-cyan-400/20 animate-pulse flex items-center justify-center transition-all duration-500 ${
+          className={`w-72 h-72 rounded-full border border-cyan-400/20 animate-pulse flex items-center justify-center transition-all duration-500 relative ${
             isListening ? 'border-cyan-400/50 scale-105' : ''
           }`}
         >
+          {/* Orbital Moving Text Ring: ABHI GURJAR */}
+          <svg className="absolute w-72 h-72 animate-spin pointer-events-none" style={{ animationDuration: '32s' }} viewBox="0 0 300 300">
+            <defs>
+              <path id="orbitPath" d="M 150, 150 m -120, 0 a 120,120 0 1,1 240,0 a 120,120 0 1,1 -240,0" fill="none" />
+            </defs>
+            <text fill="#38bdf8" fontSize="11" fontWeight="600" letterSpacing="4" opacity="0.85">
+              <textPath href="#orbitPath" startOffset="0%">
+                ✦ ABHI GURJAR ✦ NEMI NEURAL ARCHITECT ✦ ABHI GURJAR ✦
+              </textPath>
+            </text>
+          </svg>
+
           {/* Middle rotating dashed ring */}
           <div
             className="w-52 h-52 rounded-full border border-dashed border-purple-400/30 animate-spin flex items-center justify-center"
@@ -892,7 +1052,12 @@ export default function NemiBrain({
 
         <SceneLights isListening={isListening} isThinking={isThinking} nimActive={nimActive} />
 
-        {nimActive && <NimEnergyHalo />}
+        <AbhiGurjarOrbitalRing
+          isListening={isListening}
+          isThinking={isThinking}
+          isSpeaking={isSpeaking}
+          audioLevel={audioLevel}
+        />
 
         <group scale={nimActive ? 1.35 : 1}>
           <BrainGroup

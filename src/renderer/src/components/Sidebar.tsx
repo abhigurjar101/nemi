@@ -15,9 +15,13 @@ import {
   Sparkles,
   Layers,
   Play,
+  ShieldCheck,
+  Lock,
+  User,
 } from 'lucide-react'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
 import BotIcon from './BotIcon'
+import { type UserProfile } from './AuthModal'
 
 export interface Conversation {
   id: string
@@ -41,6 +45,11 @@ interface SidebarProps {
   selectedBotId?: string
   onSelectBot?: (botId: string) => void
   onOpenChat?: () => void
+  isAuthenticated?: boolean
+  currentUser?: UserProfile | null
+  authRole?: 'owner' | 'guest' | 'member'
+  onOpenAuth?: () => void
+  onOpenUniversalPalette?: () => void
 }
 
 function ConversationItem({
@@ -157,6 +166,11 @@ export default function Sidebar({
   selectedBotId = 'orchestrator',
   onSelectBot,
   onOpenChat,
+  isAuthenticated = false,
+  currentUser = null,
+  authRole = 'guest',
+  onOpenAuth,
+  onOpenUniversalPalette,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'bots' | 'history'>('bots')
   const [searchQuery, setSearchQuery] = useState('')
@@ -426,12 +440,69 @@ export default function Sidebar({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-white/5 p-3">
+            <div className="border-t border-white/5 p-3 space-y-2">
+              {onOpenAuth && (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In / Account'}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left text-xs cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-400/50 ${
+                    isAuthenticated
+                      ? 'bg-emerald-500/10 border-emerald-400/30 hover:bg-emerald-500/15 text-emerald-200'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                      isAuthenticated
+                        ? 'bg-gradient-to-tr from-emerald-400 to-cyan-400 text-slate-950 shadow-xs'
+                        : 'bg-white/10 text-white/70 border border-white/10'
+                    }`}>
+                      {isAuthenticated ? (
+                        (currentUser?.name || currentUser?.email || 'U').charAt(0).toUpperCase()
+                      ) : (
+                        <Lock className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate text-[11px]">
+                        {isAuthenticated ? (currentUser?.name || currentUser?.email || 'Verified User') : 'Neural Access / Sign In'}
+                      </div>
+                      <div className="text-[10px] text-white/40 truncate">
+                        {isAuthenticated ? (currentUser?.email || `${authRole.toUpperCase()} SESSION`) : 'Sign in to persist sessions'}
+                      </div>
+                    </div>
+                  </div>
+                  {isAuthenticated ? (
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={1.75} />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                  )}
+                </button>
+              )}
+
+              {onOpenUniversalPalette && (
+                <button
+                  type="button"
+                  onClick={onOpenUniversalPalette}
+                  aria-label="Universal Command Palette & 15 Innovations"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500/15 to-cyan-500/15 border border-purple-400/30 hover:border-cyan-400/50 text-cyan-200 transition-all text-xs focus-visible:ring-2 focus-visible:ring-cyan-400/50 cursor-pointer shadow-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" strokeWidth={1.65} />
+                    <span className="font-semibold">Innovations Suite</span>
+                  </div>
+                  <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-black/40 text-slate-300 rounded border border-white/10">
+                    ⌘K
+                  </kbd>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={onOpenSettings}
                 aria-label="Open Settings"
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/50 hover:text-white/80 hover:bg-white/5 transition-all text-xs focus-visible:ring-2 focus-visible:ring-purple-400/50"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/50 hover:text-white/80 hover:bg-white/5 transition-all text-xs focus-visible:ring-2 focus-visible:ring-purple-400/50 cursor-pointer"
               >
                 <Settings className="w-4 h-4" strokeWidth={1.65} />
                 <span>Settings</span>

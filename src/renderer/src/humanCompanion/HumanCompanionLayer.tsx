@@ -51,22 +51,9 @@ export default function HumanCompanionLayer({
     getAudioLevelRef.current = getAudioLevel
   }, [isListening, isThinking, isSpeaking, getAudioLevel])
 
-  // Trigger organic acoustic chimes on state transitions
+  // Ambient companion state sync (silent mic without automatic chiming)
   useEffect(() => {
-    if (!enabled) return
-
-    // Listening transition
-    if (isListening && !prevListeningRef.current) {
-      playActivationChime()
-    } else if (!isListening && prevListeningRef.current) {
-      playDeactivationChime()
-    }
     prevListeningRef.current = isListening
-
-    // Thinking transition
-    if (isThinking && !prevThinkingRef.current) {
-      playThoughtSpark()
-    }
     prevThinkingRef.current = isThinking
   }, [enabled, isListening, isThinking])
 
