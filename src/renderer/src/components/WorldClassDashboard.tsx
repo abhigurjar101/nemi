@@ -332,10 +332,11 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
                 type="button"
                 onClick={onOpenAuth}
                 className="px-5 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 hover:border-cyan-300 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,212,255,0.25)] group"
-                title="Sign In / Connect"
+                title="Sign In / Connect (Sign Up / Login)"
+                aria-label="Sign Up or Login"
               >
                 <Lock className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
-                <span>Sign In / Connect</span>
+                <span>Sign Up / Login</span>
               </button>
             )}
           </div>
