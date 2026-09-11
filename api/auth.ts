@@ -344,6 +344,86 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return
       }
 
+      // ── ACTION: GOOGLE AUTHENTICATION ──
+      if (action === 'google') {
+        const { credential, email: directEmail, name: directName, picture } = body
+        let googleEmail = ''
+        let googleName = ''
+
+        // 1. Decode Google ID Token if passed from Google Identity Services (GSI)
+        if (credential && typeof credential === 'string') {
+          try {
+            const parts = credential.split('.')
+            if (parts.length === 3) {
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
+              if (payload && payload.email) {
+                googleEmail = payload.email
+                googleName = payload.name || payload.given_name || payload.email.split('@')[0]
+              }
+            }
+          } catch (jwtErr) {
+            console.warn('Failed to parse Google credential token:', jwtErr)
+          }
+        }
+
+        // 2. Direct verified Google email fallback
+        if (!googleEmail && directEmail && directEmail.includes('@')) {
+          googleEmail = directEmail
+          googleName = directName || directEmail.split('@')[0]
+        }
+
+        if (!googleEmail) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ success: false, error: 'Valid Google email or credential token is required.' }))
+          return
+        }
+
+        const normEmail = normalizeEmail(googleEmail)
+        let user = await findUserByEmail(normEmail)
+
+        if (!user) {
+          // Register new user directly with verified Google email
+          const db = loadDatabase()
+          const salt = generateSalt()
+          const randomPassword = crypto.randomBytes(24).toString('hex')
+          const passwordHash = hashPassword(randomPassword, salt)
+          const isFirstUser = Object.keys(db.users).length === 0
+
+          user = {
+            id: `usr_g_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+            email: normEmail,
+            name: googleName || normEmail.split('@')[0],
+            passwordHash,
+            salt,
+            role: isFirstUser ? 'owner' : 'member',
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+          }
+
+          db.users[normEmail] = user
+          saveDatabase(db)
+        } else {
+          await updateUserLastLogin(user.id)
+        }
+
+        const sessionToken = createSessionToken(user)
+        res.statusCode = 200
+        res.end(
+          JSON.stringify({
+            success: true,
+            token: sessionToken,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              createdAt: user.createdAt,
+            },
+          })
+        )
+        return
+      }
+
       // ── ACTION: SIGN UP VIA EMAIL ──
       if (action === 'signup') {
         if (!email || !email.includes('@')) {

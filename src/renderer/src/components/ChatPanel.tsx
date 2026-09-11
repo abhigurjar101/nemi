@@ -171,7 +171,7 @@ export default function ChatPanel({
   const handleToggleMusic = () => {
     const next = toggleSoothingMusic()
     setIsMusicActive(next)
-    setMusicToast(next ? '432Hz Zen Soundscape: Active' : 'Mind-Soothing Music: Paused')
+    setMusicToast(next ? '🌿 Nature & Focus Soundscape: Active' : 'Nature Soundscape: Paused')
     setTimeout(() => setMusicToast(null), 3000)
   }
 
@@ -335,11 +335,11 @@ export default function ChatPanel({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
-                {/* Mind-Soothing Music Button */}
+                {/* Nature Peace & Focus Soundscape Button */}
                 <button
                   type="button"
                   onClick={handleToggleMusic}
-                  aria-label={isMusicActive ? 'Pause mind-soothing music' : 'Play mind-soothing 432Hz music'}
+                  aria-label={isMusicActive ? 'Pause nature soundscape' : 'Play nature peace and focus sounds'}
                   className={`
                     px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer border
                     ${isMusicActive
@@ -347,7 +347,7 @@ export default function ChatPanel({
                       : 'bg-white/5 hover:bg-white/10 text-white/50 border-white/10 hover:text-white/80'
                     }
                   `}
-                  title={isMusicActive ? 'Mind-Soothing 432Hz Music Playing (Click to Pause)' : 'Play Mind-Soothing 432Hz Zen Soundscape'}
+                  title={isMusicActive ? 'Nature & Focus Sounds Playing (Click to Pause)' : 'Play Nature & Focus Sounds (Birds, River, Relaxing Beats)'}
                 >
                   {isMusicActive ? (
                     <div className="flex items-center gap-0.5 h-3">
@@ -358,7 +358,7 @@ export default function ChatPanel({
                   ) : (
                     <VolumeX className="w-3 h-3 text-white/40" />
                   )}
-                  <span className="hidden xs:inline font-mono">{isMusicActive ? '432Hz' : 'Zen'}</span>
+                  <span className="hidden xs:inline font-mono">{isMusicActive ? 'Nature' : 'Mute'}</span>
                 </button>
 
                 {/* Transparency Glass Mode Toggle */}

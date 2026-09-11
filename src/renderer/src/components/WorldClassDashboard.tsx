@@ -32,6 +32,7 @@ import {
   Music,
   Volume2,
   VolumeX,
+  ChevronDown,
   X,
 } from 'lucide-react'
 import { dailyLearningFeed, DailyFeedStatus } from '../services/dailyLearningFeed'
@@ -39,8 +40,13 @@ import {
   toggleSoothingMusic,
   isSoothingMusicActive,
   subscribeSoothingMusic,
+  setSoothingMusicActive,
   setSoothingMusicVolume,
   getSoothingMusicVolume,
+  setSoundscapeMode,
+  getSoundscapeMode,
+  subscribeSoundscapeMode,
+  type SoundscapeMode,
 } from '../services/orbitalMusic'
 
 export interface WorldClassDashboardProps {
@@ -143,12 +149,19 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
     }
   }
 
-  // 432Hz Zen Mind-Soothing Music state
+  // Organic Nature Peace & Focus Soundscape state
   const [soothingMusicOn, setSoothingMusicOn] = useState<boolean>(() => isSoothingMusicActive())
+  const [soundscapeMode, setLocalSoundscapeMode] = useState<SoundscapeMode>(() => getSoundscapeMode())
   const [volume, setVolume] = useState<number>(() => getSoothingMusicVolume())
+  const [showSoundscapePicker, setShowSoundscapePicker] = useState(false)
 
   useEffect(() => {
-    return subscribeSoothingMusic((active) => setSoothingMusicOn(active))
+    const unsubMode = subscribeSoundscapeMode((m) => setLocalSoundscapeMode(m))
+    const unsubMusic = subscribeSoothingMusic((active) => setSoothingMusicOn(active))
+    return () => {
+      unsubMode()
+      unsubMusic()
+    }
   }, [])
 
   const handleToggleMusic = (e: React.MouseEvent) => {
@@ -227,8 +240,115 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
             </div>
           </div>
 
-          {/* Right: Login Pill & Settings */}
+          {/* Right: Soundscape Pill + Login Pill & Settings */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* ── Nature Peace & Focus Soundscape Pill ── */}
+            <div className="relative">
+              <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.06] border border-white/15 hover:border-emerald-400/40 backdrop-blur-md transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                <button
+                  type="button"
+                  onClick={handleToggleMusic}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    soothingMusicOn
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                      : 'text-white/50 hover:text-white'
+                  }`}
+                  title={soothingMusicOn ? 'Pause Nature Sounds' : 'Play Nature & Focus Sounds'}
+                >
+                  {soothingMusicOn ? (
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5 text-white/40" />
+                  )}
+                  <span className="hidden md:inline">
+                    {soundscapeMode === 'forest' && '🐦 Forest Birds'}
+                    {soundscapeMode === 'river' && '🌊 Mountain River'}
+                    {soundscapeMode === 'beats' && '🎧 Focus Beats'}
+                    {soundscapeMode === 'serenity' && '🌿 Pure Nature'}
+                  </span>
+                  <span className="md:hidden">
+                    {soundscapeMode === 'forest' && '🐦'}
+                    {soundscapeMode === 'river' && '🌊'}
+                    {soundscapeMode === 'beats' && '🎧'}
+                    {soundscapeMode === 'serenity' && '🌿'}
+                  </span>
+                </button>
+
+                {/* Dropdown toggle for modes */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowSoundscapePicker((prev) => !prev)
+                  }}
+                  className="p-1 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Change Nature Soundscape"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Soundscape Mode Picker Dropdown */}
+              {showSoundscapePicker && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-full right-0 mt-2 w-64 p-3 rounded-2xl bg-slate-950/95 border border-emerald-500/30 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-2xl z-50 flex flex-col gap-2"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-mono text-white/50 px-1">
+                    <span>NATURE SOUNDSCAPE</span>
+                    <span className="text-emerald-400 font-bold">{Math.round(volume * 100)}%</span>
+                  </div>
+
+                  {/* Volume slider */}
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    className="w-full accent-emerald-400 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                  />
+
+                  <div className="flex flex-col gap-1 mt-1">
+                    {[
+                      { id: 'forest', name: 'Forest & Birds', desc: 'Singing songbirds & pine breeze', icon: '🐦' },
+                      { id: 'river', name: 'Flowing River', desc: 'Mountain creek & water drops', icon: '🌊' },
+                      { id: 'beats', name: 'Relaxing Focus Beats', desc: '60 BPM calm pulse & focus chimes', icon: '🎧' },
+                      { id: 'serenity', name: 'All Nature Serenity', desc: 'Birds, river & gentle calm pulse', icon: '🌿' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSoundscapeMode(item.id as SoundscapeMode)
+                          if (!soothingMusicOn) {
+                            setSoothingMusicActive(true)
+                            setSoothingMusicOn(true)
+                          }
+                          setShowSoundscapePicker(false)
+                        }}
+                        className={`w-full p-2 rounded-xl text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                          soundscapeMode === item.id
+                            ? 'bg-emerald-500/20 text-white border border-emerald-400/40'
+                            : 'text-white/70 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">{item.name}</div>
+                          <div className="text-[10px] text-white/50 truncate">{item.desc}</div>
+                        </div>
+                        {soundscapeMode === item.id && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Login / User Session Profile */}
             {isAuthenticated ? (
               <button
