@@ -77,7 +77,8 @@ export function toConversationalScript(rawText: string): string {
   text = text.replace(/```[\s\S]*?```/g, " I've placed the code snippet in our chat notes. ")
 
   // 2. Convert markdown tables into a courteous spoken summary (supports indented tables)
-  const tableRegex = /^[ \t]*\|[^\n]+\|\r?\n[ \t]*\|[-:\s|]+\|\r?\n(?:[ \t]*\|[^\n]+\|\r?\n?)*/gm
+  const sep = ['-', ':', '\\s', '|'].join('')
+  const tableRegex = new RegExp('^[ \\t]*\\|[^\\n]+\\|\\r?\\n[ \\t]*\\|[' + sep + ']+\\|\\r?\\n(?:[ \\t]*\\|[^\\n]+\\|\\r?\\n?)*', 'gm')
   text = text.replace(tableRegex, " I've organized the detailed comparison table in your chat notes. ")
 
   // Expand double hyphens to em-dash for natural breath cadence

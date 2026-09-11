@@ -20,12 +20,14 @@ import {
   Volume2, Cpu, Wifi, WifiOff, Database, Check, Loader2, ArrowUp,
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
-  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search, Trophy
+  FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search, Trophy,
+  TrendingUp,
 } from 'lucide-react'
 import BotIcon from './components/BotIcon'
 import CommandPalette from './components/CommandPalette'
 import AutonomousLearningModal from './components/AutonomousLearningModal'
 import Hardest100BenchmarkModal from './components/Hardest100BenchmarkModal'
+import TradingFleetModal from './components/TradingFleetModal'
 import { downloadNotebookFile, buildNotebookFromResponse } from './utils/jupyter'
 import {
   recordAutonomousLearning,
@@ -61,6 +63,7 @@ import { OfflineModeModal } from './components/OfflineModeModal'
 import { TelemetryHUD } from './components/TelemetryHUD'
 import { UniversalCommandPalette } from './components/UniversalCommandPalette'
 import { globalVectorIndex } from './services/vectorIndex'
+import WorldClassDashboard from './components/WorldClassDashboard'
 
 declare global {
   interface Window {
@@ -876,6 +879,7 @@ export default function App() {
   const [branchingModalOpen, setBranchingModalOpen] = useState(false)
   const [p2pMeshModalOpen, setP2PMeshModalOpen] = useState(false)
   const [offlineModeModalOpen, setOfflineModeModalOpen] = useState(false)
+  const [tradingFleetModalOpen, setTradingFleetModalOpen] = useState(false)
   const [telemetryHudOpen, setTelemetryHudOpen] = useState(false)
   const [universalPaletteOpen, setUniversalPaletteOpen] = useState(false)
   const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
@@ -890,6 +894,9 @@ export default function App() {
 
   const handleUniversalAction = useCallback((key: string) => {
     switch (key) {
+      case 'open_trading_fleet':
+        setTradingFleetModalOpen(true)
+        break
       case 'open_swarm_dag':
         setSwarmDagModalOpen(true)
         break
@@ -2518,6 +2525,19 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <span className="text-[9px] px-1 py-0.2 rounded bg-yellow-400/20 text-yellow-300 font-mono">100%</span>
           </button>
 
+          {/* Algorithmic Trading Swarm (10 Quant Agents) */}
+          <button
+            type="button"
+            onClick={() => setTradingFleetModalOpen(true)}
+            aria-label="Open 10 Elite Algorithmic & AI Trading Agents Swarm"
+            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-emerald-300 hover:text-white bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400/60 hover:bg-emerald-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+            title="Open 10 Elite Algorithmic & AI Trading Agents Swarm"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 animate-pulse" strokeWidth={1.65} />
+            <span className="font-medium">Trading Swarm</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-400/20 text-emerald-300 font-mono">10 BOTS</span>
+          </button>
+
           {/* Ingest */}
           <button
             type="button"
@@ -3049,15 +3069,17 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         )}
 
         {/* ── Floating Bot Fleet Dock ── */}
-        <BotFleetDock
-          selectedBotId={selectedBotId}
-          onSelectBot={(botId) => {
-            setSelectedBotId(botId)
-            setChatOpen(true)
-          }}
-          onOpenChat={() => setChatOpen(true)}
-          onToggleSidebar={() => setSidebarOpen((p) => !p)}
-        />
+        {chatOpen && (
+          <BotFleetDock
+            selectedBotId={selectedBotId}
+            onSelectBot={(botId) => {
+              setSelectedBotId(botId)
+              setChatOpen(true)
+            }}
+            onOpenChat={() => setChatOpen(true)}
+            onToggleSidebar={() => setSidebarOpen((p) => !p)}
+          />
+        )}
 
         <Sidebar
           conversations={conversations.map((c) => {
@@ -3089,28 +3111,28 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           authRole={authRole}
           onOpenAuth={() => setAuthModalOpen(true)}
           onOpenUniversalPalette={() => setUniversalPaletteOpen(true)}
+          onOpenTradingFleet={() => setTradingFleetModalOpen(true)}
         />
 
-        {/* ── Persistent Floating Chat Trigger (when chat is closed) ── */}
+        {/* ── World-Class 2-Swarm Dashboard (When Chat is closed) ── */}
         {!chatOpen && (
-          <motion.button
-            initial={{ opacity: 0, y: 16, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.9 }}
-            onClick={() => handleToggleChatOpen(true)}
-            className="fixed right-4 bottom-5 sm:right-6 sm:bottom-24 z-40 px-3.5 py-2 rounded-2xl glass-panel bg-slate-900/85 backdrop-blur-xl border border-purple-400/30 text-white shadow-[0_4px_24px_rgba(168,85,247,0.25)] flex items-center gap-2 cursor-pointer group hover:border-purple-400/60 transition-all"
-            title="Open NEMI Chat (⌘⇧C)"
-          >
-            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#c084fc]" />
-            <span className="text-xs font-semibold tracking-wide text-white/90 group-hover:text-white">Chat with {activeBot.shortName}</span>
-            {memories.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-400/30 flex items-center gap-1">
-                <Brain className="w-2.5 h-2.5" />
-                <span>{memories.length}</span>
-              </span>
-            )}
-            <kbd className="hidden sm:inline text-[10px] text-white/30 font-mono px-1 py-0.5 rounded bg-white/5 border border-white/10">⌘⇧C</kbd>
-          </motion.button>
+          <div className="absolute inset-0 z-20 flex flex-col justify-between overflow-y-auto nemi-scroll pointer-events-none">
+            <WorldClassDashboard
+              isAuthenticated={isAuthenticated}
+              currentUser={currentUser}
+              authRole={authRole}
+              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenCodeSwarm={() => setSwarmDagModalOpen(true)}
+              onOpenTradeSwarm={() => setTradingFleetModalOpen(true)}
+              onOpenChat={() => handleToggleChatOpen(true)}
+              onToggleVoice={toggleVoice}
+              isListening={isListening}
+              onOpenSettings={() => setSettingsOpen(true)}
+              codeBotsCount={N8N_BOTS.length}
+              tradeBotsCount={10}
+              showHeader={false}
+            />
+          </div>
         )}
 
         <ChatPanel
@@ -3439,6 +3461,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         onNewChat={handleNewConversation}
         onToast={showToast}
         onOpenLearningHub={() => setLearningModalOpen(true)}
+        onOpenTradingFleet={() => setTradingFleetModalOpen(true)}
         swarmModeEnabled={swarmModeEnabled}
         onToggleSwarmMode={() => {
           setSwarmModeEnabled((p) => !p)
@@ -3453,6 +3476,17 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         memories={memories}
         onUpdateMemories={setMemories}
         onToast={showToast}
+      />
+
+      {/* Algorithmic Trading Fleet (10 Quant Agents Cockpit) */}
+      <TradingFleetModal
+        isOpen={tradingFleetModalOpen}
+        onClose={() => setTradingFleetModalOpen(false)}
+        onSelectBotForChat={(botId, prompt) => {
+          setSelectedBotId(botId)
+          if (prompt) setInputValue(prompt)
+          setChatOpen(true)
+        }}
       />
 
       {/* ── 15 World-Class Innovation Modals & Overlays ── */}

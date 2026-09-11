@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Terminal,
   Trophy,
+  TrendingUp,
 } from 'lucide-react'
 import { N8N_BOTS } from '../types_bots'
 
@@ -44,6 +45,7 @@ export interface CommandPaletteProps {
   onToast?: (message: string) => void
   onOpenLearningHub?: () => void
   onOpenHardest100?: () => void
+  onOpenTradingFleet?: () => void
   swarmModeEnabled?: boolean
   onToggleSwarmMode?: () => void
 }
@@ -61,6 +63,7 @@ export default function CommandPalette({
   onToast,
   onOpenLearningHub,
   onOpenHardest100,
+  onOpenTradingFleet,
   swarmModeEnabled,
   onToggleSwarmMode,
 }: CommandPaletteProps) {
@@ -180,9 +183,24 @@ export default function CommandPalette({
         subtitle: 'Inspect 100 competitive, LeetCode apex hard, distributed & deep learning problems (100% verified)',
         icon: Trophy,
         category: 'Tools',
-        badge: '100%',
+        badge: '100 Problems',
         run: () => {
           onOpenHardest100()
+          onClose()
+        },
+      })
+    }
+
+    if (onOpenTradingFleet) {
+      list.push({
+        id: 'open-trading-fleet',
+        title: 'Algorithmic Trading Fleet (10 Quant Agents)',
+        subtitle: 'Bayesian Swarm Consensus, SMC, Stat-Arb, Risk Sentinel & n8n Workflows',
+        icon: TrendingUp,
+        category: 'Tools',
+        badge: '10 AGENTS',
+        run: () => {
+          onOpenTradingFleet()
           onClose()
         },
       })

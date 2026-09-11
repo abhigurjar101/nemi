@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Lock,
   User,
+  TrendingUp,
 } from 'lucide-react'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
 import BotIcon from './BotIcon'
@@ -50,6 +51,7 @@ interface SidebarProps {
   authRole?: 'owner' | 'guest' | 'member'
   onOpenAuth?: () => void
   onOpenUniversalPalette?: () => void
+  onOpenTradingFleet?: () => void
 }
 
 function ConversationItem({
@@ -171,6 +173,7 @@ export default function Sidebar({
   authRole = 'guest',
   onOpenAuth,
   onOpenUniversalPalette,
+  onOpenTradingFleet,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'bots' | 'history'>('bots')
   const [searchQuery, setSearchQuery] = useState('')
@@ -316,6 +319,29 @@ export default function Sidebar({
             <div className="flex-1 overflow-y-auto px-2 pb-2 nemi-scroll space-y-1">
               {activeTab === 'bots' ? (
                 <>
+                  {onOpenTradingFleet && (
+                    <button
+                      type="button"
+                      onClick={onOpenTradingFleet}
+                      className="w-full mb-2 p-2.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-purple-950/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/60 text-left transition-all cursor-pointer group shadow-sm flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300">
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-white group-hover:text-emerald-200 block">
+                            Trading Fleet
+                          </span>
+                          <span className="text-[10px] text-emerald-400/80 font-mono">
+                            10 Quant Agents Active
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/30 group-hover:text-white/70" />
+                    </button>
+                  )}
+
                   <div className="px-3 py-1 flex items-center justify-between text-[10px] font-semibold text-white/30 uppercase tracking-widest">
                     <span>Active Swarm Nodes</span>
                     <span className="text-emerald-400 flex items-center gap-1 font-mono">

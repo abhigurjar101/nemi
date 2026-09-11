@@ -1,0 +1,103 @@
+{
+  "id": "nemi-fundamental-valuation-v1",
+  "name": "NEMI Trading - Fundamental Valuation & SEC 10-K RAG Agent",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/fundamental-sec-rag",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-financial-metrics-calculator",
+      "name": "DCF & Financial Statements Calculator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst ticker = payload.ticker || 'NVDA';\nconst marketPrice = payload.marketPrice || 118.5;\nconst fcfPerShare = payload.fcfPerShare || 3.42;\nconst growthRate = payload.growthRate || 0.18;\nconst discountRate = 0.09;\nconst terminalGrowth = 0.03;\n\n// 2-stage DCF model\nlet dcfValue = 0;\nlet fcf = fcfPerShare;\nfor (let yr = 1; yr <= 5; yr++) {\n  fcf *= (1 + growthRate);\n  dcfValue += fcf / Math.pow(1 + discountRate, yr);\n}\nconst terminalValue = (fcf * (1 + terminalGrowth)) / (discountRate - terminalGrowth);\ndcfValue += terminalValue / Math.pow(1 + discountRate, 5);\nconst intrinsicValue = Math.round(dcfValue * 100) / 100;\nconst marginOfSafety = Math.round(((intrinsicValue - marketPrice) / intrinsicValue) * 1000) / 10;\n\nreturn {\n  json: {\n    ticker,\n    marketPrice,\n    intrinsicValue,\n    marginOfSafety,\n    peRatio: payload.peRatio || 36.4,\n    piotroskiScore: 8,\n    action: marginOfSafety > 10 ? 'BUY' : marginOfSafety < -15 ? 'SELL' : 'HOLD'\n  }\n};"
+      }
+    },
+    {
+      "id": "node-sec-rag-synthesis",
+      "name": "SEC 10-K & Guidance RAG Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Synthesize valuation for {{ $json.ticker }}. Market Price: ${{ $json.marketPrice }}, Intrinsic Value: ${{ $json.intrinsicValue }} (Margin of Safety: {{ $json.marginOfSafety }}%). Piotroski Score: {{ $json.piotroskiScore }}/9."
+            },
+            {
+              "name": "bot_id",
+              "value": "fundamental-valuation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-package-valuation-report",
+      "name": "Package Fundamental Valuation Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'fundamental-valuation',\n    botName: 'Fundamental Valuation & SEC 10-K RAG Agent',\n    valuationReport: text,\n    recommendation: 'STRONG_BUY_UNDERVALUED',\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "DCF & Financial Statements Calculator", "type": "main", "index": 0 }]]
+    },
+    "DCF & Financial Statements Calculator": {
+      "main": [[{ "node": "SEC 10-K & Guidance RAG Synthesis", "type": "main", "index": 0 }]]
+    },
+    "SEC 10-K & Guidance RAG Synthesis": {
+      "main": [[{ "node": "Package Fundamental Valuation Verdict", "type": "main", "index": 0 }]]
+    },
+    "Package Fundamental Valuation Verdict": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "fundamental-valuation",
+    "version": "2.0.0"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "id": "nemi-macro-regime-v1",
+  "name": "NEMI Trading - Macroeconomic Regime & Fed Watchdog",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/macro-regime-monitor",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-macro-indicators-parser",
+      "name": "FRED & Macro Indicators Ingestor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst yield10Y = payload.yield10Y || 4.15;\nconst yield2Y = payload.yield2Y || 3.95;\nconst spread10Y2Y = Math.round((yield10Y - yield2Y) * 100) / 100;\nconst cpiInflation = payload.cpi || 2.9;\nconst fedFundsRate = payload.fedFunds || 5.25;\nconst dxy = payload.dxy || 101.4;\n\n// 4-Quadrant classification\nlet regime = 'Goldilocks';\nlet riskPosture = 'RISK_ON';\n\nif (cpiInflation < 3.2 && spread10Y2Y > 0) {\n  regime = 'Goldilocks';\n  riskPosture = 'AGGRESSIVE_RISK_ON';\n} else if (cpiInflation >= 3.5 && spread10Y2Y > 0) {\n  regime = 'Reflation';\n  riskPosture = 'COMMODITIES_TILT';\n} else if (cpiInflation >= 3.5 && spread10Y2Y <= 0) {\n  regime = 'Stagflation';\n  riskPosture = 'MAX_DEFENSIVE';\n} else {\n  regime = 'Contraction';\n  riskPosture = 'TREASURIES_CASH';\n}\n\nreturn {\n  json: {\n    regime,\n    riskPosture,\n    spread10Y2Y,\n    cpiInflation,\n    fedFundsRate,\n    dxy,\n    equityTilt: regime === 'Goldilocks' ? 'Overweight' : 'Neutral',\n    cryptoTilt: regime === 'Goldilocks' ? 'Overweight' : 'Neutral'\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-macro-assessment",
+      "name": "Fed Policy & Liquidity Reasoner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Assess macroeconomic regime: {{ $json.regime }} (Posture: {{ $json.riskPosture }}). 10Y-2Y Spread: {{ $json.spread10Y2Y }}%, CPI: {{ $json.cpiInflation }}%, DXY: {{ $json.dxy }}. Detail capital allocation mandates."
+            },
+            {
+              "name": "bot_id",
+              "value": "macro-regime"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-package-macro-brief",
+      "name": "Package Macro Regime Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'macro-regime',\n    botName: 'Macroeconomic Regime & Fed Watchdog',\n    regimeSummary: text,\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "FRED & Macro Indicators Ingestor", "type": "main", "index": 0 }]]
+    },
+    "FRED & Macro Indicators Ingestor": {
+      "main": [[{ "node": "Fed Policy & Liquidity Reasoner", "type": "main", "index": 0 }]]
+    },
+    "Fed Policy & Liquidity Reasoner": {
+      "main": [[{ "node": "Package Macro Regime Brief", "type": "main", "index": 0 }]]
+    },
+    "Package Macro Regime Brief": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "macro-regime",
+    "version": "2.0.0"
+  }
+}

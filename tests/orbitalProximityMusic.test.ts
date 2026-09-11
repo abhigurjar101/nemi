@@ -3,6 +3,11 @@ import {
   startOrbitalMusicEngine,
   updateOrbitalProximity,
   stopOrbitalMusicEngine,
+  toggleSoothingMusic,
+  isSoothingMusicActive,
+  setSoothingMusicActive,
+  setSoothingMusicVolume,
+  getSoothingMusicVolume,
 } from '../src/renderer/src/services/orbitalMusic'
 
 describe('Orbital Proximity Soundscape & Music Engine', () => {
@@ -31,9 +36,35 @@ describe('Orbital Proximity Soundscape & Music Engine', () => {
     expect(proximity).toBeCloseTo(1.0, 1)
   })
 
+  it('toggles soothing music manually and preserves active soundscape', () => {
+    expect(isSoothingMusicActive()).toBe(false)
+    const active = toggleSoothingMusic(true)
+    expect(active).toBe(true)
+    expect(isSoothingMusicActive()).toBe(true)
+
+    // With manual soothing music active, proximity stays at serene level
+    const proximity = updateOrbitalProximity(14.0)
+    expect(proximity).toBeGreaterThanOrEqual(0.85)
+
+    // Toggle off
+    toggleSoothingMusic(false)
+    expect(isSoothingMusicActive()).toBe(false)
+  })
+
+  it('adjusts soothing music volume smoothly', () => {
+    setSoothingMusicVolume(0.4)
+    expect(getSoothingMusicVolume()).toBe(0.4)
+    setSoothingMusicVolume(1.5) // clamped to 1.0
+    expect(getSoothingMusicVolume()).toBe(1.0)
+    setSoothingMusicVolume(-0.2) // clamped to 0.0
+    expect(getSoothingMusicVolume()).toBe(0.0)
+  })
+
   it('stops and cleans up the engine gracefully without unhandled exceptions', () => {
     startOrbitalMusicEngine()
+    setSoothingMusicActive(true)
     updateOrbitalProximity(5.0)
     expect(() => stopOrbitalMusicEngine()).not.toThrow()
+    expect(isSoothingMusicActive()).toBe(false)
   })
 })

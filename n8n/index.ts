@@ -30,3 +30,6 @@ export { ragBot } from './bots/ragBot'
 // World's Hardest 100 Coding Problems Benchmark
 export * from './benchmarks/hardest100Catalog'
 export * from './benchmarks/benchmarkEngine'
+
+// 10 Elite Algorithmic & AI Trading Agents Fleet
+export * from './tradingBots'

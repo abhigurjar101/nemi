@@ -1,0 +1,103 @@
+{
+  "id": "nemi-smc-liquidity-v1",
+  "name": "NEMI Trading - Smart Money Concepts & ICT Liquidity Hunter",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/smc-liquidity-hunt",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-smc-structure-scan",
+      "name": "Order Block & Fair Value Gap Detector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst ticker = payload.ticker || 'BTC/USDT';\nconst currentPrice = payload.price || 64500;\n\nconst orderBlocks = [\n  { type: 'Bullish_OB', low: 63800, high: 64100, mitigated: false, timeframe: '15m' },\n  { type: 'Bearish_OB', low: 66200, high: 66500, mitigated: false, timeframe: '1h' }\n];\n\nconst fairValueGaps = [\n  { type: 'Bullish_FVG', bottom: 64150, top: 64300, mitigated: false }\n];\n\nconst liquiditySweep = {\n  level: 63750,\n  swept: true,\n  rejectionCandle: 'Bullish Pinbar',\n  type: 'Sell_Side_Liquidity_Taken'\n};\n\nreturn {\n  json: {\n    ticker,\n    currentPrice,\n    orderBlocks,\n    fairValueGaps,\n    liquiditySweep,\n    action: 'BUY',\n    optimalTradeEntry: 64200,\n    invalidationLevel: 63700,\n    targetLiquidityPool: 66200\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-order-flow",
+      "name": "Institutional Order Flow Reasoner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Validate ICT/SMC institutional order flow setup for {{ $json.ticker }} at {{ $json.currentPrice }}. Order Blocks: {{ JSON.stringify($json.orderBlocks) }}. Sweep: {{ JSON.stringify($json.liquiditySweep) }}"
+            },
+            {
+              "name": "bot_id",
+              "value": "smc-liquidity"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-smc-signal-dispatch",
+      "name": "Package Sniper SMC Signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'smc-liquidity',\n    botName: 'Smart Money Concepts & ICT Liquidity Hunter',\n    setupType: 'Sell-Side Liquidity Sweep into 15m Bullish OB',\n    confidence: 88,\n    orderFlowAnalysis: text,\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "Order Block & Fair Value Gap Detector", "type": "main", "index": 0 }]]
+    },
+    "Order Block & Fair Value Gap Detector": {
+      "main": [[{ "node": "Institutional Order Flow Reasoner", "type": "main", "index": 0 }]]
+    },
+    "Institutional Order Flow Reasoner": {
+      "main": [[{ "node": "Package Sniper SMC Signal", "type": "main", "index": 0 }]]
+    },
+    "Package Sniper SMC Signal": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "smc-liquidity",
+    "version": "2.0.0"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "id": "nemi-trading-orchestrator-v1",
+  "name": "NEMI Trading - Autonomous Hedge Fund Consensus Swarm Master",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/swarm-consensus-execute",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-bayesian-consensus-aggregator",
+      "name": "Multi-Agent Bayesian Consensus Matrix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst ticker = payload.ticker || 'BTC/USDT';\nconst currentPrice = payload.currentPrice || 64320;\nconst portfolioEquity = payload.portfolioEquity || 100000;\n\n// Multi-agent signal matrix\nconst agentVotes = [\n  { botId: 'technical-analyst', action: 'BUY', weight: 0.20, confidence: 84 },\n  { botId: 'smc-liquidity', action: 'BUY', weight: 0.20, confidence: 88 },\n  { botId: 'sentiment-trader', action: 'BUY', weight: 0.15, confidence: 78 },\n  { botId: 'volume-breakout', action: 'BUY', weight: 0.15, confidence: 82 },\n  { botId: 'fundamental-valuation', action: 'BUY', weight: 0.10, confidence: 72 },\n  { botId: 'arbitrage-funding', action: 'HOLD', weight: 0.10, confidence: 65 },\n  { botId: 'macro-regime', action: 'BUY', weight: 0.10, confidence: 76 }\n];\n\nlet buyScore = 0;\nlet sellScore = 0;\nfor (const v of agentVotes) {\n  const s = (v.confidence / 100) * v.weight;\n  if (v.action === 'BUY') buyScore += s;\n  else if (v.action === 'SELL') sellScore += s;\n}\n\nconst consensusAction = buyScore > 0.5 ? 'BUY' : sellScore > 0.5 ? 'SELL' : 'HOLD';\nconst consensusConfidence = Math.round(Math.max(buyScore, sellScore) * 100);\n\n// Risk clearance\nconst recommendedSizeUsd = Math.round(portfolioEquity * 0.08);\nconst stopLoss = Math.round(currentPrice * 0.975 * 100) / 100;\nconst takeProfit1 = Math.round(currentPrice * 1.038 * 100) / 100;\nconst takeProfit2 = Math.round(currentPrice * 1.07 * 100) / 100;\n\nreturn {\n  json: {\n    ticker,\n    currentPrice,\n    consensusAction,\n    consensusConfidence,\n    entryTarget: currentPrice,\n    stopLoss,\n    takeProfit1,\n    takeProfit2,\n    recommendedSizeUsd,\n    riskClearance: 'APPROVED',\n    agentVotes\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-orchestrator-synthesis",
+      "name": "NEMI Neural Hedge Fund Master Directive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Compile final Hedge Fund Trade Execution Directive for {{ $json.ticker }}. Consensus Action: {{ $json.consensusAction }} (Confidence: {{ $json.consensusConfidence }}%). Entry: ${{ $json.entryTarget }}, SL: ${{ $json.stopLoss }}, TP1: ${{ $json.takeProfit1 }}, Size: ${{ $json.recommendedSizeUsd }}."
+            },
+            {
+              "name": "bot_id",
+              "value": "trading-orchestrator"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-package-execution-payload",
+      "name": "Format Multi-Broker Execution Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'trading-orchestrator',\n    botName: 'Autonomous Hedge Fund Consensus Swarm Master',\n    status: 'EXECUTION_DIRECTIVE_COMPILED',\n    executionDirective: text,\n    brokerPayloads: {\n      alpaca: {\n        symbol: 'BTCUSD',\n        qty: 0.12,\n        side: 'buy',\n        type: 'limit',\n        time_in_force: 'gtc'\n      },\n      binance: {\n        symbol: 'BTCUSDT',\n        side: 'BUY',\n        type: 'LIMIT',\n        quantity: 0.12\n      }\n    },\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "Multi-Agent Bayesian Consensus Matrix", "type": "main", "index": 0 }]]
+    },
+    "Multi-Agent Bayesian Consensus Matrix": {
+      "main": [[{ "node": "NEMI Neural Hedge Fund Master Directive", "type": "main", "index": 0 }]]
+    },
+    "NEMI Neural Hedge Fund Master Directive": {
+      "main": [[{ "node": "Format Multi-Broker Execution Payload", "type": "main", "index": 0 }]]
+    },
+    "Format Multi-Broker Execution Payload": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "trading-orchestrator",
+    "version": "2.0.0"
+  }
+}

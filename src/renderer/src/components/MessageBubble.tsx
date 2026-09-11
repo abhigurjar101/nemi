@@ -742,8 +742,8 @@ export default function MessageBubble({
         <div className="max-w-[92%] sm:max-w-[85%] space-y-1">
           <div className="
             user-bubble rounded-2xl rounded-br-xs px-3.5 py-2
-            bg-gradient-to-br from-cyan-600/35 to-purple-600/25
-            border border-cyan-400/20 shadow-[0_2px_12px_rgba(0,212,255,0.08)]
+            bg-gradient-to-br from-cyan-600/30 via-cyan-600/20 to-purple-600/20 backdrop-blur-md
+            border border-cyan-400/25 shadow-[0_2px_12px_rgba(0,212,255,0.08)]
           ">
             <p className="text-xs text-white/95 leading-relaxed break-words">
               {renderInline(message.content)}
@@ -780,8 +780,8 @@ export default function MessageBubble({
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="
           glass-bubble rounded-2xl rounded-tl-xs px-3.5 py-2.5
-          bg-slate-900/60 backdrop-blur-md border border-white/8
-          shadow-[0_4px_16px_rgba(0,0,0,0.3)] space-y-1
+          bg-slate-900/35 backdrop-blur-md border border-white/10
+          shadow-[0_4px_16px_rgba(0,0,0,0.25)] space-y-1
         ">
           {/* Swarm Multi-Agent Collaboration Consensus Badge */}
           {message.collaboratingBots && message.collaboratingBots.length > 0 && !message.streaming && (

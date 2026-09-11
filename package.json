@@ -12,6 +12,10 @@
     "build:web": "vite build --config vite.config.web.ts",
     "dev:web": "vite --config vite.config.web.ts",
     "test": "vitest run",
+    "trader": "cd trader && ./.venv/bin/python3 main.py",
+    "trader:realtime": "cd trader && ./.venv/bin/python3 main.py --realtime",
+    "trader:server": "cd trader && ./.venv/bin/python3 main.py --server",
+    "trader:test": "cd trader && ./.venv/bin/python3 -m unittest discover -s tests -p 'test_*.py'",
     "preview": "electron-vite preview",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"

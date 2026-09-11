@@ -21,11 +21,22 @@ import {
   Paperclip,
   Upload,
   FileText,
+  Music,
+  Volume2,
+  VolumeX,
+  Eye,
+  Layout,
+  Radio,
 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import BotIcon from './BotIcon'
 import type { MemoryItem, ConversationSession, Message } from '../chatMemory'
 import { N8N_BOTS, type N8nBot } from '../types_bots'
+import {
+  isSoothingMusicActive,
+  toggleSoothingMusic,
+  setSoothingMusicActive,
+} from '../services/orbitalMusic'
 
 export type { Message }
 
@@ -149,6 +160,21 @@ export default function ChatPanel({
   // History search
   const [historySearch, setHistorySearch] = useState('')
 
+  // Crystal transparency & layout mode state
+  const [glassTransparency, setGlassTransparency] = useState<'crystal' | 'frosted'>('crystal')
+  const [panelPosition, setPanelPosition] = useState<'docked' | 'centered'>('docked')
+
+  // Mind-soothing music state (432Hz Zen Soundscape)
+  const [isMusicActive, setIsMusicActive] = useState(() => isSoothingMusicActive())
+  const [musicToast, setMusicToast] = useState<string | null>(null)
+
+  const handleToggleMusic = () => {
+    const next = toggleSoothingMusic()
+    setIsMusicActive(next)
+    setMusicToast(next ? '432Hz Zen Soundscape: Active' : 'Mind-Soothing Music: Paused')
+    setTimeout(() => setMusicToast(null), 3000)
+  }
+
   // Auto-scroll to latest message
   useEffect(() => {
     if (atBottom && activeTab === 'chat' && !isMinimized) {
@@ -231,10 +257,15 @@ export default function ChatPanel({
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           className={`
             fixed z-40 flex flex-col transition-all duration-300 ease-out
-            inset-x-0 bottom-0 sm:inset-x-auto sm:right-6 sm:bottom-6
+            ${panelPosition === 'centered'
+              ? 'inset-x-0 bottom-0 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-6'
+              : 'inset-x-0 bottom-0 sm:inset-x-auto sm:right-6 sm:bottom-6'
+            }
             ${isMinimized
-              ? 'w-full sm:w-[260px] h-14 sm:h-[46px]'
-              : 'w-full sm:w-[380px] md:w-[420px] h-[88dvh] sm:h-[540px] sm:max-h-[78vh]'
+              ? 'w-full sm:w-[280px] h-14 sm:h-[48px]'
+              : panelPosition === 'centered'
+              ? 'w-full sm:w-[560px] md:w-[620px] h-[88dvh] sm:h-[600px] sm:max-h-[82vh]'
+              : 'w-full sm:w-[390px] md:w-[430px] h-[88dvh] sm:h-[550px] sm:max-h-[78vh]'
             }
           `}
           onMouseEnter={() => window.nemi?.enterInteractiveMode()}
@@ -249,12 +280,15 @@ export default function ChatPanel({
           }}
           onDrop={handleDrop}
         >
-          {/* ── MINIMALIST GLASS CONTAINER ── */}
-          <div className="
+          {/* ── MINIMALIST CRYSTAL GLASS CONTAINER (TRANSPARENT TO SEE ROTATING BRAIN) ── */}
+          <div className={`
             relative w-full h-full flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden
-            bg-slate-950/95 sm:bg-slate-950/85 backdrop-blur-2xl border-t sm:border border-white/10
-            shadow-[0_-8px_32px_rgba(0,0,0,0.6),0_16px_48px_rgba(0,0,0,0.75)] select-none
-          ">
+            ${glassTransparency === 'crystal'
+              ? 'bg-slate-950/25 sm:bg-slate-950/20 backdrop-blur-md border-t sm:border border-white/20'
+              : 'bg-slate-950/45 sm:bg-slate-950/35 backdrop-blur-xl border-t sm:border border-white/15'
+            }
+            shadow-[0_-8px_32px_rgba(0,0,0,0.5),0_16px_48px_rgba(0,0,0,0.6),0_0_35px_rgba(0,212,255,0.08)] select-none
+          `}>
             {/* Mobile swipe/drag handle pill */}
             <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mt-2 mb-0.5 sm:hidden flex-shrink-0" />
 
@@ -301,6 +335,54 @@ export default function ChatPanel({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
+                {/* Mind-Soothing Music Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleMusic}
+                  aria-label={isMusicActive ? 'Pause mind-soothing music' : 'Play mind-soothing 432Hz music'}
+                  className={`
+                    px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer border
+                    ${isMusicActive
+                      ? 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                      : 'bg-white/5 hover:bg-white/10 text-white/50 border-white/10 hover:text-white/80'
+                    }
+                  `}
+                  title={isMusicActive ? 'Mind-Soothing 432Hz Music Playing (Click to Pause)' : 'Play Mind-Soothing 432Hz Zen Soundscape'}
+                >
+                  {isMusicActive ? (
+                    <div className="flex items-center gap-0.5 h-3">
+                      <span className="w-0.5 h-2.5 bg-emerald-400 animate-pulse rounded-full" />
+                      <span className="w-0.5 h-3.5 bg-emerald-300 animate-pulse delay-75 rounded-full" />
+                      <span className="w-0.5 h-2 bg-emerald-400 animate-pulse delay-150 rounded-full" />
+                    </div>
+                  ) : (
+                    <VolumeX className="w-3 h-3 text-white/40" />
+                  )}
+                  <span className="hidden xs:inline font-mono">{isMusicActive ? '432Hz' : 'Zen'}</span>
+                </button>
+
+                {/* Transparency Glass Mode Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setGlassTransparency((p) => (p === 'crystal' ? 'frosted' : 'crystal'))}
+                  aria-label={`Switch to ${glassTransparency === 'crystal' ? 'frosted' : 'crystal'} transparency`}
+                  className="p-1.5 rounded-xl text-white/40 hover:text-cyan-300 hover:bg-white/5 transition-all cursor-pointer"
+                  title={`Transparency: ${glassTransparency === 'crystal' ? 'Crystal Clear (See Brain Rotating)' : 'Frosted Glass'}`}
+                >
+                  <Eye className={`w-3.5 h-3.5 ${glassTransparency === 'crystal' ? 'text-cyan-400' : 'text-white/40'}`} strokeWidth={1.65} />
+                </button>
+
+                {/* Center / Right Dock Position Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setPanelPosition((p) => (p === 'docked' ? 'centered' : 'docked'))}
+                  aria-label={`Switch to ${panelPosition === 'docked' ? 'centered' : 'docked'} layout`}
+                  className="hidden sm:block p-1.5 rounded-xl text-white/40 hover:text-purple-300 hover:bg-white/5 transition-all cursor-pointer"
+                  title={panelPosition === 'docked' ? 'Center Chat over Rotating Brain' : 'Dock Chat to Right'}
+                >
+                  <Layout className={`w-3.5 h-3.5 ${panelPosition === 'centered' ? 'text-purple-400' : 'text-white/40'}`} strokeWidth={1.65} />
+                </button>
+
                 {/* Memory Vault Toggle */}
                 <button
                   type="button"
@@ -411,6 +493,20 @@ export default function ChatPanel({
                 {/* ── TAB 1: CHAT VIEW ── */}
                 {activeTab === 'chat' && (
                   <>
+                    {musicToast && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        className="mx-2.5 mt-2 px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-[11px] font-medium flex items-center justify-between shadow-[0_0_12px_rgba(16,185,129,0.2)] z-20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Music className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                          <span>{musicToast}</span>
+                        </div>
+                        <span className="text-[9px] font-mono text-emerald-300/70">432Hz Zen</span>
+                      </motion.div>
+                    )}
                     <div
                       className="flex-1 overflow-y-auto py-2.5 px-2.5 space-y-2.5 nemi-scroll z-10"
                       onScroll={(e) => {
@@ -600,18 +696,33 @@ export default function ChatPanel({
                           }}
                         />
 
-                        {/* Voice Dictation Button — automatically disappears when files are attached or uploading so it never obstructs upload! */}
-                        {onToggleVoice && attachedFiles.length === 0 && (
+                        {/* Quick Mind-Soothing Music Toggle */}
+                        <button
+                          type="button"
+                          onClick={handleToggleMusic}
+                          aria-label={isMusicActive ? 'Pause mind-soothing music' : 'Play mind-soothing music'}
+                          className={`p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 ${
+                            isMusicActive
+                              ? 'bg-emerald-500/20 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                              : 'text-white/35 hover:text-emerald-300 hover:bg-white/5'
+                          }`}
+                          title={isMusicActive ? 'Mind-soothing 432Hz music active (Click to pause)' : 'Turn on mind-soothing 432Hz ambient soundscape'}
+                        >
+                          <Music className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
+                        </button>
+
+                        {/* Voice Dictation Button — ALWAYS STUCK TO CHATBOX, CAN BE TURNED OFF AND ON */}
+                        {onToggleVoice && (
                           <button
                             type="button"
                             onClick={onToggleVoice}
                             aria-label={isListening ? 'Stop voice listening' : 'Dictate with microphone'}
                             className={`p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl transition-all cursor-pointer flex items-center justify-center flex-shrink-0 focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
                               isListening
-                                ? 'bg-red-500 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]'
-                                : 'text-white/35 hover:text-cyan-300 hover:bg-white/5'
+                                ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.6)] ring-2 ring-red-400/40'
+                                : 'text-white/40 hover:text-cyan-300 hover:bg-white/5'
                             }`}
-                            title={isListening ? 'Stop listening' : 'Dictate with mic'}
+                            title={isListening ? 'Voice listening active (Click to turn off)' : 'Turn on voice dictation'}
                           >
                             {isListening ? (
                               <MicOff className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.65} />
@@ -621,7 +732,7 @@ export default function ChatPanel({
                           </button>
                         )}
 
-                        {/* Send button */}
+                        {/* Send button — STUCK TO CHATBOX */}
                         <button
                           type="button"
                           onClick={handleSend}
@@ -630,7 +741,7 @@ export default function ChatPanel({
                           className={`
                             p-2.5 sm:p-2 min-h-[38px] min-w-[38px] sm:min-h-[32px] sm:min-w-[32px] rounded-xl flex items-center justify-center flex-shrink-0 transition-all focus-visible:ring-2 focus-visible:ring-purple-400/50
                             ${(input.trim() || attachedFiles.length > 0) && !isThinking
-                              ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-[0_0_12px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
+                              ? 'bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 text-white shadow-[0_0_15px_rgba(0,212,255,0.4)] cursor-pointer hover:scale-105 active:scale-95'
                               : 'text-white/20 cursor-not-allowed'
                             }
                           `}

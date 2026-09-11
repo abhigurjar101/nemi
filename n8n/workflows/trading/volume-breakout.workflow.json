@@ -1,0 +1,103 @@
+{
+  "id": "nemi-volume-breakout-v1",
+  "name": "NEMI Trading - Volume Anomaly & Breakout Hunter",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/volume-anomaly",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-volume-filter",
+      "name": "RVOL & Bollinger Squeeze Scanner",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst ticker = payload.ticker || 'SOL/USDT';\nconst currentVolume = payload.volume || 45000;\nconst avgVolume20 = payload.avgVolume || 12000;\nconst rvol = Math.round((currentVolume / avgVolume20) * 10) / 10;\nconst squeezeStatus = payload.squeeze || 'FIRED_LONG';\n\nconst isBreakout = rvol >= 2.5;\n\nreturn {\n  json: {\n    ticker,\n    rvol,\n    currentVolume,\n    squeezeStatus,\n    isBreakout,\n    action: isBreakout ? 'BUY' : 'HOLD',\n    breakoutVelocity: 'HIGH',\n    trailingStopAtr: 2.0\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-momentum-check",
+      "name": "Whale Accumulation Verifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Verify explosive momentum surge for {{ $json.ticker }}. RVOL: {{ $json.rvol }}x, Squeeze Status: {{ $json.squeezeStatus }}. Recommend position entry tactics."
+            },
+            {
+              "name": "bot_id",
+              "value": "volume-breakout"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-package-breakout-alert",
+      "name": "Package Breakout Scalp Signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'volume-breakout',\n    botName: 'Volume Anomaly & Breakout Hunter',\n    alert: 'EXPLOSIVE_VOLUME_EXPANSION',\n    momentumAnalysis: text,\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "RVOL & Bollinger Squeeze Scanner", "type": "main", "index": 0 }]]
+    },
+    "RVOL & Bollinger Squeeze Scanner": {
+      "main": [[{ "node": "Whale Accumulation Verifier", "type": "main", "index": 0 }]]
+    },
+    "Whale Accumulation Verifier": {
+      "main": [[{ "node": "Package Breakout Scalp Signal", "type": "main", "index": 0 }]]
+    },
+    "Package Breakout Scalp Signal": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "volume-breakout",
+    "version": "2.0.0"
+  }
+}

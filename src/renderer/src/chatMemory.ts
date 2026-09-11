@@ -173,6 +173,23 @@ export async function loadStoredMemories(): Promise<MemoryItem[]> {
   return initialMemories
 }
 
+export function getStoredMemoriesSync(): MemoryItem[] {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(MEMORIES_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to get stored memories synchronously:', err)
+  }
+  return []
+}
+
 export async function saveStoredMemories(memories: MemoryItem[]): Promise<void> {
   try {
     const serialized = JSON.stringify(memories)

@@ -157,13 +157,17 @@ function playZenChime(freq: number) {
   } catch {}
 }
 
+let manualSoothingMusicActive = false
+let soothingMusicVolume = 0.22
+
 /**
  * Updates soundscape parameters based on 3D camera distance to the ring.
  * Smoothly blends a soothing, meditative ambient presence.
  */
 export function updateOrbitalProximity(cameraDistance: number): number {
   // Gentle distance curve: 14 = silence, 10 = approaching, 4-7 = serene calm presence
-  const proximity = Math.max(0, Math.min(1, (13.0 - cameraDistance) / 8.0))
+  const rawProximity = Math.max(0, Math.min(1, (13.0 - cameraDistance) / 8.0))
+  const proximity = manualSoothingMusicActive ? Math.max(0.85, rawProximity) : rawProximity
 
   if (!isEngineRunning) {
     startOrbitalMusicEngine()
@@ -172,7 +176,7 @@ export function updateOrbitalProximity(cameraDistance: number): number {
   const ctx = getAudioContext()
   if (ctx && masterGain && masterFilter) {
     // Soothing, gentle volume level (up to 0.28 peak for serene relaxation)
-    const targetGain = Math.pow(proximity, 1.5) * 0.28
+    const targetGain = Math.pow(proximity, 1.5) * (manualSoothingMusicActive ? soothingMusicVolume : 0.28)
     const targetFilterFreq = 320 + Math.pow(proximity, 1.2) * 1200
 
     const now = ctx.currentTime
@@ -181,6 +185,51 @@ export function updateOrbitalProximity(cameraDistance: number): number {
   }
 
   return proximity
+}
+
+export function isSoothingMusicActive(): boolean {
+  return manualSoothingMusicActive
+}
+
+export function setSoothingMusicActive(active: boolean): boolean {
+  manualSoothingMusicActive = active
+  if (active) {
+    if (!isEngineRunning) {
+      startOrbitalMusicEngine()
+    }
+    const ctx = getAudioContext()
+    if (ctx && masterGain && masterFilter) {
+      const now = ctx.currentTime
+      masterGain.gain.setTargetAtTime(soothingMusicVolume, now, 0.3)
+      masterFilter.frequency.setTargetAtTime(750, now, 0.35)
+    }
+  } else {
+    const ctx = getAudioContext()
+    if (ctx && masterGain) {
+      const now = ctx.currentTime
+      masterGain.gain.setTargetAtTime(0.0001, now, 0.3)
+    }
+  }
+  return manualSoothingMusicActive
+}
+
+export function toggleSoothingMusic(forceState?: boolean): boolean {
+  const next = forceState !== undefined ? forceState : !manualSoothingMusicActive
+  return setSoothingMusicActive(next)
+}
+
+export function getSoothingMusicVolume(): number {
+  return soothingMusicVolume
+}
+
+export function setSoothingMusicVolume(vol: number): void {
+  soothingMusicVolume = Math.max(0, Math.min(1, vol))
+  if (manualSoothingMusicActive && masterGain) {
+    const ctx = getAudioContext()
+    if (ctx) {
+      masterGain.gain.setTargetAtTime(soothingMusicVolume, ctx.currentTime, 0.1)
+    }
+  }
 }
 
 export function stopOrbitalMusicEngine(): void {
@@ -197,4 +246,5 @@ export function stopOrbitalMusicEngine(): void {
   })
   padOscillators = []
   isEngineRunning = false
+  manualSoothingMusicActive = false
 }

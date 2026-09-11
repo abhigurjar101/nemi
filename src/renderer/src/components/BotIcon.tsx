@@ -16,6 +16,15 @@ import {
   Layers,
   Zap,
   Terminal,
+  TrendingUp,
+  LineChart,
+  CandlestickChart,
+  BarChart3,
+  Coins,
+  Scale,
+  Globe,
+  ShieldAlert,
+  Gauge,
   type LucideProps,
 } from 'lucide-react'
 
@@ -38,6 +47,17 @@ const BOT_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'ml-pipeline': Cpu,
   'n8n-manager': Workflow,
   'rag-bot': FolderGit2,
+  // 10 Algorithmic & AI Trading Agents
+  'sentiment-trader': TrendingUp,
+  'technical-analyst': LineChart,
+  'smc-liquidity': CandlestickChart,
+  'volume-breakout': BarChart3,
+  'fundamental-valuation': BookOpen,
+  'arbitrage-funding': Coins,
+  'statistical-arbitrage': Scale,
+  'macro-regime': Globe,
+  'risk-sentinel': ShieldAlert,
+  'trading-orchestrator': Gauge,
 }
 
 const NAME_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -57,6 +77,15 @@ const NAME_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'layers': Layers,
   'zap': Zap,
   'terminal': Terminal,
+  'trendingup': TrendingUp,
+  'linechart': LineChart,
+  'candlestickchart': CandlestickChart,
+  'barchart3': BarChart3,
+  'coins': Coins,
+  'scale': Scale,
+  'globe': Globe,
+  'shieldalert': ShieldAlert,
+  'gauge': Gauge,
 }
 
 export const BotIcon: React.FC<BotIconProps> = ({

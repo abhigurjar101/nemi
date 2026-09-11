@@ -1,0 +1,103 @@
+{
+  "id": "nemi-sentiment-trader-v1",
+  "name": "NEMI Trading - Market Sentiment & News Intelligence Agent",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/sentiment-stream",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-fetch-news-sentiment",
+      "name": "Financial News & RSS Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst ticker = payload.ticker || payload.symbol || 'BTC';\nconst rawHeadline = payload.headline || payload.news || 'Institutional inflows accelerate as ETF volume reaches record highs.';\nconst fearGreedIndex = payload.fearGreedIndex || 68;\n\nreturn {\n  json: {\n    ticker,\n    headline: rawHeadline,\n    fearGreedIndex,\n    source: payload.source || 'Bloomberg/CoinDesk',\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-sentiment-analysis",
+      "name": "FinBERT / LLM Sentiment Scorer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Score the following financial headline for {{ $json.ticker }} from -1.0 (ultra bearish) to +1.0 (ultra bullish). Headline: {{ $json.headline }}. Fear & Greed: {{ $json.fearGreedIndex }}"
+            },
+            {
+              "name": "bot_id",
+              "value": "sentiment-trader"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-sentiment-formatter",
+      "name": "Sentiment Signal & Urgency Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json;\nconst text = raw.content || raw.output || JSON.stringify(raw);\nconst polarity = text.toLowerCase().includes('bullish') ? 0.65 : text.toLowerCase().includes('bearish') ? -0.55 : 0.1;\nconst action = polarity > 0.3 ? 'BUY' : polarity < -0.3 ? 'SELL' : 'HOLD';\n\nreturn {\n  json: {\n    success: true,\n    botId: 'sentiment-trader',\n    botName: 'Market Sentiment & News Intelligence Agent',\n    action,\n    polarityScore: polarity,\n    urgencyRating: Math.abs(polarity) > 0.5 ? 'HIGH' : 'NORMAL',\n    confidence: Math.round(Math.abs(polarity) * 100),\n    analysis: text,\n    latencyMs: 110\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "Financial News & RSS Aggregator", "type": "main", "index": 0 }]]
+    },
+    "Financial News & RSS Aggregator": {
+      "main": [[{ "node": "FinBERT / LLM Sentiment Scorer", "type": "main", "index": 0 }]]
+    },
+    "FinBERT / LLM Sentiment Scorer": {
+      "main": [[{ "node": "Sentiment Signal & Urgency Engine", "type": "main", "index": 0 }]]
+    },
+    "Sentiment Signal & Urgency Engine": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "sentiment-trader",
+    "version": "2.0.0"
+  }
+}

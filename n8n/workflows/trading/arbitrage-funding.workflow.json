@@ -1,0 +1,103 @@
+{
+  "id": "nemi-arbitrage-funding-v1",
+  "name": "NEMI Trading - Crypto Arbitrage & Funding Rate Exploiter",
+  "active": true,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook Ingestion Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "path": "trading/arbitrage-scan",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-cross-exchange-calculator",
+      "name": "Funding Rate & Spatial Spread Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const payload = $input.first().json;\nconst pair = payload.pair || 'ETH/USDT';\nconst binanceFundingRate = payload.binanceFunding || 0.00035; // 0.035% per 8h\nconst bybitFundingRate = payload.bybitFunding || 0.00012;\n\n// Annualized carry APR = rate * 3 * 365 * 100\nconst annualizedAprBinance = Math.round(binanceFundingRate * 3 * 365 * 10000) / 100;\nconst annualizedAprBybit = Math.round(bybitFundingRate * 3 * 365 * 10000) / 100;\n\nconst spotBinance = 3450.20;\nconst spotCoinbase = 3462.50;\nconst grossSpread = ((spotCoinbase - spotBinance) / spotBinance) * 100;\nconst netSpread = grossSpread - 0.15; // after 0.075% maker/taker fee\n\nreturn {\n  json: {\n    pair,\n    binanceFundingRate,\n    annualizedAprBinance,\n    annualizedAprBybit,\n    spatialSpread: {\n      venueA: 'Binance',\n      priceA: spotBinance,\n      venueB: 'Coinbase',\n      priceB: spotCoinbase,\n      netSpreadPercent: Math.round(netSpread * 100) / 100\n    },\n    isCarryViable: annualizedAprBinance > 15,\n    isArbitrageViable: netSpread > 0.2\n  }\n};"
+      }
+    },
+    {
+      "id": "node-llm-arbitrage-verification",
+      "name": "Arbitrage Route & Slippage Verifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nemio.in/api/chat",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "=Verify delta-neutral carry trade for {{ $json.pair }}. Annualized APR: {{ $json.annualizedAprBinance }}%, Net Spread: {{ $json.spatialSpread.netSpreadPercent }}%. Formulate atomic execution steps."
+            },
+            {
+              "name": "bot_id",
+              "value": "arbitrage-funding"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-package-arbitrage-dispatch",
+      "name": "Package Arbitrage Execution Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const prev = $input.first().json;\nconst text = prev.content || prev.output || JSON.stringify(prev);\n\nreturn {\n  json: {\n    success: true,\n    botId: 'arbitrage-funding',\n    botName: 'Crypto Arbitrage & Funding Rate Exploiter',\n    strategy: 'DELTA_NEUTRAL_CASH_AND_CARRY',\n    executionPlan: text,\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingestion Trigger": {
+      "main": [[{ "node": "Funding Rate & Spatial Spread Engine", "type": "main", "index": 0 }]]
+    },
+    "Funding Rate & Spatial Spread Engine": {
+      "main": [[{ "node": "Arbitrage Route & Slippage Verifier", "type": "main", "index": 0 }]]
+    },
+    "Arbitrage Route & Slippage Verifier": {
+      "main": [[{ "node": "Package Arbitrage Execution Plan", "type": "main", "index": 0 }]]
+    },
+    "Package Arbitrage Execution Plan": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "nemi-trading-swarm",
+    "botId": "arbitrage-funding",
+    "version": "2.0.0"
+  }
+}

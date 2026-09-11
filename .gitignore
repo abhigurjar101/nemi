@@ -25,3 +25,6 @@ rag_data/
 *.db
 .vercel
 .env*
+trader/.venv/
+trader/logs/
+*.pyc
