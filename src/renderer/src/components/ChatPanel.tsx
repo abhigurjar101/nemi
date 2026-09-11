@@ -27,6 +27,7 @@ import {
   Eye,
   Layout,
   Radio,
+  TrendingUp,
 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import BotIcon from './BotIcon'
@@ -72,6 +73,7 @@ export interface ChatPanelProps {
   onFixCode?: (error: string, code: string) => void
   onToast?: (message: string) => void
   onOpenLearningHub?: () => void
+  onOpenTradingFleet?: () => void
 }
 
 type TabMode = 'chat' | 'memory' | 'history'
@@ -86,24 +88,29 @@ export default function ChatPanel({
   onClear,
   onSpeakMessage,
   isSpeakingText,
+  // Memory integration
   memories = [],
   onAddMemory,
   onDeleteMemory,
   onClearMemories,
+  // Conversation session management
   conversations = [],
   activeConversationId,
   onSelectConversation,
   onNewConversation,
   onDeleteConversation,
+  // Voice dictation
   isListening = false,
   transcript = '',
   onToggleVoice,
   modelBadge = 'NEURAL',
+  // Bot integration
   selectedBotId = 'orchestrator',
   onSelectBot,
   onFixCode,
   onToast,
   onOpenLearningHub,
+  onOpenTradingFleet,
 }: ChatPanelProps) {
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -360,6 +367,20 @@ export default function ChatPanel({
                   )}
                   <span className="hidden xs:inline font-mono">{isMusicActive ? 'Nature' : 'Mute'}</span>
                 </button>
+
+                {/* 1-Click Trading Cockpit Launch Button */}
+                {onOpenTradingFleet && (
+                  <button
+                    type="button"
+                    onClick={onOpenTradingFleet}
+                    aria-label="Open NEMI Trading Hub"
+                    className="px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-400/40 shadow-[0_0_8px_rgba(168,85,247,0.25)] hover:shadow-[0_0_12px_rgba(168,85,247,0.4)]"
+                    title="Open Simple 1-Click Trading Cockpit"
+                  >
+                    <TrendingUp className="w-3 h-3 text-emerald-400" />
+                    <span className="font-mono">Trade</span>
+                  </button>
+                )}
 
                 {/* Transparency Glass Mode Toggle */}
                 <button

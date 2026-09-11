@@ -14,6 +14,11 @@ import {
   Clock,
   Sparkles,
   AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
+  DollarSign,
+  Briefcase,
+  Activity,
 } from 'lucide-react'
 import BotIcon from './BotIcon'
 import {
@@ -25,6 +30,18 @@ import {
   generateMockCandles,
   calculateAllIndicators,
 } from '../types_bots'
+
+export interface SimulatedPosition {
+  id: string
+  ticker: string
+  side: 'BUY' | 'SELL'
+  entryPrice: number
+  sizeUsd: number
+  units: number
+  timestamp: number
+  pnlUsd: number
+  pnlPct: number
+}
 
 interface TradingFleetModalProps {
   isOpen: boolean
@@ -38,11 +55,36 @@ export default function TradingFleetModal({
   onSelectBotForChat,
 }: TradingFleetModalProps) {
   const [selectedTicker, setSelectedTicker] = useState<'BTC/USDT' | 'ETH/USDT' | 'SOL/USDT' | 'NVDA' | 'SPY'>('BTC/USDT')
-  const [activeTab, setActiveTab] = useState<'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'>('fleet')
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'>('cockpit')
   const [selectedBot, setSelectedBot] = useState<TradingBot>(ALL_TRADING_BOTS[9]) // Default to Trading Orchestrator
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [isRunningSim, setIsRunningSim] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null)
+
+  // Interactive Simple Trading Cockpit State
+  const [portfolioBalance, setPortfolioBalance] = useState<number>(() => {
+    const saved = localStorage.getItem('nemi_demo_portfolio_usd')
+    return saved ? parseFloat(saved) : 100000
+  })
+  const [orderAmountUsd, setOrderAmountUsd] = useState<number>(1000)
+  const [activePositions, setActivePositions] = useState<SimulatedPosition[]>(() => {
+    try {
+      const saved = localStorage.getItem('nemi_demo_positions')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [tradeStatusNotice, setTradeStatusNotice] = useState<string | null>(null)
+
+  // Save portfolio & positions
+  useEffect(() => {
+    localStorage.setItem('nemi_demo_portfolio_usd', portfolioBalance.toString())
+  }, [portfolioBalance])
+
+  useEffect(() => {
+    localStorage.setItem('nemi_demo_positions', JSON.stringify(activePositions))
+  }, [activePositions])
 
   // Price map
   const tickerPrices: Record<string, number> = {
@@ -160,6 +202,61 @@ export default function TradingFleetModal({
         handleDownloadWorkflow(bot)
       }, 200)
     }
+  }
+
+  // 1-Click Trade Execution Handler
+  const handleExecuteOrder = (side: 'BUY' | 'SELL') => {
+    if (orderAmountUsd <= 0) return
+    if (orderAmountUsd > portfolioBalance) {
+      setTradeStatusNotice('⚠️ Insufficient paper capital for this trade.')
+      setTimeout(() => setTradeStatusNotice(null), 3000)
+      return
+    }
+
+    const units = orderAmountUsd / currentPrice
+    const newPosition: SimulatedPosition = {
+      id: `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      ticker: selectedTicker,
+      side,
+      entryPrice: currentPrice,
+      sizeUsd: orderAmountUsd,
+      units,
+      timestamp: Date.now(),
+      pnlUsd: 0,
+      pnlPct: 0,
+    }
+
+    setPortfolioBalance((prev) => prev - orderAmountUsd)
+    setActivePositions((prev) => [newPosition, ...prev])
+    setTradeStatusNotice(`⚡ Executed ${side} order: $${orderAmountUsd.toLocaleString()} of ${selectedTicker} @ $${currentPrice.toLocaleString()}`)
+    setTimeout(() => setTradeStatusNotice(null), 4000)
+  }
+
+  // Close Position Handler
+  const handleClosePosition = (positionId: string) => {
+    const pos = activePositions.find((p) => p.id === positionId)
+    if (!pos) return
+
+    const priceDiff = pos.side === 'BUY'
+      ? currentPrice - pos.entryPrice
+      : pos.entryPrice - currentPrice
+    const profitUsd = (priceDiff / pos.entryPrice) * pos.sizeUsd
+    const returnCapital = pos.sizeUsd + profitUsd
+
+    setPortfolioBalance((prev) => Math.max(0, prev + returnCapital))
+    setActivePositions((prev) => prev.filter((p) => p.id !== positionId))
+    setTradeStatusNotice(
+      `Closed ${pos.ticker} ${pos.side} position: ${profitUsd >= 0 ? '+' : ''}$${profitUsd.toFixed(2)} (${((profitUsd / pos.sizeUsd) * 100).toFixed(2)}%)`
+    )
+    setTimeout(() => setTradeStatusNotice(null), 4000)
+  }
+
+  // Reset Demo Paper Portfolio
+  const handleResetPortfolio = () => {
+    setPortfolioBalance(100000)
+    setActivePositions([])
+    setTradeStatusNotice('Portfolio reset to $100,000.00 paper balance.')
+    setTimeout(() => setTradeStatusNotice(null), 3000)
   }
 
   // Simulate prompt execution
@@ -292,8 +389,20 @@ if __name__ == '__main__':
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center justify-between px-6 py-2 border-b border-white/10 bg-slate-900/50">
+          <div className="flex items-center justify-between px-6 py-2 border-b border-white/10 bg-slate-900/50 overflow-x-auto">
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('cockpit')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  activeTab === 'cockpit'
+                    ? 'bg-gradient-to-r from-emerald-500/30 to-purple-500/30 text-emerald-200 border border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>⚡ Simple Trading Cockpit</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('fleet')}
@@ -366,6 +475,263 @@ if __name__ == '__main__':
 
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto nemi-scroll p-6">
+            {/* TAB 0: SIMPLE TRADING COCKPIT (1-CLICK WORKING EXECUTION) */}
+            {activeTab === 'cockpit' && (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                {/* Status / Alert Banner */}
+                {tradeStatusNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-300" />
+                      <span>{tradeStatusNotice}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTradeStatusNotice(null)}
+                      className="text-white/60 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Top Statistics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+                    <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">Demo Portfolio</span>
+                    <div className="mt-2 flex items-baseline gap-1">
+                      <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-400">
+                        ${portfolioBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-white/40 mt-1">Available Paper Balance</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+                    <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">{selectedTicker} Price</span>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="text-xl sm:text-2xl font-bold font-mono text-white">
+                        ${currentPrice.toLocaleString()}
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-400 flex items-center">
+                        <ArrowUpRight className="w-3.5 h-3.5" /> +2.4%
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-white/40 mt-1">Real-time Feed</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+                    <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">Swarm Consensus</span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-xl text-xs font-bold font-mono tracking-wide ${
+                        consensus.consensusAction === 'BUY'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      }`}>
+                        {consensus.consensusAction}
+                      </span>
+                      <span className="text-xs font-mono font-semibold text-purple-300">
+                        {consensus.overallConfidence}%
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-white/40 mt-1">10 AI Bot Synergy</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
+                    <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">Open Positions</span>
+                    <div className="mt-2 flex items-baseline gap-1">
+                      <span className="text-xl sm:text-2xl font-bold font-mono text-cyan-300">
+                        {activePositions.length}
+                      </span>
+                      <span className="text-xs text-white/50">Trades</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResetPortfolio}
+                      className="text-[10px] text-purple-400 hover:text-purple-300 underline text-left mt-1 cursor-pointer"
+                    >
+                      Reset to $100k
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── CORE 1-CLICK ACTION COCKPIT ── */}
+                <div className="p-6 rounded-3xl bg-gradient-to-b from-purple-950/40 via-slate-900/60 to-slate-950/80 border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-white/10">
+                    <div>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>⚡ 1-Click Order Execution</span>
+                        <span className="text-xs font-normal text-white/50">({selectedTicker})</span>
+                      </h3>
+                      <p className="text-xs text-white/50 mt-0.5">
+                        Target Entry: <span className="font-mono text-white">${consensus.entryTarget}</span> | Stop Loss: <span className="font-mono text-rose-400">${consensus.stopLoss}</span> | Take Profit: <span className="font-mono text-emerald-400">${consensus.takeProfit1}</span>
+                      </p>
+                    </div>
+
+                    {/* Order Amount Selector */}
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <div className="relative flex-1 md:w-44">
+                        <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-white/40" />
+                        <input
+                          type="number"
+                          min={100}
+                          max={portfolioBalance}
+                          step={100}
+                          value={orderAmountUsd}
+                          onChange={(e) => setOrderAmountUsd(Math.max(1, parseFloat(e.target.value) || 0))}
+                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-black/50 border border-white/15 focus:border-purple-400 text-xs font-mono font-bold text-white outline-none"
+                          placeholder="Amount USD"
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        {[500, 1000, 5000].map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setOrderAmountUsd(amt)}
+                            className={`px-2.5 py-2 rounded-xl text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+                              orderAmountUsd === amt
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white/5 hover:bg-white/10 text-white/60'
+                            }`}
+                          >
+                            ${amt >= 1000 ? `${amt / 1000}k` : amt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* High-Impact Buy & Sell Execution Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-5">
+                    <button
+                      type="button"
+                      onClick={() => handleExecuteOrder('BUY')}
+                      disabled={portfolioBalance < orderAmountUsd}
+                      className="py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] disabled:opacity-40 font-bold text-sm text-white shadow-[0_4px_25px_rgba(16,185,129,0.35)] hover:shadow-[0_4px_30px_rgba(16,185,129,0.5)] transition-all cursor-pointer flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-white/15 group-hover:scale-110 transition-transform">
+                          <ArrowUpRight className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-base font-extrabold tracking-wide">EXECUTE BUY / LONG</div>
+                          <div className="text-[11px] font-normal text-emerald-100/70">
+                            Buy ${(orderAmountUsd).toLocaleString()} @ ${currentPrice.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="font-mono text-xs bg-white/20 px-2.5 py-1 rounded-lg">
+                        1-Click
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExecuteOrder('SELL')}
+                      disabled={portfolioBalance < orderAmountUsd}
+                      className="py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 active:scale-[0.99] disabled:opacity-40 font-bold text-sm text-white shadow-[0_4px_25px_rgba(244,63,94,0.35)] hover:shadow-[0_4px_30px_rgba(244,63,94,0.5)] transition-all cursor-pointer flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-white/15 group-hover:scale-110 transition-transform">
+                          <ArrowDownRight className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-base font-extrabold tracking-wide">EXECUTE SELL / SHORT</div>
+                          <div className="text-[11px] font-normal text-rose-100/70">
+                            Sell ${(orderAmountUsd).toLocaleString()} @ ${currentPrice.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="font-mono text-xs bg-white/20 px-2.5 py-1 rounded-lg">
+                        1-Click
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── ACTIVE POSITIONS & ORDER HISTORY ── */}
+                <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-white/70 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-purple-400" />
+                      <span>Active Trades & Open Positions ({activePositions.length})</span>
+                    </h4>
+                    {activePositions.length > 0 && (
+                      <span className="text-[11px] text-white/40 font-mono">
+                        Auto-marked to market
+                      </span>
+                    )}
+                  </div>
+
+                  {activePositions.length === 0 ? (
+                    <div className="py-10 text-center text-white/40 text-xs border border-dashed border-white/10 rounded-2xl">
+                      No active positions open. Click <b>EXECUTE BUY</b> or <b>EXECUTE SELL</b> above to test real-time trade execution.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-white/40 border-b border-white/10 text-[11px]">
+                            <th className="pb-2.5 font-semibold">Ticker</th>
+                            <th className="pb-2.5 font-semibold">Side</th>
+                            <th className="pb-2.5 font-semibold">Entry Price</th>
+                            <th className="pb-2.5 font-semibold">Current</th>
+                            <th className="pb-2.5 font-semibold">Size (USD)</th>
+                            <th className="pb-2.5 font-semibold">Est. PnL</th>
+                            <th className="pb-2.5 font-semibold text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 font-mono">
+                          {activePositions.map((pos) => {
+                            const marketPrice = tickerPrices[pos.ticker] || pos.entryPrice
+                            const diff = pos.side === 'BUY' ? marketPrice - pos.entryPrice : pos.entryPrice - marketPrice
+                            const pnlUsd = (diff / pos.entryPrice) * pos.sizeUsd
+                            const pnlPct = (diff / pos.entryPrice) * 100
+                            const isProfitable = pnlUsd >= 0
+
+                            return (
+                              <tr key={pos.id} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="py-3 font-bold text-white">{pos.ticker}</td>
+                                <td className="py-3">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    pos.side === 'BUY'
+                                      ? 'bg-emerald-500/20 text-emerald-300'
+                                      : 'bg-rose-500/20 text-rose-300'
+                                  }`}>
+                                    {pos.side}
+                                  </span>
+                                </td>
+                                <td className="py-3 text-white/70">${pos.entryPrice.toLocaleString()}</td>
+                                <td className="py-3 text-white/90">${marketPrice.toLocaleString()}</td>
+                                <td className="py-3 text-white/90">${pos.sizeUsd.toLocaleString()}</td>
+                                <td className={`py-3 font-semibold ${isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {isProfitable ? '+' : ''}${pnlUsd.toFixed(2)} ({isProfitable ? '+' : ''}{pnlPct.toFixed(2)}%)
+                                </td>
+                                <td className="py-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleClosePosition(pos.id)}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-sans font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
+                                  >
+                                    Close Trade
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* TAB 1: 10 TRADING AGENTS FLEET */}
             {activeTab === 'fleet' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

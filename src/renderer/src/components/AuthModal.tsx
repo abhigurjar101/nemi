@@ -76,18 +76,21 @@ export default function AuthModal({
     setSuccessMsg('')
   }
 
-  // Official Google Identity Services Client ID (Configurable via env or Google Cloud Console)
-  const GOOGLE_CLIENT_ID =
-    (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-    '1087428807865-v3g7k9q8m2g6l4n9v5r8f0o4j1h2m3n4.apps.googleusercontent.com'
+  // Check if a real, valid Google Client ID is configured in environment
+  const rawClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || ''
+  const isGoogleClientConfigured =
+    rawClientId &&
+    !rawClientId.includes('v3g7k9q8m2g6l4n9v5r8f0o4j1h2m3n4') &&
+    rawClientId.endsWith('.apps.googleusercontent.com')
+  const GOOGLE_CLIENT_ID = isGoogleClientConfigured ? rawClientId : ''
 
   const [showGoogleInputModal, setShowGoogleInputModal] = useState(false)
   const [googleEmailInput, setGoogleEmailInput] = useState('')
   const googleBtnRef = React.useRef<HTMLDivElement>(null)
 
-  // Initialize official Google Identity Services button if available
+  // Initialize official Google Identity Services button ONLY if a verified real Client ID is available
   React.useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !GOOGLE_CLIENT_ID) return
 
     const initGsi = () => {
       const google = (window as any).google
@@ -123,7 +126,7 @@ export default function AuthModal({
     initGsi()
     const timer = setTimeout(initGsi, 500)
     return () => clearTimeout(timer)
-  }, [isOpen, mode])
+  }, [isOpen, mode, GOOGLE_CLIENT_ID])
 
   // Handle Google Credential (JWT) returned from official GSI
   const handleGoogleCredential = async (credential: string) => {
@@ -174,13 +177,12 @@ export default function AuthModal({
 
   // Handle Google Authentication (One-click sign-in or register with Gmail)
   const handleGoogleAuth = async (googleEmail?: string, googleName?: string) => {
-    // If official Google GSI is loaded and has client ID, trigger the official prompt
+    // If official Google GSI is loaded AND a valid real client ID exists, trigger prompt
     const google = (window as any).google
-    if (google?.accounts?.id && !googleEmail) {
+    if (GOOGLE_CLIENT_ID && google?.accounts?.id && !googleEmail) {
       try {
         google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // If prompt wasn't displayed (e.g. FedCM or 3rd party cookie block), open authentic Google sheet
             setShowGoogleInputModal(true)
           }
         })

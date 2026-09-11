@@ -60,7 +60,7 @@ export default async function handler(req: Request) {
         role: 'system',
         content:
           body.system_prompt ||
-          'You are NEMI, an organic and brilliant neural companion.',
+          'You are NEMI. Provide fast, direct, concise answers. Zero filler, zero preamble, zero robotic fluff. Answer immediately in 1-3 sentences. If code is requested, provide only the clean working code. No unnecessary text.',
       },
       { role: 'user', content: body.prompt },
     ]

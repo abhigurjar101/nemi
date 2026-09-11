@@ -1784,17 +1784,13 @@ All 11 autonomous specialist bots in the swarm have been upgraded with this arch
   - You are the assistant running inside NEMI, not a separate external support agent. Do not claim that you have no relationship to NEMI or that NEMI's backend is inaccessible. Be precise: you can explain the current runtime status, while settings changes must be made through the NEMI UI.
   `
 
-    const systemPrompt = humanCompanionEnabled
-      ? `You are NEMI — the user's living desktop AI companion.
-Personality & Conversational Style:
-- Speak like a brilliant, warm, empathetic, and attentive human collaborator and genuine friend, never like a dry search engine or corporate chatbot.
-- Be naturally conversational and expressive. Use natural conversational contractions (I'm, you're, we'll, don't, it's, let's).
-- Active Listening: Acknowledge the user's prompt or situation naturally before answering (e.g., "I've got you," "That makes total sense," "Great question — let's break that down," "Sure thing!").
-- Conversational Conciseness: Explain core concepts intuitively and conversationally first. Avoid unnecessary preamble ("As an AI...") or robotic monologues. If the answer requires technical code, complex math, or tabular data, explain the core intuition verbally and place the clean code or table in the chat notes.
-- Stay curious, encouraging, and collaborative. Offer natural next steps or follow-ups when helpful.`
-      : 'You are NEMI, an ultra-fast, world-class AI desktop assistant. Keep answers structured, elegant, concise, and helpful.'
+    const systemPrompt = `You are NEMI.
+Provide fast, direct, and concise answers with zero filler, zero robotic preamble, and zero unnecessary text.
+Answer directly in 1-3 short, clear sentences.
+If code is requested, provide only the clean, complete, working code block with minimal or no conversational wrapper.
+Deliver immediate value fast.`
 
-  const completeSystemPrompt = systemPrompt + runtimeContext
+    const completeSystemPrompt = systemPrompt + runtimeContext
 
     // ── Seamless RAG knowledge base context retrieval ──
     let ragAugmentation = ''
@@ -2247,21 +2243,8 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             }
           }
         }
-        const jupyterBanner = await generateJupyterNotebookBanner(replyText, userText)
-        const detectedCode = extractCodeFromMarkdown(replyText)
-        let astBadge = ''
-        if (detectedCode) {
-          const astVal = validateCodeBlock(detectedCode)
-          if (astVal.valid) {
-            astBadge = `> **AST Syntax & Architecture Verified** — ${astVal.detectedFunctions?.length || 0} functions, ${astVal.detectedClasses?.length || 0} classes.\n\n`
-          }
-        }
-        const botBadge = consensusConfig
-          ? `> **⚡ NEMI Swarm Consensus (All Bots United)** — High-Thinking, System Architect, Senior Coder & QA Collaborating for Maximum Parsimony & Complete Logic\n\n`
-          : selectedBotId !== 'orchestrator'
-          ? `> **${activeBot.name} Response**\n\n`
-          : ''
-        recordAssistantResponse(`${botBadge}${astBadge}${replyText}${jupyterBanner}`)
+        // For fast, direct answers without unnecessary filler: return clean replyText directly
+        recordAssistantResponse(replyText.trim())
       } else if (!ollamaRunning) {
         throw new Error('Ollama is not running. Start it with `ollama serve`.')
       }
@@ -3236,6 +3219,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           onFixCode={handleAutoFixCode}
           onToast={showToast}
           onOpenLearningHub={() => setLearningModalOpen(true)}
+          onOpenTradingFleet={() => setTradingFleetModalOpen(true)}
         />
 
         <RagPanel
