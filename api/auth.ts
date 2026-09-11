@@ -424,8 +424,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return
       }
 
-      // ── ACTION: SIGN UP VIA EMAIL ──
-      if (action === 'signup') {
+      // ── ACTION: SIGN UP / REGISTER VIA EMAIL ──
+      if (action === 'signup' || action === 'register') {
         if (!email || !email.includes('@')) {
           res.statusCode = 400
           res.end(JSON.stringify({ success: false, error: 'Please provide a valid email address.' }))
