@@ -140,7 +140,7 @@ function createWindow(): void {
 
   // Hide first so macOS never exposes the native background during close.
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (!(app as any).isQuitting) {
       event.preventDefault()
       mainWindow?.hide()
     }

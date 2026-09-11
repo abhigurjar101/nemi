@@ -10,8 +10,8 @@ import {
   type HardestProblem,
   type ProblemCategory,
   type ProblemBenchmarkResult,
-} from '../../../n8n'
-import { buildNotebookFromResponse, openGoogleColab } from '../utils/jupyter'
+} from '../../../../n8n'
+import { buildNotebookFromResponse, openInGoogleColab } from '../utils/jupyter'
 
 interface Hardest100BenchmarkModalProps {
   isOpen: boolean
@@ -50,7 +50,7 @@ export default function Hardest100BenchmarkModal({
       prompt: `${prob.title}: ${prob.description}`,
       responseText: `\`\`\`python\n${prob.canonicalSolution}\n\n# Verification Test\n${prob.verificationAssertion}\n\`\`\``,
     })
-    openGoogleColab(nb)
+    openInGoogleColab(nb)
   }
 
   const filteredProblems = useMemo(() => {

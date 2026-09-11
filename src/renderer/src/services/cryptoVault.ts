@@ -40,7 +40,7 @@ export async function deriveKeyFromPassphrase(
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: saltBytes,
+      salt: saltBytes as unknown as BufferSource,
       iterations,
       hash: 'SHA-256',
     },

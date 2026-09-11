@@ -21,12 +21,13 @@ import {
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
   FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search, Trophy,
-  TrendingUp, Music, MoreHorizontal,
+  TrendingUp, Music, MoreHorizontal, Code2,
 } from 'lucide-react'
 import {
   toggleSoothingMusic,
   isSoothingMusicActive,
   subscribeSoothingMusic,
+  setSoothingMusicActive,
 } from './services/orbitalMusic'
 import BotIcon from './components/BotIcon'
 import CommandPalette from './components/CommandPalette'
@@ -860,7 +861,7 @@ export default function App() {
   }, [])
 
   // ── Refs ──
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<any>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const audioStreamRef = useRef<MediaStream | null>(null)
@@ -1416,7 +1417,7 @@ export default function App() {
         setTranscript('Listening... speak now')
       }
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onresult = (event: any) => {
         let interim = ''
         let final = ''
         for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -3556,7 +3557,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         onClose={() => setTradingFleetModalOpen(false)}
         onSelectBotForChat={(botId, prompt) => {
           setSelectedBotId(botId)
-          if (prompt) setInputValue(prompt)
+          if (prompt) void sendToAI(prompt)
           setChatOpen(true)
         }}
       />

@@ -31,9 +31,9 @@ export function evaluateProblemCode(problem: HardestProblem): ProblemBenchmarkRe
     codeLines: density.codeLines,
     commentLines: density.commentLines,
     codeDensityPercent: density.densityPercent,
-    syntaxValid: ast.valid && ast.balancedDelimiters,
+    syntaxValid: Boolean(ast.valid && ast.balancedDelimiters),
     hasPlaceholders,
-    verificationPassed: ast.valid && ast.balancedDelimiters && !hasPlaceholders,
+    verificationPassed: Boolean(ast.valid && ast.balancedDelimiters && !hasPlaceholders),
     optimalComplexity: problem.optimalComplexity,
     code: cleanedCode,
   }

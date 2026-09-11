@@ -100,6 +100,16 @@ export class HNSWVectorIndex {
     return this.documents.size
   }
 
+  public upsertMemory(mem: { id: string; text?: string; content?: string; metadata?: Record<string, any>; timestamp?: number }): void {
+    const text = mem.content || mem.text || ''
+    this.addDocument({
+      id: mem.id,
+      content: text,
+      metadata: mem.metadata,
+      timestamp: mem.timestamp || Date.now(),
+    })
+  }
+
   public addDocument(doc: VectorDocument): void {
     const vec = doc.vector || computeLocalEmbedding(doc.content, this.dimensions)
     this.documents.set(doc.id, { ...doc, vector: vec, timestamp: doc.timestamp || Date.now() })

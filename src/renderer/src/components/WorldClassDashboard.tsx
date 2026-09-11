@@ -32,6 +32,7 @@ import {
   Music,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react'
 import { dailyLearningFeed, DailyFeedStatus } from '../services/dailyLearningFeed'
 import {

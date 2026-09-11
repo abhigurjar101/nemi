@@ -482,7 +482,7 @@ export class CompiledStateGraph<T extends Record<string, any>> {
   ) {}
 
   async invoke(initialState: T, resumeFrom?: string): Promise<T> {
-    const state: T = { ...initialState }
+    const state: any = { ...initialState }
     const threadId = state.taskId || state.threadId || `thread_${Date.now()}`
     let currentNode: string = resumeFrom || this.entryPoint
     let steps = state.stepCount || 0

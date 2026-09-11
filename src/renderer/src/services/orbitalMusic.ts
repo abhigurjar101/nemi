@@ -26,9 +26,6 @@ function getAudioContext(): AudioContext | null {
         audioCtx = new AudioCtxClass()
       }
     }
-    if (audioCtx && audioCtx.state === 'suspended') {
-      void audioCtx.resume()
-    }
     return audioCtx
   } catch {
     return null
@@ -218,23 +215,17 @@ function playZenChime(freq: number) {
 let manualSoothingMusicActive = false
 let soothingMusicVolume = 0.35
 
-// Auto-start & auto-resume audio upon any user gesture for seamless background playback
+// Auto-resume audio upon user gesture for seamless background playback
 if (typeof window !== 'undefined') {
-  const autoStartAndResume = () => {
-    if (!isEngineRunning) {
-      startOrbitalMusicEngine()
-      setSoothingMusicActive(true)
-    }
+  const autoResumeAudio = () => {
     if (audioCtx && audioCtx.state === 'suspended') {
-      void audioCtx.resume()
+      audioCtx.resume().catch(() => {})
     }
   }
-  window.addEventListener('click', autoStartAndResume, { passive: true })
-  window.addEventListener('pointerdown', autoStartAndResume, { passive: true })
-  window.addEventListener('touchstart', autoStartAndResume, { passive: true })
-  window.addEventListener('keydown', autoStartAndResume, { passive: true })
-  window.addEventListener('wheel', autoStartAndResume, { passive: true })
-  window.addEventListener('mousemove', autoStartAndResume, { passive: true, once: true })
+  window.addEventListener('click', autoResumeAudio, { passive: true })
+  window.addEventListener('pointerdown', autoResumeAudio, { passive: true })
+  window.addEventListener('touchstart', autoResumeAudio, { passive: true })
+  window.addEventListener('keydown', autoResumeAudio, { passive: true })
 }
 
 /**
@@ -246,8 +237,8 @@ export function updateOrbitalProximity(cameraDistance: number): number {
   const rawProximity = Math.max(0, Math.min(1, (13.0 - cameraDistance) / 8.0))
   const proximity = manualSoothingMusicActive ? Math.max(0.85, rawProximity) : rawProximity
 
-  if (!isEngineRunning) {
-    startOrbitalMusicEngine()
+  if (!isEngineRunning || !audioCtx || audioCtx.state !== 'running') {
+    return proximity
   }
 
   const ctx = getAudioContext()

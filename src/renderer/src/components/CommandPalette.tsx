@@ -26,7 +26,7 @@ export interface CommandPaletteAction {
   id: string
   title: string
   subtitle: string
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon: React.ComponentType<any>
   category: 'Bots' | 'Notebooks' | 'Tools' | 'Actions'
   badge?: string
   run: () => void

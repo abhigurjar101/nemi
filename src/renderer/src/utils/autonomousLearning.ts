@@ -1,5 +1,5 @@
 import type { MemoryItem } from '../chatMemory'
-import { uid, saveStoredMemories } from '../chatMemory'
+import { uid, saveStoredMemories, getStoredMemoriesSync } from '../chatMemory'
 import {
   GITHUB_ARCHITECTURE_BLUEPRINTS,
   type GitHubArchitectureBlueprint,
@@ -78,13 +78,14 @@ export async function recordAutonomousLearning(params: {
   executedCode?: string
   executionSuccess?: boolean
   executionError?: string
-  existingMemories: MemoryItem[]
+  existingMemories?: MemoryItem[]
 }): Promise<{
   learned: boolean
   newMemory?: MemoryItem
   allMemories: MemoryItem[]
 }> {
-  const { botId, userQuery, responseText, executedCode, executionSuccess, executionError, existingMemories } = params
+  const { botId, userQuery, responseText, executedCode, executionSuccess, executionError } = params
+  const existingMemories = params.existingMemories || getStoredMemoriesSync()
   const topic = extractTopicFromText(userQuery + ' ' + (executedCode || responseText).slice(0, 300))
 
   let memoryContent = ''
