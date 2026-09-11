@@ -12,6 +12,10 @@ let isEngineRunning = false
 let padOscillators: OscillatorNode[] = []
 let lfoOsc: OscillatorNode | null = null
 let zenChimeTimer: any = null
+let natureSourceNode: AudioBufferSourceNode | null = null
+let natureFilter: BiquadFilterNode | null = null
+let natureGain: GainNode | null = null
+let natureLfo: OscillatorNode | null = null
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -29,6 +33,31 @@ function getAudioContext(): AudioContext | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Creates 6 seconds of organic Brownian/pink noise for realistic
+ * ocean waves and forest breeze nature soundscape.
+ */
+function createNatureNoiseBuffer(ctx: AudioContext): AudioBuffer {
+  const bufferSize = ctx.sampleRate * 6
+  const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate)
+  for (let channel = 0; channel < 2; channel++) {
+    const data = buffer.getChannelData(channel)
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1
+      b0 = 0.99886 * b0 + white * 0.0555179
+      b1 = 0.99332 * b1 + white * 0.0750759
+      b2 = 0.96900 * b2 + white * 0.1538520
+      b3 = 0.86650 * b3 + white * 0.3104856
+      b4 = 0.55000 * b4 + white * 0.5329522
+      b5 = -0.7616 * b5 - white * 0.0168980
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.05
+      b6 = white * 0.115926
+    }
+  }
+  return buffer
 }
 
 // 432 Hz Calm Harmonic Tuning (Golden Ratio / Meditative Pentatonic)
@@ -55,16 +84,16 @@ export function startOrbitalMusicEngine(): boolean {
     masterGain = ctx.createGain()
     masterGain.gain.setValueAtTime(0.0001, now)
 
-    // Warm, silky low-pass filter (warm acoustic clarity around 850Hz)
+    // Warm, silky low-pass filter (warm acoustic clarity around 780Hz)
     masterFilter = ctx.createBiquadFilter()
     masterFilter.type = 'lowpass'
-    masterFilter.frequency.setValueAtTime(850, now)
-    masterFilter.Q.setValueAtTime(1.0, now)
+    masterFilter.frequency.setValueAtTime(780, now)
+    masterFilter.Q.setValueAtTime(0.9, now)
 
     masterGain.connect(masterFilter)
     masterFilter.connect(compressor)
 
-    // 2. Meditative Deep Ambient Pads (Pure warm sine & soft harmonic blend)
+    // 2. Meditative Deep Ambient 432Hz Pads (Pure warm sine & soft harmonic blend)
     padOscillators = CALM_PAD_FREQS.map((freq, idx) => {
       const osc = ctx.createOscillator()
       const oscGain = ctx.createGain()
@@ -72,26 +101,56 @@ export function startOrbitalMusicEngine(): boolean {
       osc.frequency.setValueAtTime(freq, now)
 
       // Micro-detuning for lush analog shimmer and warmth
-      const microDetune = (idx - 2) * 1.5
+      const microDetune = (idx - 2) * 1.2
       osc.detune.setValueAtTime(microDetune, now)
 
-      oscGain.gain.setValueAtTime(0.12 / (idx + 1), now)
+      oscGain.gain.setValueAtTime(0.1 / (idx + 1), now)
       osc.connect(oscGain)
       oscGain.connect(masterGain!)
       osc.start(now)
       return osc
     })
 
-    // 3. Slow 7-second Oceanic Breathing LFO
+    // 3. Slow Oceanic Breathing LFO
     lfoOsc = ctx.createOscillator()
     const lfoGain = ctx.createGain()
-    lfoOsc.frequency.setValueAtTime(0.14, now) // gentle breath cycle
-    lfoGain.gain.setValueAtTime(120, now)
+    lfoOsc.frequency.setValueAtTime(0.12, now) // 8-second calm breath cycle
+    lfoGain.gain.setValueAtTime(100, now)
     lfoOsc.connect(lfoGain)
     lfoGain.connect(masterFilter.frequency)
     lfoOsc.start(now)
 
-    // 4. Sparse, Peaceful Zen Chime Drops (Spaced out every 2.6s)
+    // 4. Organic Nature Ambient Bed: Ocean Waves & Forest Breeze Soundscape
+    try {
+      const natureBuffer = createNatureNoiseBuffer(ctx)
+      natureSourceNode = ctx.createBufferSource()
+      natureSourceNode.buffer = natureBuffer
+      natureSourceNode.loop = true
+
+      natureFilter = ctx.createBiquadFilter()
+      natureFilter.type = 'bandpass'
+      natureFilter.frequency.setValueAtTime(450, now)
+      natureFilter.Q.setValueAtTime(0.65, now)
+
+      natureGain = ctx.createGain()
+      natureGain.gain.setValueAtTime(0.07, now)
+
+      // Gentle natural tide modulation (11-second ebb and flow)
+      natureLfo = ctx.createOscillator()
+      const natureLfoGain = ctx.createGain()
+      natureLfo.frequency.setValueAtTime(0.09, now)
+      natureLfoGain.gain.setValueAtTime(180, now)
+      natureLfo.connect(natureLfoGain)
+      natureLfoGain.connect(natureFilter.frequency)
+      natureLfo.start(now)
+
+      natureSourceNode.connect(natureFilter)
+      natureFilter.connect(natureGain)
+      natureGain.connect(masterGain)
+      natureSourceNode.start(now)
+    } catch {}
+
+    // 5. Sparse, Peaceful Zen Chime Drops (Spaced out every 2.8s)
     let chimeIndex = 0
     zenChimeTimer = setInterval(() => {
       if (!manualSoothingMusicActive && (!masterGain || masterGain.gain.value < 0.01)) return
@@ -99,7 +158,7 @@ export function startOrbitalMusicEngine(): boolean {
       const freq = ZEN_CHIME_FREQS[chimeIndex % ZEN_CHIME_FREQS.length]
       playZenChime(freq)
       chimeIndex = (chimeIndex + 1) % ZEN_CHIME_FREQS.length
-    }, 2600)
+    }, 2800)
 
     isEngineRunning = true
     return true
@@ -129,12 +188,12 @@ function playZenChime(freq: number) {
     oscHarmonic.frequency.setValueAtTime(freq * 1.5, now)
 
     chimeFilter.type = 'lowpass'
-    chimeFilter.frequency.setValueAtTime(freq * 2.5, now)
-    chimeFilter.frequency.exponentialRampToValueAtTime(freq * 0.9, now + 2.4)
+    chimeFilter.frequency.setValueAtTime(freq * 2.2, now)
+    chimeFilter.frequency.exponentialRampToValueAtTime(freq * 0.85, now + 2.4)
 
-    const volume = Math.min(0.22, (soothingMusicVolume || 0.35) * 0.65)
+    const volume = Math.min(0.2, (soothingMusicVolume || 0.35) * 0.6)
     gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.linearRampToValueAtTime(volume, now + 0.08) // Soft felt strike
+    gain.gain.linearRampToValueAtTime(volume, now + 0.1) // Soft felt strike
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.7) // Long soothing decay
 
     osc.connect(chimeFilter)
@@ -142,7 +201,7 @@ function playZenChime(freq: number) {
     chimeFilter.connect(gain)
 
     if (panner) {
-      panner.pan.setValueAtTime(Math.sin(now * 0.7) * 0.35, now)
+      panner.pan.setValueAtTime(Math.sin(now * 0.6) * 0.3, now)
       gain.connect(panner)
       panner.connect(masterGain)
     } else {
@@ -159,16 +218,23 @@ function playZenChime(freq: number) {
 let manualSoothingMusicActive = false
 let soothingMusicVolume = 0.35
 
-// Auto-resume audio context upon any user interaction to eliminate browser autoplay gating
+// Auto-start & auto-resume audio upon any user gesture for seamless background playback
 if (typeof window !== 'undefined') {
-  const resumeAudio = () => {
+  const autoStartAndResume = () => {
+    if (!isEngineRunning) {
+      startOrbitalMusicEngine()
+      setSoothingMusicActive(true)
+    }
     if (audioCtx && audioCtx.state === 'suspended') {
       void audioCtx.resume()
     }
   }
-  window.addEventListener('click', resumeAudio, { passive: true })
-  window.addEventListener('touchstart', resumeAudio, { passive: true })
-  window.addEventListener('keydown', resumeAudio, { passive: true })
+  window.addEventListener('click', autoStartAndResume, { passive: true })
+  window.addEventListener('pointerdown', autoStartAndResume, { passive: true })
+  window.addEventListener('touchstart', autoStartAndResume, { passive: true })
+  window.addEventListener('keydown', autoStartAndResume, { passive: true })
+  window.addEventListener('wheel', autoStartAndResume, { passive: true })
+  window.addEventListener('mousemove', autoStartAndResume, { passive: true, once: true })
 }
 
 /**
@@ -267,6 +333,14 @@ export function stopOrbitalMusicEngine(): void {
   if (lfoOsc) {
     try { lfoOsc.stop() } catch {}
     lfoOsc = null
+  }
+  if (natureSourceNode) {
+    try { natureSourceNode.stop() } catch {}
+    natureSourceNode = null
+  }
+  if (natureLfo) {
+    try { natureLfo.stop() } catch {}
+    natureLfo = null
   }
   padOscillators.forEach((osc) => {
     try { osc.stop() } catch {}

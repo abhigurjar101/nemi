@@ -62,6 +62,7 @@ export interface WorldClassDashboardProps {
   codeBotsCount?: number
   tradeBotsCount?: number
   showHeader?: boolean
+  onClose?: () => void
 }
 
 export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
@@ -78,6 +79,7 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
   codeBotsCount = 11,
   tradeBotsCount = 10,
   showHeader = true,
+  onClose,
 }) => {
   // Real-time micro-fluctuation ticker for the trading card preview
   const [marketPrices, setMarketPrices] = useState([
@@ -111,6 +113,17 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
   useEffect(() => {
     setFeedStatus(dailyLearningFeed.getStatus())
   }, [])
+
+  // Keyboard shortcut: Escape to dismiss dashboard overlay and stay on home screen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const handleSyncDailyFeed = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -262,59 +275,17 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
         </header>
       )}
 
-      {/* ── Main Hero Section: ONLY 2 SWARM BUTTONS + MUSIC + SIGN UP ── */}
+      {/* ── Main Hero Section: TRADE & CODE + SIGN UP + STAY ON HOME SCREEN ── */}
       <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center py-4 sm:py-6">
-        {/* ── Top Floating Action Bar: 432Hz Zen Music Player + Sign Up / Login Button ── */}
-        <div className="w-full max-w-4xl flex flex-wrap items-center justify-between gap-3 mb-6 px-1">
-          {/* 1. Mind-Soothing Music Widget */}
-          <div className="flex items-center gap-2 bg-slate-900/60 backdrop-blur-xl border border-white/15 px-3 py-1.5 rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
-            <button
-              type="button"
-              onClick={handleToggleMusic}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                soothingMusicOn
-                  ? 'bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-cyan-200 border border-cyan-400/40 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
-                  : 'bg-white/5 text-white/80 hover:text-white hover:bg-white/10 border border-transparent'
-              }`}
-              title="Click to Play/Pause 432Hz Mind-Soothing Music"
-            >
-              <Music className={`w-3.5 h-3.5 ${soothingMusicOn ? 'text-cyan-300 animate-spin-slow' : 'text-white/50'}`} />
-              <span>{soothingMusicOn ? '432Hz Zen Playing' : 'Play 432Hz Zen Music'}</span>
-              <div className="flex items-center gap-0.5 h-3">
-                <span className={`w-0.5 rounded-full bg-cyan-400 ${soothingMusicOn ? 'animate-music-bar-1 h-3' : 'h-1.5 opacity-40'}`} />
-                <span className={`w-0.5 rounded-full bg-cyan-300 ${soothingMusicOn ? 'animate-music-bar-2 h-2.5' : 'h-1 opacity-40'}`} />
-                <span className={`w-0.5 rounded-full bg-purple-400 ${soothingMusicOn ? 'animate-music-bar-3 h-3.5' : 'h-2 opacity-40'}`} />
-                <span className={`w-0.5 rounded-full bg-emerald-400 ${soothingMusicOn ? 'animate-music-bar-4 h-2' : 'h-1 opacity-40'}`} />
-              </div>
-            </button>
-
-            {/* Volume Control */}
-            <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-white/10">
-              {volume === 0 ? (
-                <VolumeX className="w-3 h-3 text-white/40" />
-              ) : (
-                <Volume2 className="w-3 h-3 text-cyan-400" />
-              )}
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="w-14 h-1 accent-cyan-400 cursor-pointer bg-white/20 rounded-lg"
-                title={`Music Volume: ${Math.round(volume * 100)}%`}
-              />
-            </div>
-          </div>
-
-          {/* 2. Prominent Sign Up / Login Button */}
+        {/* ── Top Floating Action Bar: Sign Up / Login Button + Cancel & Stay on Home Screen ── */}
+        <div className="w-full max-w-4xl flex items-center justify-between gap-3 mb-6 px-1">
+          {/* Sign Up / Login Button */}
           <div>
             {isAuthenticated ? (
               <button
                 type="button"
                 onClick={onOpenAuth}
-                className="px-4 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.2)] group"
+                className="px-4 py-2 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.2)] group"
                 title="Manage Account / Session"
               >
                 <div className="w-5 h-5 rounded-full bg-emerald-500/30 flex items-center justify-center text-emerald-300">
@@ -340,9 +311,23 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
               </button>
             )}
           </div>
+
+          {/* Close Overlay & Stay on Home Screen Button */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 hover:border-white/30 text-white text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)] active:scale-95 group"
+              title="Close this overlay and stay on the clean 3D home screen"
+              aria-label="Cancel and Stay on Home Screen"
+            >
+              <X className="w-4 h-4 text-white/60 group-hover:text-white group-hover:rotate-90 transition-all" />
+              <span className="text-white/80 group-hover:text-white">Cancel &amp; Stay on Home Screen</span>
+            </button>
+          )}
         </div>
 
-        {/* ── Title & Mission ── */}
+        {/* ── Title & Mission: TRADE & CODE ── */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -354,20 +339,102 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
             <span>NEMI DUAL SWARM INTELLIGENCE</span>
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-b from-white via-white/95 to-white/70 bg-clip-text text-transparent">
-            Choose Your Autonomous Swarm
+            TRADE &amp; CODE
           </h1>
           <p className="text-xs sm:text-sm text-white/60 mt-2 max-w-md mx-auto leading-relaxed">
-            Exactly two world-class fleets: Multi-Agent Software Compilation or High-Frequency Quantitative Trading.
+            Institutional Quantitative Trading &amp; Autonomous Multi-Agent Software Compilation.
           </p>
         </motion.div>
 
-        {/* ── THE EXACTLY TWO (2) SWARM ACTION BUTTONS (HERO CARDS) ── */}
+        {/* ── THE EXACTLY TWO (2) SWARM ACTION BUTTONS (HERO CARDS): TRADE AND CODE ── */}
         <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-stretch mb-6">
-          {/* ═════════ BUTTON 1: CODE SWARM ═════════ */}
+          {/* ═════════ BUTTON 1: TRADE SWARM (TRADE) ═════════ */}
           <motion.div
             initial={{ opacity: 0, x: -25 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            onClick={onOpenTradeSwarm}
+            className="group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-emerald-950/40 via-slate-900/75 to-slate-950/85 border border-emerald-500/30 hover:border-emerald-400/70 shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_30px_rgba(16,185,129,0.15)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_40px_rgba(16,185,129,0.3)] backdrop-blur-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+          >
+            {/* Ambient Corner Accent */}
+            <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-bl-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
+
+            <div>
+              {/* Header Badge */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-mono text-emerald-300">
+                  <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
+                  <span>SURE SHOT WIN RATE ≥ 70%</span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-300/80 group-hover:text-emerald-200 transition-colors">
+                  TRADE SWARM • 10 QUANT AGENTS • {feedStatus.tradeSwarmProficiency}% EDGE
+                </span>
+              </div>
+
+              {/* Icon & Title */}
+              <div className="flex items-center gap-3.5 mb-3">
+                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-teal-500/25 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.25)] group-hover:scale-105 group-hover:border-emerald-400/80 transition-all">
+                  <TrendingUp className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-white group-hover:text-emerald-200 transition-colors">
+                    TRADE
+                  </h2>
+                  <p className="text-xs text-emerald-300/75 font-medium">
+                    10 Elite Quant Agents Fleet Cockpit
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-xs text-white/70 leading-relaxed mb-5">
+                Real-time institutional quant swarm. Executes market orders only when Bayesian win probability
+                exceeds 70%. Fed daily with volatility models and regime shifts.
+              </p>
+
+              {/* Live Market Matrix Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+                {marketPrices.map((item) => (
+                  <div
+                    key={item.symbol}
+                    className="p-2 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col text-[11px]"
+                  >
+                    <div className="flex items-center justify-between text-white/50 text-[10px]">
+                      <span>{item.symbol}</span>
+                      <span className="text-emerald-400 font-mono font-bold">{item.change}</span>
+                    </div>
+                    <div className="font-mono font-bold text-white text-xs mt-0.5">
+                      ${item.price.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Big Launch Action Button: TRADE */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenTradeSwarm()
+              }}
+              className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-600 hover:from-emerald-400 hover:via-teal-500 hover:to-emerald-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.55)] active:scale-[0.99] transition-all cursor-pointer group/btn"
+              title="Launch Trade Swarm"
+              aria-label="Launch Trade Swarm"
+            >
+              <BarChart3 className="w-4.5 h-4.5 text-slate-950 fill-slate-950 group-hover/btn:scale-110 transition-transform" />
+              <span className="tracking-wide">TRADE</span>
+              <span className="text-[11px] font-normal opacity-70 hidden sm:inline">(Launch Trade Swarm)</span>
+              <ArrowUpRight className="w-4 h-4 text-slate-950 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+            </button>
+          </motion.div>
+
+          {/* ═════════ BUTTON 2: CODE SWARM (CODE) ═════════ */}
+          <motion.div
+            initial={{ opacity: 0, x: 25 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             onClick={onOpenCodeSwarm}
             className="group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-indigo-950/40 via-slate-900/75 to-slate-950/85 border border-indigo-500/30 hover:border-cyan-400/70 shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_30px_rgba(99,102,241,0.15)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_40px_rgba(6,182,212,0.3)] backdrop-blur-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
@@ -383,7 +450,7 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
                   <span>PARALLEL DAG • 11 BOTS</span>
                 </div>
                 <span className="text-[10px] font-mono text-cyan-300/80 group-hover:text-cyan-200 transition-colors">
-                  {feedStatus.codeSwarmProficiency}% LEARNING MASTERY
+                  CODE SWARM • {feedStatus.codeSwarmProficiency}% MASTERY
                 </span>
               </div>
 
@@ -394,7 +461,7 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight text-white group-hover:text-cyan-200 transition-colors">
-                    CODE SWARM
+                    CODE
                   </h2>
                   <p className="text-xs text-cyan-300/75 font-medium">
                     Autonomous Multi-Agent DAG Studio
@@ -429,97 +496,21 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
               </div>
             </div>
 
-            {/* Big Launch Action Button (PRIMARY BUTTON 1) */}
+            {/* Big Launch Action Button: CODE */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 onOpenCodeSwarm()
               }}
-              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.55)] active:scale-[0.99] transition-all cursor-pointer group/btn"
+              className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.55)] active:scale-[0.99] transition-all cursor-pointer group/btn"
+              title="Launch Code Swarm"
+              aria-label="Launch Code Swarm"
             >
-              <Zap className="w-4 h-4 text-cyan-200 fill-cyan-200 group-hover/btn:animate-bounce" />
-              <span>Launch Code Swarm</span>
+              <Zap className="w-4.5 h-4.5 text-cyan-200 fill-cyan-200 group-hover/btn:animate-bounce" />
+              <span className="tracking-wide">CODE</span>
+              <span className="text-[11px] font-normal opacity-70 hidden sm:inline">(Launch Code Swarm)</span>
               <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-            </button>
-          </motion.div>
-
-          {/* ═════════ BUTTON 2: TRADE SWARM ═════════ */}
-          <motion.div
-            initial={{ opacity: 0, x: 25 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
-            onClick={onOpenTradeSwarm}
-            className="group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-emerald-950/40 via-slate-900/75 to-slate-950/85 border border-emerald-500/30 hover:border-emerald-400/70 shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_30px_rgba(16,185,129,0.15)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_40px_rgba(16,185,129,0.3)] backdrop-blur-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
-          >
-            {/* Ambient Corner Accent */}
-            <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-bl-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
-
-            <div>
-              {/* Header Badge */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-mono text-emerald-300">
-                  <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-                  <span>SURE SHOT WIN RATE ≥ 70%</span>
-                </div>
-                <span className="text-[10px] font-mono text-emerald-300/80 group-hover:text-emerald-200 transition-colors">
-                  10 QUANT AGENTS • {feedStatus.tradeSwarmProficiency}% EDGE
-                </span>
-              </div>
-
-              {/* Icon & Title */}
-              <div className="flex items-center gap-3.5 mb-3">
-                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-teal-500/25 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.25)] group-hover:scale-105 group-hover:border-emerald-400/80 transition-all">
-                  <TrendingUp className="w-7 h-7" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight text-white group-hover:text-emerald-200 transition-colors">
-                    TRADE SWARM
-                  </h2>
-                  <p className="text-xs text-emerald-300/75 font-medium">
-                    10 Elite Quant Agents Fleet Cockpit
-                  </p>
-                </div>
-              </div>
-
-              {/* Description */}
-              <p className="text-xs text-white/70 leading-relaxed mb-5">
-                Real-time institutional quant swarm. Executes market orders only when Bayesian win probability
-                exceeds 70%. Fed daily with volatility models and regime shifts.
-              </p>
-
-              {/* Live Market Matrix Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
-                {marketPrices.map((item) => (
-                  <div
-                    key={item.symbol}
-                    className="p-2 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col text-[11px]"
-                  >
-                    <div className="flex items-center justify-between text-white/50 text-[10px]">
-                      <span>{item.symbol}</span>
-                      <span className="text-emerald-400 font-mono font-bold">{item.change}</span>
-                    </div>
-                    <div className="font-mono font-bold text-white text-xs mt-0.5">
-                      ${item.price.toLocaleString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Big Launch Action Button (PRIMARY BUTTON 2) */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenTradeSwarm()
-              }}
-              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-600 hover:from-emerald-400 hover:via-teal-500 hover:to-emerald-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.55)] active:scale-[0.99] transition-all cursor-pointer group/btn"
-            >
-              <BarChart3 className="w-4 h-4 text-slate-950 fill-slate-950 group-hover/btn:scale-110 transition-transform" />
-              <span>Launch Trade Swarm</span>
-              <ArrowUpRight className="w-4 h-4 text-slate-950 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
             </button>
           </motion.div>
         </div>

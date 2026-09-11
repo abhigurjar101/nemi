@@ -626,6 +626,7 @@ export default function App() {
   const [isWakeWordMode, setIsWakeWordMode] = useState(false)
 
   const [chatOpen, setChatOpen] = useState<boolean>(false)
+  const [dashboardOpen, setDashboardOpen] = useState<boolean>(true)
   const [ragOpen, setRagOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -636,6 +637,8 @@ export default function App() {
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
 
   useEffect(() => {
+    // Automatically start soothing nature & calming 432Hz ambient music on load
+    setSoothingMusicActive(true)
     return subscribeSoothingMusic((active) => setIsMusicActive(active))
   }, [])
 
@@ -2400,37 +2403,6 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         </div>
 
-        {/* ── 432Hz ZEN MIND-SOOTHING MUSIC PLAYER (CENTER HERO AUDIO) ── */}
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <button
-            type="button"
-            onClick={() => {
-              const next = toggleSoothingMusic()
-              setIsMusicActive(next)
-            }}
-            aria-label={isMusicActive ? 'Pause 432Hz Mind-Soothing Music' : 'Play 432Hz Mind-Soothing Music'}
-            className={`h-7.5 px-3 rounded-full text-xs flex items-center gap-2 transition-all cursor-pointer border ${
-              isMusicActive
-                ? 'bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-emerald-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.3)]'
-                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
-            }`}
-            title="432Hz Zen Mind-Soothing Ambient Soundscape"
-          >
-            <Music className={`w-3.5 h-3.5 ${isMusicActive ? 'text-cyan-300 animate-spin-slow' : 'text-white/50'}`} />
-            <span className="font-semibold text-[11px] hidden sm:inline">432Hz Zen Music</span>
-            {/* Live Animated Waveform Bars */}
-            <div className="flex items-center gap-0.5 h-3">
-              <span className={`w-0.5 rounded-full bg-cyan-400 ${isMusicActive ? 'animate-music-bar-1 h-3' : 'h-1.5 opacity-40'}`} />
-              <span className={`w-0.5 rounded-full bg-cyan-300 ${isMusicActive ? 'animate-music-bar-2 h-2.5' : 'h-1 opacity-40'}`} />
-              <span className={`w-0.5 rounded-full bg-purple-400 ${isMusicActive ? 'animate-music-bar-3 h-3.5' : 'h-2 opacity-40'}`} />
-              <span className={`w-0.5 rounded-full bg-emerald-400 ${isMusicActive ? 'animate-music-bar-4 h-2' : 'h-1 opacity-40'}`} />
-            </div>
-            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${isMusicActive ? 'bg-cyan-400/20 text-cyan-300 font-bold' : 'bg-white/10 text-white/40'}`}>
-              {isMusicActive ? 'PLAYING' : 'OFF'}
-            </span>
-          </button>
-        </div>
-
         {/* ── RIGHT CONTROLS: SIGN UP / LOGIN + CHAT + TOOLS MENU ── */}
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* Desktop Controls */}
@@ -3152,8 +3124,8 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           onOpenTradingFleet={() => setTradingFleetModalOpen(true)}
         />
 
-        {/* ── World-Class 2-Swarm Dashboard (When Chat is closed) ── */}
-        {!chatOpen && (
+        {/* ── World-Class 2-Swarm Dashboard (When Chat is closed & Dashboard is open) ── */}
+        {!chatOpen && dashboardOpen && (
           <div className="absolute inset-0 z-20 flex flex-col justify-between overflow-y-auto nemi-scroll pointer-events-none">
             <WorldClassDashboard
               isAuthenticated={isAuthenticated}
@@ -3169,7 +3141,69 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               codeBotsCount={N8N_BOTS.length}
               tradeBotsCount={10}
               showHeader={false}
+              onClose={() => setDashboardOpen(false)}
             />
+          </div>
+        )}
+
+        {/* ── Home Screen Persistent Dock (When Dashboard is cancelled / stay on home screen) ── */}
+        {!chatOpen && !dashboardOpen && (
+          <div className="absolute bottom-7 inset-x-0 z-30 flex flex-col items-center gap-2.5 pointer-events-none px-4">
+            <div className="pointer-events-auto flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-full bg-slate-950/85 backdrop-blur-2xl border border-white/20 shadow-[0_12px_48px_rgba(0,0,0,0.9),0_0_30px_rgba(0,212,255,0.15)]">
+              {/* TRADE Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTradingFleetModalOpen(true)
+                  showToast('⚡ Trade Swarm Active: 10 Quant Agents Initialized (Win Rate ≥ 70%)')
+                }}
+                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer transition-all active:scale-95"
+                title="Launch Trade Swarm (10 Quant Agents)"
+                aria-label="TRADE Swarm"
+              >
+                <TrendingUp className="w-4 h-4 fill-slate-950" />
+                <span>TRADE</span>
+              </button>
+
+              {/* CODE Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSwarmDagModalOpen(true)
+                  showToast('⚡ Code Swarm Active: 11 Multi-Agent DAG Bots Initialized')
+                }}
+                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.5)] cursor-pointer transition-all active:scale-95"
+                title="Launch Code Swarm (11 Bots)"
+                aria-label="CODE Swarm"
+              >
+                <Code2 className="w-4 h-4" />
+                <span>CODE</span>
+              </button>
+
+              <div className="w-[1px] h-6 bg-white/15 mx-0.5" />
+
+              {/* Reopen Swarm Cards Overlay */}
+              <button
+                type="button"
+                onClick={() => setDashboardOpen(true)}
+                className="px-3.5 py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Open Dual Swarm Dashboard Cards"
+              >
+                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">Swarm Cards</span>
+              </button>
+
+              {/* Chat Toggle */}
+              <button
+                type="button"
+                onClick={() => handleToggleChatOpen(true)}
+                className="px-3.5 py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Ask NEMI Anything"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Chat</span>
+              </button>
+            </div>
           </div>
         )}
 

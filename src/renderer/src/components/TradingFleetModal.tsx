@@ -203,17 +203,32 @@ if __name__ == '__main__':
     }, 600)
   }
 
+  // Keyboard shortcut: Escape to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-6xl h-[92vh] max-h-[900px] flex flex-col glass-panel bg-slate-950/95 border border-purple-500/30 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden"
-        >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trading-fleet-title"
+      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-6xl h-[92vh] max-h-[900px] flex flex-col glass-panel bg-slate-950/95 border border-purple-500/30 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden"
+      >
           {/* Top Bar Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02]">
             <div className="flex items-center gap-3">
@@ -966,6 +981,5 @@ if __name__ == '__main__':
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
   )
 }
