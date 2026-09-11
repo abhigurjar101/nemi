@@ -21,8 +21,13 @@ import {
   Bot, ChevronDown as ChevronDownIcon, Layers, Lock, ShieldCheck,
   BookOpen, BrainCircuit, Brain, CheckCircle2, AlertTriangle, XCircle, X,
   FolderGit2, Menu, SlidersHorizontal, ChevronRight, MicOff, Search, Trophy,
-  TrendingUp,
+  TrendingUp, Music, MoreHorizontal,
 } from 'lucide-react'
+import {
+  toggleSoothingMusic,
+  isSoothingMusicActive,
+  subscribeSoothingMusic,
+} from './services/orbitalMusic'
 import BotIcon from './components/BotIcon'
 import CommandPalette from './components/CommandPalette'
 import AutonomousLearningModal from './components/AutonomousLearningModal'
@@ -620,13 +625,19 @@ export default function App() {
   const [transcript, setTranscript] = useState('')
   const [isWakeWordMode, setIsWakeWordMode] = useState(false)
 
-  const [chatOpen, setChatOpen] = useState<boolean>(true)
+  const [chatOpen, setChatOpen] = useState<boolean>(false)
   const [ragOpen, setRagOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedBotId, setSelectedBotId] = useState<string>('orchestrator')
   const [botDropdownOpen, setBotDropdownOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMusicActive, setIsMusicActive] = useState<boolean>(() => isSoothingMusicActive())
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+
+  useEffect(() => {
+    return subscribeSoothingMusic((active) => setIsMusicActive(active))
+  }, [])
 
   const activeBot = N8N_BOTS.find((b) => b.id === selectedBotId) || N8N_BOTS[0]
 
@@ -2389,279 +2400,306 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         </div>
 
-        {/* ── DESKTOP UNIFIED GLASS TOOLBAR (hidden md:flex) ── */}
-        <div className="hidden md:flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* Command Palette Trigger */}
+        {/* ── 432Hz ZEN MIND-SOOTHING MUSIC PLAYER (CENTER HERO AUDIO) ── */}
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             type="button"
-            onClick={() => setCommandPaletteOpen(true)}
-            aria-label="Open Command Palette (Cmd+K)"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title="Open Command Palette (Cmd+K / Ctrl+K)"
-          >
-            <Search className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" strokeWidth={1.65} />
-            <span className="hidden xl:inline">Commands</span>
-            <kbd className="hidden sm:inline-flex px-1.5 py-0.2 rounded bg-white/10 text-[9px] font-mono text-white/50 border border-white/10">⌘K</kbd>
-          </button>
-
-          {/* Bot Fleet */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((p) => !p)}
-            aria-label="Toggle Bot Swarm Fleet Sidebar (11 bots)"
-            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              sidebarOpen
-                ? 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30'
+            onClick={() => {
+              const next = toggleSoothingMusic()
+              setIsMusicActive(next)
+            }}
+            aria-label={isMusicActive ? 'Pause 432Hz Mind-Soothing Music' : 'Play 432Hz Mind-Soothing Music'}
+            className={`h-7.5 px-3 rounded-full text-xs flex items-center gap-2 transition-all cursor-pointer border ${
+              isMusicActive
+                ? 'bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-emerald-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.3)]'
                 : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
             }`}
-            title="Toggle Bot Swarm Fleet Sidebar"
+            title="432Hz Zen Mind-Soothing Ambient Soundscape"
           >
-            <Bot className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>Bot Fleet (11)</span>
-          </button>
-
-          {/* Swarm Mode Toggle (All Bots United vs Single Bot) */}
-          <button
-            type="button"
-            onClick={() => {
-              setSwarmModeEnabled((p) => !p)
-              showToast(swarmModeEnabled ? 'Swarm Mode: Single Specialist Bot' : '⚡ Swarm Mode: All 11 Bots United (Consensus Active)')
-            }}
-            aria-label="Toggle Swarm Collaboration Mode: All Bots United"
-            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              swarmModeEnabled
-                ? 'bg-purple-500/20 text-purple-200 border-purple-400/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
-                : 'text-white/60 hover:text-white bg-white/[0.04] border-white/10'
-            }`}
-            title="Toggle Swarm Collaboration Mode: All 11 Bots United vs Single Bot"
-          >
-            <Sparkles className={`w-3.5 h-3.5 ${swarmModeEnabled ? 'text-purple-400 animate-pulse' : 'text-white/40'}`} strokeWidth={1.65} />
-            <span>Swarm {swarmModeEnabled ? 'United' : 'Solo'}</span>
-          </button>
-
-          {/* Jupyter / Colab */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isElectron) {
-                const url = 'http://localhost:8888'
-                if (window.nemi?.openExternal) window.nemi.openExternal(url)
-                else window.open(url, '_blank')
-              } else {
-                window.open('https://colab.research.google.com/#create=true', '_blank')
-              }
-            }}
-            aria-label={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title={isElectron ? 'Open Local Jupyter Notebooks' : 'Launch Google Colab Notebook'}
-          >
-            <BookOpen className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>{isElectron ? 'Jupyter' : 'Colab'}</span>
-          </button>
-
-          {/* Advanced RAG */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isElectron && window.nemi?.openRagWindow) {
-                void window.nemi.openRagWindow()
-              } else {
-                setRagOpen((prev) => !prev)
-              }
-              setChatOpen(false)
-            }}
-            aria-label="Open Document Upload & Advanced RAG workspace"
-            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              ragOpen
-                ? 'bg-cyan-500/15 text-cyan-200 border-cyan-400/30'
-                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
-            }`}
-            title="Open Document Upload & Advanced RAG workspace"
-          >
-            <Database className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>Advanced RAG</span>
-          </button>
-
-          {/* Train GitHub */}
-          <button
-            type="button"
-            onClick={async () => {
-              const res = await triggerDailyGitHubLearning(memories, true)
-              setMemories(res.newMemories)
-              setGithubLearningBanner(res.summary)
-              setTimeout(() => setGithubLearningBanner(null), 8000)
-            }}
-            aria-label="Train NEMI on High-Class GitHub Code Architectures"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title="Train NEMI on High-Class GitHub Code Architectures"
-          >
-            <BrainCircuit className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>Train GitHub</span>
-          </button>
-
-          {/* Autonomous Learning Hub */}
-          <button
-            type="button"
-            onClick={() => setLearningModalOpen(true)}
-            aria-label="Open Autonomous Learning & Swarm Mastery Hub"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-cyan-300 hover:text-white bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400/60 hover:bg-cyan-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(6,182,212,0.15)]"
-            title="Open Autonomous Learning & Swarm Mastery Hub"
-          >
-            <BrainCircuit className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 animate-pulse" strokeWidth={1.65} />
-            <span className="font-medium">Learning Hub</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-400/20 text-cyan-300 font-mono">LIVE</span>
-          </button>
-
-          {/* World's Hardest 100 Benchmark */}
-          <button
-            type="button"
-            onClick={() => setHardest100ModalOpen(true)}
-            aria-label="Open World's Hardest 100 Coding Problems Benchmark"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-yellow-300 hover:text-white bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-400/60 hover:bg-yellow-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(234,179,8,0.15)]"
-            title="Open World's Hardest 100 Coding Problems Benchmark"
-          >
-            <Trophy className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" strokeWidth={1.65} />
-            <span className="font-medium">100 Hardest</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-yellow-400/20 text-yellow-300 font-mono">100%</span>
-          </button>
-
-          {/* Algorithmic Trading Swarm (10 Quant Agents) */}
-          <button
-            type="button"
-            onClick={() => setTradingFleetModalOpen(true)}
-            aria-label="Open 10 Elite Algorithmic & AI Trading Agents Swarm"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-emerald-300 hover:text-white bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400/60 hover:bg-emerald-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-            title="Open 10 Elite Algorithmic & AI Trading Agents Swarm"
-          >
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 animate-pulse" strokeWidth={1.65} />
-            <span className="font-medium">Trading Swarm</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-400/20 text-emerald-300 font-mono">10 BOTS</span>
-          </button>
-
-          {/* Ingest */}
-          <button
-            type="button"
-            onClick={() => {
-              setIngestedResult(null)
-              setRepoModalOpen(true)
-            }}
-            aria-label="Ingest Any Public GitHub Repository into NEMI"
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title="Ingest Any Public GitHub Repository into NEMI"
-          >
-            <FolderGit2 className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>+ Ingest</span>
-          </button>
-
-          {/* Auth */}
-          <button
-            type="button"
-            onClick={() => setAuthModalOpen(true)}
-            aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In or Sign Up'}
-            className="h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In / Sign Up'}
-          >
-            {isAuthenticated ? (
-              <>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" strokeWidth={1.65} />
-                <span className="font-medium text-[11px] truncate max-w-[100px]">
-                  {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
-                </span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-                <span className="font-medium text-[11px]">Sign In</span>
-              </>
-            )}
-          </button>
-
-          {/* Chat Toggle */}
-          <button
-            type="button"
-            onClick={() => setChatOpen((p) => !p)}
-            aria-label={chatOpen ? 'Close Chat Panel' : 'Open Chat Panel'}
-            className={`h-7.5 px-3 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              chatOpen
-                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40'
-                : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
-            <span>Chat</span>
-          </button>
-
-          {/* Settings Toggle */}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open Settings"
-            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/70 hover:text-white bg-white/[0.04] border border-white/10 hover:border-white/20 hover:bg-white/[0.08] transition-all cursor-pointer"
-            title="Settings"
-          >
-            <SettingsIcon className="w-3.5 h-3.5" strokeWidth={1.65} />
+            <Music className={`w-3.5 h-3.5 ${isMusicActive ? 'text-cyan-300 animate-spin-slow' : 'text-white/50'}`} />
+            <span className="font-semibold text-[11px] hidden sm:inline">432Hz Zen Music</span>
+            {/* Live Animated Waveform Bars */}
+            <div className="flex items-center gap-0.5 h-3">
+              <span className={`w-0.5 rounded-full bg-cyan-400 ${isMusicActive ? 'animate-music-bar-1 h-3' : 'h-1.5 opacity-40'}`} />
+              <span className={`w-0.5 rounded-full bg-cyan-300 ${isMusicActive ? 'animate-music-bar-2 h-2.5' : 'h-1 opacity-40'}`} />
+              <span className={`w-0.5 rounded-full bg-purple-400 ${isMusicActive ? 'animate-music-bar-3 h-3.5' : 'h-2 opacity-40'}`} />
+              <span className={`w-0.5 rounded-full bg-emerald-400 ${isMusicActive ? 'animate-music-bar-4 h-2' : 'h-1 opacity-40'}`} />
+            </div>
+            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${isMusicActive ? 'bg-cyan-400/20 text-cyan-300 font-bold' : 'bg-white/10 text-white/40'}`}>
+              {isMusicActive ? 'PLAYING' : 'OFF'}
+            </span>
           </button>
         </div>
 
-        {/* ── MOBILE HEADER CONTROLS (flex md:hidden) ── */}
-        <div className="flex md:hidden items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* Quick Voice Mic */}
-          <button
-            type="button"
-            onClick={toggleVoice}
-            aria-label={isListening ? 'Stop Voice Listening' : 'Start Voice Listening'}
-            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              isListening
-                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                : 'bg-white/[0.04] text-white/80 border-white/10 active:bg-white/10'
-            }`}
-          >
-            <Mic className={`w-3.5 h-3.5 ${isListening ? 'text-cyan-400 animate-pulse' : 'text-cyan-400'}`} strokeWidth={1.8} />
-            <span className="text-[11px] font-medium">{isListening ? 'Live' : 'Voice'}</span>
-          </button>
+        {/* ── RIGHT CONTROLS: SIGN UP / LOGIN + CHAT + TOOLS MENU ── */}
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Desktop Controls */}
+          <div className="hidden md:flex items-center gap-1.5">
+            {/* Sign Up / Login Button */}
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(true)}
+              aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In or Sign Up'}
+              className="h-7.5 px-3 rounded-full text-xs flex items-center gap-1.5 text-white bg-white/[0.04] border border-white/10 hover:bg-cyan-500/15 hover:border-cyan-400/40 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,212,255,0.1)]"
+              title={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign Up / Login'}
+            >
+              {isAuthenticated ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" strokeWidth={1.65} />
+                  <span className="font-semibold text-[11px] truncate max-w-[100px]">
+                    {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-400/20 text-emerald-300">
+                    {authRole === 'owner' ? 'OWNER' : 'PRO'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" strokeWidth={1.65} />
+                  <span className="font-semibold text-[11px] tracking-wide">Sign Up / Login</span>
+                </>
+              )}
+            </button>
 
-          {/* Chat Toggle */}
-          <button
-            type="button"
-            onClick={() => setChatOpen((p) => !p)}
-            aria-label={chatOpen ? 'Close Chat' : 'Open Chat'}
-            className={`h-7.5 px-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-              chatOpen
-                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'bg-white/[0.04] text-white/80 border-white/10 active:bg-white/10'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-cyan-300 flex-shrink-0" strokeWidth={1.8} />
-            <span className="text-[11px] font-medium">Chat</span>
-          </button>
+            {/* Chat Toggle */}
+            <button
+              type="button"
+              onClick={() => setChatOpen((p) => !p)}
+              aria-label={chatOpen ? 'Close Chat Panel' : 'Open Chat Panel'}
+              className={`h-7.5 px-3 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                chatOpen
+                  ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                  : 'text-white/70 hover:text-white bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={1.65} />
+              <span className="font-medium text-[11px]">Chat</span>
+            </button>
 
-          {/* Mobile Command Palette Trigger */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic(10)
-              setCommandPaletteOpen(true)
-            }}
-            aria-label="Open Command Palette"
-            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
-            title="Search & Commands (Cmd+K)"
-          >
-            <Search className="w-3.5 h-3.5 text-cyan-400" strokeWidth={1.8} />
-          </button>
+            {/* More Developer Tools Dropdown Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setToolsMenuOpen((p) => !p)}
+                aria-label="More Advanced Developer Tools"
+                className={`h-7.5 w-7.5 flex items-center justify-center rounded-full text-white/70 hover:text-white transition-all cursor-pointer border ${
+                  toolsMenuOpen
+                    ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40'
+                    : 'bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.08]'
+                }`}
+                title="More Tools"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
 
-          {/* Actions Menu Trigger */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic(10)
-              setMobileMenuOpen(true)
-            }}
-            aria-label="Open Actions Drawer"
-            className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
-            title="Menu"
-          >
-            <Menu className="w-4 h-4 text-white/90" strokeWidth={1.8} />
-          </button>
+              <AnimatePresence>
+                {toolsMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                    className="absolute right-0 top-9 w-64 p-2 rounded-2xl bg-slate-950/95 backdrop-blur-2xl border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.9)] z-50 space-y-1"
+                  >
+                    <div className="px-2.5 py-1 text-[10px] font-semibold text-white/40 uppercase tracking-widest border-b border-white/10">
+                      Advanced Developer Tools
+                    </div>
+
+                    {/* Commands */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setCommandPaletteOpen(true)
+                      }}
+                      aria-label="Open Command Palette (Cmd+K)"
+                      title="Open Command Palette (Cmd+K / Ctrl+K)"
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Search className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Command Palette</span>
+                      </div>
+                      <kbd className="px-1.5 py-0.2 rounded bg-white/10 text-[9px] font-mono text-white/50 border border-white/10">⌘K</kbd>
+                    </button>
+
+                    {/* Bot Fleet */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setSidebarOpen((p) => !p)
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Bot Fleet Sidebar</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-white/40">11 Bots</span>
+                    </button>
+
+                    {/* Swarm Mode */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSwarmModeEnabled((p) => !p)
+                        showToast(swarmModeEnabled ? 'Swarm Mode: Single Specialist Bot' : '⚡ Swarm Mode: All 11 Bots United')
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Swarm Collaboration</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-purple-300">{swarmModeEnabled ? 'United' : 'Solo'}</span>
+                    </button>
+
+                    {/* Jupyter / Colab */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        if (isElectron) {
+                          const url = 'http://localhost:8888'
+                          if (window.nemi?.openExternal) window.nemi.openExternal(url)
+                          else window.open(url, '_blank')
+                        } else {
+                          window.open('https://colab.research.google.com/#create=true', '_blank')
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{isElectron ? 'Jupyter Notebooks' : 'Google Colab'}</span>
+                    </button>
+
+                    {/* Advanced RAG */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        if (isElectron && window.nemi?.openRagWindow) {
+                          void window.nemi.openRagWindow()
+                        } else {
+                          setRagOpen((prev) => !prev)
+                        }
+                        setChatOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <Database className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Advanced RAG Workspace</span>
+                    </button>
+
+                    {/* Train GitHub */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setToolsMenuOpen(false)
+                        const res = await triggerDailyGitHubLearning(memories, true)
+                        setMemories(res.newMemories)
+                        setGithubLearningBanner(res.summary)
+                        setTimeout(() => setGithubLearningBanner(null), 8000)
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <BrainCircuit className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Train on GitHub Architectures</span>
+                    </button>
+
+                    {/* Learning Hub */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setLearningModalOpen(true)
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Brain className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Autonomous Learning Hub</span>
+                      </div>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-400/20 text-cyan-300 font-mono">LIVE</span>
+                    </button>
+
+                    {/* 100 Hardest Benchmark */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setHardest100ModalOpen(true)
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+                        <span>100 Hardest Problems</span>
+                      </div>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-yellow-400/20 text-yellow-300 font-mono">100%</span>
+                    </button>
+
+                    {/* Ingest Repo */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setIngestedResult(null)
+                        setRepoModalOpen(true)
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <FolderGit2 className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>+ Ingest Repository</span>
+                    </button>
+
+                    {/* Settings */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolsMenuOpen(false)
+                        setSettingsOpen(true)
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs text-white/80 hover:text-white hover:bg-white/10 cursor-pointer border-t border-white/10 pt-2"
+                    >
+                      <SettingsIcon className="w-3.5 h-3.5 text-white/60" />
+                      <span>System Settings</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* Mobile Controls */}
+          <div className="flex md:hidden items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(true)}
+              aria-label={isAuthenticated ? `Session active: ${currentUser?.email || 'Authenticated'}` : 'Sign In or Sign Up'}
+              className="h-7.5 px-2.5 rounded-full text-xs flex items-center gap-1 text-white bg-white/[0.04] border border-white/10 active:bg-white/15"
+            >
+              {isAuthenticated ? (
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-cyan-400" />
+              )}
+            </button>
+
+            {/* Mobile Actions Drawer Trigger */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(10)
+                setMobileMenuOpen(true)
+              }}
+              aria-label="Open Actions Drawer"
+              className="h-7.5 w-7.5 flex items-center justify-center rounded-lg text-white/80 bg-white/[0.04] border border-white/10 active:bg-white/15 transition-all cursor-pointer"
+              title="Menu"
+            >
+              <Menu className="w-4 h-4 text-white/90" strokeWidth={1.8} />
+            </button>
+          </div>
         </div>
       </header>
 

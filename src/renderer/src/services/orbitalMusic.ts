@@ -31,10 +31,10 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
-// 432 Hz Calm Harmonic Tuning (F Major 9 / Meditative Pentatonic)
-// Warm, serene, grounding chord frequencies: F, C, E, G, A
-const CALM_PAD_FREQS = [86.4, 129.6, 172.8, 216.0, 259.2] // Deep warm grounding foundation
-const ZEN_CHIME_FREQS = [324.0, 432.0, 540.0, 648.0, 864.0, 1080.0] // Soothing harmonic bells
+// 432 Hz Calm Harmonic Tuning (Golden Ratio / Meditative Pentatonic)
+// Warm, serene, rich chord frequencies: A2 (108Hz), A3 (216Hz), E4 (324Hz), A4 (432Hz), E5 (648Hz)
+const CALM_PAD_FREQS = [108.0, 216.0, 324.0, 432.0, 648.0]
+const ZEN_CHIME_FREQS = [432.0, 540.0, 648.0, 864.0, 1080.0, 1296.0]
 
 export function startOrbitalMusicEngine(): boolean {
   const ctx = getAudioContext()
@@ -45,61 +45,61 @@ export function startOrbitalMusicEngine(): boolean {
 
     // 1. Transparent soft limiter to keep sound velvet-smooth and calm
     compressor = ctx.createDynamicsCompressor()
-    compressor.threshold.setValueAtTime(-18, now)
-    compressor.knee.setValueAtTime(30, now)
-    compressor.ratio.setValueAtTime(4, now)
-    compressor.attack.setValueAtTime(0.04, now)
-    compressor.release.setValueAtTime(0.4, now)
+    compressor.threshold.setValueAtTime(-16, now)
+    compressor.knee.setValueAtTime(24, now)
+    compressor.ratio.setValueAtTime(3.5, now)
+    compressor.attack.setValueAtTime(0.03, now)
+    compressor.release.setValueAtTime(0.35, now)
     compressor.connect(ctx.destination)
 
     masterGain = ctx.createGain()
     masterGain.gain.setValueAtTime(0.0001, now)
 
-    // Warm, soft low-pass filter (gentle cutoff for velvet acoustic warmth)
+    // Warm, silky low-pass filter (warm acoustic clarity around 850Hz)
     masterFilter = ctx.createBiquadFilter()
     masterFilter.type = 'lowpass'
-    masterFilter.frequency.setValueAtTime(380, now)
-    masterFilter.Q.setValueAtTime(1.2, now)
+    masterFilter.frequency.setValueAtTime(850, now)
+    masterFilter.Q.setValueAtTime(1.0, now)
 
     masterGain.connect(masterFilter)
     masterFilter.connect(compressor)
 
-    // 2. Meditative Deep Ambient Pads (Pure warm sine & soft triangle blend)
+    // 2. Meditative Deep Ambient Pads (Pure warm sine & soft harmonic blend)
     padOscillators = CALM_PAD_FREQS.map((freq, idx) => {
       const osc = ctx.createOscillator()
       const oscGain = ctx.createGain()
-      osc.type = idx === 0 ? 'sine' : 'sine'
+      osc.type = 'sine'
       osc.frequency.setValueAtTime(freq, now)
 
-      // Micro-detuning for deep analog tranquility
-      const microDetune = (idx - 2) * 1.8
+      // Micro-detuning for lush analog shimmer and warmth
+      const microDetune = (idx - 2) * 1.5
       osc.detune.setValueAtTime(microDetune, now)
 
-      oscGain.gain.setValueAtTime(0.05 / (idx + 1.2), now)
+      oscGain.gain.setValueAtTime(0.12 / (idx + 1), now)
       osc.connect(oscGain)
       oscGain.connect(masterGain!)
       osc.start(now)
       return osc
     })
 
-    // 3. Slow 6-second Oceanic Breathing LFO
+    // 3. Slow 7-second Oceanic Breathing LFO
     lfoOsc = ctx.createOscillator()
     const lfoGain = ctx.createGain()
-    lfoOsc.frequency.setValueAtTime(0.12, now) // ~8.3s slow breath cycle
-    lfoGain.gain.setValueAtTime(90, now)
+    lfoOsc.frequency.setValueAtTime(0.14, now) // gentle breath cycle
+    lfoGain.gain.setValueAtTime(120, now)
     lfoOsc.connect(lfoGain)
     lfoGain.connect(masterFilter.frequency)
     lfoOsc.start(now)
 
-    // 4. Sparse, Peaceful Zen Chime Drops (Spaced out every 2.4 - 3.2s)
+    // 4. Sparse, Peaceful Zen Chime Drops (Spaced out every 2.6s)
     let chimeIndex = 0
     zenChimeTimer = setInterval(() => {
-      if (!masterGain || masterGain.gain.value < 0.01) return
+      if (!manualSoothingMusicActive && (!masterGain || masterGain.gain.value < 0.01)) return
 
       const freq = ZEN_CHIME_FREQS[chimeIndex % ZEN_CHIME_FREQS.length]
       playZenChime(freq)
       chimeIndex = (chimeIndex + 1) % ZEN_CHIME_FREQS.length
-    }, 2800)
+    }, 2600)
 
     isEngineRunning = true
     return true
@@ -110,7 +110,7 @@ export function startOrbitalMusicEngine(): boolean {
 
 function playZenChime(freq: number) {
   const ctx = getAudioContext()
-  if (!ctx || !masterGain || masterGain.gain.value < 0.01) return
+  if (!ctx || !masterGain) return
 
   try {
     const now = ctx.currentTime
@@ -120,30 +120,29 @@ function playZenChime(freq: number) {
     const chimeFilter = ctx.createBiquadFilter()
     const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null
 
-    // Pure organic acoustic singing-bowl/marimba timbre
+    // Pure organic acoustic singing-bowl/tibetan bell timbre
     osc.type = 'sine'
     osc.frequency.setValueAtTime(freq, now)
 
-    // Gentle fifth overtone
+    // Gentle harmonic overtone
     oscHarmonic.type = 'sine'
     oscHarmonic.frequency.setValueAtTime(freq * 1.5, now)
 
     chimeFilter.type = 'lowpass'
-    chimeFilter.frequency.setValueAtTime(freq * 2.2, now)
-    chimeFilter.frequency.exponentialRampToValueAtTime(freq * 0.8, now + 2.5)
+    chimeFilter.frequency.setValueAtTime(freq * 2.5, now)
+    chimeFilter.frequency.exponentialRampToValueAtTime(freq * 0.9, now + 2.4)
 
-    const volume = Math.min(0.12, masterGain.gain.value * 0.45)
+    const volume = Math.min(0.22, (soothingMusicVolume || 0.35) * 0.65)
     gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.linearRampToValueAtTime(volume, now + 0.12) // Soft felt strike
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8) // Long soothing decay
+    gain.gain.linearRampToValueAtTime(volume, now + 0.08) // Soft felt strike
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.7) // Long soothing decay
 
     osc.connect(chimeFilter)
     oscHarmonic.connect(chimeFilter)
     chimeFilter.connect(gain)
 
     if (panner) {
-      // Gentle spatial pan drift
-      panner.pan.setValueAtTime(Math.sin(now * 0.8) * 0.4, now)
+      panner.pan.setValueAtTime(Math.sin(now * 0.7) * 0.35, now)
       gain.connect(panner)
       panner.connect(masterGain)
     } else {
@@ -152,13 +151,25 @@ function playZenChime(freq: number) {
 
     osc.start(now)
     oscHarmonic.start(now)
-    osc.stop(now + 2.9)
-    oscHarmonic.stop(now + 2.9)
+    osc.stop(now + 2.8)
+    oscHarmonic.stop(now + 2.8)
   } catch {}
 }
 
 let manualSoothingMusicActive = false
-let soothingMusicVolume = 0.22
+let soothingMusicVolume = 0.35
+
+// Auto-resume audio context upon any user interaction to eliminate browser autoplay gating
+if (typeof window !== 'undefined') {
+  const resumeAudio = () => {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      void audioCtx.resume()
+    }
+  }
+  window.addEventListener('click', resumeAudio, { passive: true })
+  window.addEventListener('touchstart', resumeAudio, { passive: true })
+  window.addEventListener('keydown', resumeAudio, { passive: true })
+}
 
 /**
  * Updates soundscape parameters based on 3D camera distance to the ring.
@@ -187,6 +198,19 @@ export function updateOrbitalProximity(cameraDistance: number): number {
   return proximity
 }
 
+type MusicStateListener = (active: boolean) => void
+const musicListeners = new Set<MusicStateListener>()
+
+export function subscribeSoothingMusic(listener: MusicStateListener): () => void {
+  musicListeners.add(listener)
+  try {
+    listener(manualSoothingMusicActive)
+  } catch {}
+  return () => {
+    musicListeners.delete(listener)
+  }
+}
+
 export function isSoothingMusicActive(): boolean {
   return manualSoothingMusicActive
 }
@@ -201,7 +225,7 @@ export function setSoothingMusicActive(active: boolean): boolean {
     if (ctx && masterGain && masterFilter) {
       const now = ctx.currentTime
       masterGain.gain.setTargetAtTime(soothingMusicVolume, now, 0.3)
-      masterFilter.frequency.setTargetAtTime(750, now, 0.35)
+      masterFilter.frequency.setTargetAtTime(850, now, 0.35)
     }
   } else {
     const ctx = getAudioContext()
@@ -210,6 +234,9 @@ export function setSoothingMusicActive(active: boolean): boolean {
       masterGain.gain.setTargetAtTime(0.0001, now, 0.3)
     }
   }
+  musicListeners.forEach((fn) => {
+    try { fn(manualSoothingMusicActive) } catch {}
+  })
   return manualSoothingMusicActive
 }
 
