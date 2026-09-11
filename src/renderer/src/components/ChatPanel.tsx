@@ -347,7 +347,7 @@ export default function ChatPanel({
                       : 'bg-white/5 hover:bg-white/10 text-white/50 border-white/10 hover:text-white/80'
                     }
                   `}
-                  title={isMusicActive ? 'Nature & Focus Sounds Playing (Click to Pause)' : 'Play Nature & Focus Sounds (Birds, River, Relaxing Beats)'}
+                  title={isMusicActive ? 'Nature Peace, Focus & Mind-Soothing 432Hz Zen Soundscape (Click to Pause)' : 'Play Nature & Focus Sounds (Birds, River, Relaxing Beats & Mind-Soothing 432Hz Zen Soundscape)'}
                 >
                   {isMusicActive ? (
                     <div className="flex items-center gap-0.5 h-3">
