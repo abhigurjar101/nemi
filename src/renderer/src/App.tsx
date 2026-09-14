@@ -898,6 +898,7 @@ export default function App() {
   const [p2pMeshModalOpen, setP2PMeshModalOpen] = useState(false)
   const [offlineModeModalOpen, setOfflineModeModalOpen] = useState(false)
   const [tradingFleetModalOpen, setTradingFleetModalOpen] = useState(false)
+  const [tradingFleetDefaultTab, setTradingFleetDefaultTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | undefined>(undefined)
   const [telemetryHudOpen, setTelemetryHudOpen] = useState(false)
   const [universalPaletteOpen, setUniversalPaletteOpen] = useState(false)
   const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
@@ -3128,6 +3129,10 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               onOpenCodeSwarm={() => setSwarmDagModalOpen(true)}
               onOpenTradeSwarm={() => setTradingFleetModalOpen(true)}
               onOpenTrainSwarm={() => setLearningModalOpen(true)}
+              onOpenTradeOfTheDay={() => {
+                setTradingFleetDefaultTab('totd')
+                setTradingFleetModalOpen(true)
+              }}
               onOpenChat={() => handleToggleChatOpen(true)}
               onToggleVoice={toggleVoice}
               isListening={isListening}
@@ -3543,7 +3548,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
       {/* Algorithmic Trading Fleet (10 Quant Agents Cockpit) */}
       <TradingFleetModal
         isOpen={tradingFleetModalOpen}
-        onClose={() => setTradingFleetModalOpen(false)}
+        onClose={() => {
+          setTradingFleetModalOpen(false)
+          setTradingFleetDefaultTab(undefined)
+        }}
+        defaultTab={tradingFleetDefaultTab}
         onSelectBotForChat={(botId, prompt) => {
           setSelectedBotId(botId)
           if (prompt) void sendToAI(prompt)

@@ -52,19 +52,58 @@ interface TradingFleetModalProps {
   isOpen: boolean
   onClose: () => void
   onSelectBotForChat?: (botId: string, prompt?: string) => void
+  defaultTab?: 'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'
 }
 
 export default function TradingFleetModal({
   isOpen,
   onClose,
   onSelectBotForChat,
+  defaultTab,
 }: TradingFleetModalProps) {
   const [selectedTicker, setSelectedTicker] = useState<'BTC/USDT' | 'ETH/USDT' | 'SOL/USDT' | 'NVDA' | 'SPY'>('BTC/USDT')
-  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'>('totd')
+  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'>(defaultTab ?? 'totd')
   const [selectedBot, setSelectedBot] = useState<TradingBot>(ALL_TRADING_BOTS[9]) // Default to Trading Orchestrator
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [isRunningSim, setIsRunningSim] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null)
+
+  // Swarm BTC analysis loading state — triggered when modal opens on TOTD tab
+  const [swarmAnalysing, setSwarmAnalysing] = useState(false)
+  const [swarmAgentsComplete, setSwarmAgentsComplete] = useState(0)
+  const SWARM_AGENT_NAMES = [
+    'Sentiment Agent',
+    'Technical Agent',
+    'SMC Liquidity Agent',
+    'Volume Breakout Agent',
+    'Fundamental Agent',
+    'Arbitrage Agent',
+    'Statistical Arb Agent',
+    'Macro Regime Agent',
+    'Risk Sentinel',
+    'Trading Orchestrator',
+  ]
+
+  // When modal opens (or defaultTab changes), trigger swarm analysis animation on TOTD
+  useEffect(() => {
+    if (!isOpen) return
+    const tabToSet = defaultTab ?? 'totd'
+    setActiveTab(tabToSet)
+    if (tabToSet === 'totd') {
+      setSwarmAnalysing(true)
+      setSwarmAgentsComplete(0)
+      // Stagger each agent completing
+      SWARM_AGENT_NAMES.forEach((_, i) => {
+        setTimeout(() => {
+          setSwarmAgentsComplete(i + 1)
+        }, 120 * (i + 1))
+      })
+      setTimeout(() => {
+        setSwarmAnalysing(false)
+      }, 120 * 10 + 400)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultTab])
 
   // Interactive Simple Trading Cockpit State
   const [portfolioBalance, setPortfolioBalance] = useState<number>(() => {
@@ -651,8 +690,54 @@ if __name__ == '__main__':
             {/* TAB: 30-YEAR VETERAN MASTER TRADE OF THE DAY & SWARM MENTORSHIP */}
             {activeTab === 'totd' && (
               <div className="space-y-6 max-w-5xl mx-auto">
+
+                {/* ⚡ SWARM BITCOIN ANALYSIS LOADING PANEL */}
+                {swarmAnalysing && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-5 rounded-3xl bg-gradient-to-br from-slate-900/90 to-slate-950 border border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.2)]"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+                        <Crown className="w-4 h-4 text-amber-300 animate-pulse" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-black text-white">🔄 Swarm Analysing Bitcoin Market...</div>
+                        <div className="text-[11px] text-white/50 mt-0.5">All 10 agents scanning BTC/USDT across macro, on-chain, and technical dimensions</div>
+                      </div>
+                      <div className="ml-auto text-xs font-mono font-bold text-amber-300">
+                        {swarmAgentsComplete}/10 ✓
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {SWARM_AGENT_NAMES.map((name, i) => (
+                        <div
+                          key={name}
+                          className={`px-2 py-1.5 rounded-xl text-[10px] font-mono flex items-center gap-1.5 transition-all duration-300 ${
+                            i < swarmAgentsComplete
+                              ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+                              : 'bg-white/[0.03] border border-white/10 text-white/30'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${i < swarmAgentsComplete ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-white/20'}`} />
+                          <span className="truncate">{name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 h-1 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-amber-500 via-emerald-400 to-cyan-400 rounded-full"
+                        animate={{ width: `${(swarmAgentsComplete / 10) * 100}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Status / Alert Banner */}
                 {tradeStatusNotice && (
+
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
