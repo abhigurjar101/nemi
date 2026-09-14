@@ -897,7 +897,7 @@ export default function App() {
   const [branchingModalOpen, setBranchingModalOpen] = useState(false)
   const [p2pMeshModalOpen, setP2PMeshModalOpen] = useState(false)
   const [offlineModeModalOpen, setOfflineModeModalOpen] = useState(false)
-  const [tradingFleetModalOpen, setTradingFleetModalOpen] = useState(true)
+  const [tradingFleetModalOpen, setTradingFleetModalOpen] = useState(false)
   const [telemetryHudOpen, setTelemetryHudOpen] = useState(false)
   const [universalPaletteOpen, setUniversalPaletteOpen] = useState(false)
   const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
