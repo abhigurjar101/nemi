@@ -8,6 +8,7 @@ import { statisticalArbitrageBot } from './statisticalArbitrage'
 import { macroRegimeBot } from './macroRegime'
 import { riskSentinelBot } from './riskSentinel'
 import { tradingOrchestratorBot } from './tradingOrchestrator'
+import { grandmasterTraderBot } from './grandmasterTrader'
 import type { TradingBot } from './types'
 
 export * from './types'
@@ -24,10 +25,11 @@ export {
   macroRegimeBot,
   riskSentinelBot,
   tradingOrchestratorBot,
+  grandmasterTraderBot,
 }
 
 /**
- * Registry of all 10 Elite Algorithmic & AI Trading Agents.
+ * Registry of all 10 Elite Algorithmic & AI Trading Specialist Agents.
  */
 export const ALL_TRADING_BOTS: TradingBot[] = [
   sentimentTraderBot,
@@ -42,8 +44,19 @@ export const ALL_TRADING_BOTS: TradingBot[] = [
   tradingOrchestratorBot,
 ]
 
+/**
+ * Full fleet including the 30-Year Veteran Grandmaster CIO & Swarm Mentor.
+ */
+export const FLEET_WITH_GRANDMASTER: TradingBot[] = [
+  grandmasterTraderBot,
+  ...ALL_TRADING_BOTS,
+]
+
 export function getTradingBotById(botId: string): TradingBot {
-  return ALL_TRADING_BOTS.find((b) => b.id === botId) || tradingOrchestratorBot
+  if (botId === 'grandmaster-trader' || botId === grandmasterTraderBot.id) {
+    return grandmasterTraderBot
+  }
+  return ALL_TRADING_BOTS.find((b) => b.id === botId) || grandmasterTraderBot
 }
 
 export function compileTradingBotPrompt(botId: string): string {

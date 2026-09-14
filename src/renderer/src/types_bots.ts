@@ -61,6 +61,8 @@ export {
   macroRegimeBot,
   riskSentinelBot,
   tradingOrchestratorBot,
+  grandmasterTraderBot,
+  FLEET_WITH_GRANDMASTER,
 } from '../../../n8n'
 
 export type {
