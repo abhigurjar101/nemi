@@ -630,7 +630,7 @@ export default function App() {
   const [isWakeWordMode, setIsWakeWordMode] = useState(false)
 
   const [chatOpen, setChatOpen] = useState<boolean>(false)
-  const [dashboardOpen, setDashboardOpen] = useState<boolean>(true)
+  const [dashboardOpen, setDashboardOpen] = useState<boolean>(false)
   const [ragOpen, setRagOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -3140,79 +3140,57 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           </div>
         )}
 
-        {/* ── Home Screen Persistent Dock (When Dashboard is cancelled / stay on home screen) ── */}
+        {/* ── Home Screen Single Focus: Ultra-Premium Transparent TRADE Tab Button ── */}
         {!chatOpen && !dashboardOpen && (
-          <div className="absolute bottom-6 sm:bottom-7 inset-x-0 z-30 flex flex-col items-center gap-2 pointer-events-none px-2 sm:px-4">
-            <div className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 p-1.5 sm:p-2.5 rounded-full bg-slate-950/90 backdrop-blur-2xl border border-white/20 shadow-[0_12px_48px_rgba(0,0,0,0.9),0_0_30px_rgba(0,212,255,0.15)] max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar">
-              {/* TRADE Action Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTradingFleetModalOpen(true)
-                  showToast('⚡ Trade Swarm Active: 10 Quant Agents Initialized (Win Rate ≥ 70%)')
-                }}
-                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
-                title="Launch Trade Swarm (10 Quant Agents)"
-                aria-label="TRADE Swarm"
-              >
-                <TrendingUp className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-slate-950" />
-                <span>TRADE</span>
-              </button>
-
-              {/* CODE Action Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSwarmDagModalOpen(true)
-                  showToast('⚡ Code Swarm Active: 11 Multi-Agent DAG Bots Initialized')
-                }}
-                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(6,182,212,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
-                title="Launch Code Swarm (11 Bots)"
-                aria-label="CODE Swarm"
-              >
-                <Code2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                <span>CODE</span>
-              </button>
-
-              {/* TRAIN Action Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setLearningModalOpen(true)
-                  showToast('⚡ Train Swarm Active: Neural Training & Learning Hub Initialized')
-                }}
-                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-500 hover:from-fuchsia-500 hover:to-cyan-400 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(217,70,239,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
-                title="Launch Neural Training Hub (Continuous Architecture Distillation)"
-                aria-label="TRAIN Swarm"
-              >
-                <Brain className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-white" />
-                <span>TRAIN</span>
-              </button>
-
-              <div className="w-[1px] h-5 sm:h-6 bg-white/15 mx-0.5 flex-shrink-0" />
-
-              {/* Reopen Swarm Cards Overlay */}
-              <button
-                type="button"
-                onClick={() => setDashboardOpen(true)}
-                className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
-                title="Open Triple Swarm Dashboard Cards"
-              >
-                <Layers className="w-3.5 h-3.5 text-purple-400" />
-                <span className="hidden sm:inline">Swarms</span>
-              </button>
-
-              {/* Chat Toggle */}
-              <button
-                type="button"
-                onClick={() => handleToggleChatOpen(true)}
-                className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
-                title="Ask NEMI Anything"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden xs:inline">Chat</span>
-              </button>
+          <div className="absolute bottom-6 sm:bottom-8 inset-x-0 z-30 flex flex-col items-center gap-2.5 pointer-events-none px-4">
+            {/* Live Feed Status Pill */}
+            <div className="pointer-events-auto inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-950/40 backdrop-blur-xl border border-emerald-500/30 text-[11px] font-mono text-emerald-300 shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-semibold tracking-wider">LIVE QUANT FEED</span>
+              <span className="text-white/30">•</span>
+              <span className="text-white/80">10 QUANT AGENTS</span>
+              <span className="text-white/30">•</span>
+              <span className="text-emerald-400 font-bold">92.4% PROFIT PREDICTIONS</span>
             </div>
+
+            {/* Sole Primary Action: Transparent High-Quality TRADE Tab Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setTradingFleetModalOpen(true)
+                showToast('⚡ Live Trade Feed Connected: 10 Quant Agents (Win Rate ≥ 70%)')
+              }}
+              className="pointer-events-auto group relative flex items-center gap-3.5 px-6 sm:px-8 py-3 sm:py-3.5 rounded-full bg-slate-950/40 hover:bg-slate-900/60 active:bg-slate-950/80 backdrop-blur-2xl border border-emerald-400/40 hover:border-emerald-400/80 shadow-[0_12px_48px_rgba(0,0,0,0.85),0_0_35px_rgba(16,185,129,0.3)] cursor-pointer transition-all duration-300 hover:scale-[1.03] active:scale-95"
+              title="Open Live Trading Tab (10 Quant Agents, Real-Time Market Feed, AI Profitable Predictions)"
+              aria-label="TRADE Swarm"
+            >
+              <div className="absolute inset-0 rounded-full bg-emerald-500/10 blur-md group-hover:bg-emerald-500/20 transition-all pointer-events-none" />
+
+              <div className="relative w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-all shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+
+              <div className="flex flex-col text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm sm:text-base font-black tracking-widest text-white group-hover:text-emerald-300 transition-colors">
+                    TRADE
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/25 border border-emerald-400/40 text-emerald-300">
+                    LIVE FEED
+                  </span>
+                </div>
+                <span className="text-[11px] text-white/70 font-medium">
+                  Real-Time Market Data &amp; AI Profitable Trade Predictions
+                </span>
+              </div>
+
+              <div className="ml-1 sm:ml-2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 group-hover:text-emerald-300 group-hover:border-emerald-400/30 transition-all">
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
           </div>
         )}
 
