@@ -68,6 +68,9 @@ function getAudioContext(): AudioContext | null {
         audioCtx = new AudioCtxClass()
       }
     }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      void audioCtx.resume().catch(() => {})
+    }
     return audioCtx
   } catch {
     return null
@@ -239,26 +242,34 @@ function playAmbientFocusChime(ctx: AudioContext, destination: AudioNode) {
   chimeIdx++
 
   const osc = ctx.createOscillator()
+  const oscHarmonic = ctx.createOscillator()
   const gain = ctx.createGain()
   const filter = ctx.createBiquadFilter()
 
   osc.type = 'sine'
   osc.frequency.setValueAtTime(freq, now)
 
+  // Gentle pure 432Hz harmonic overtone for pristine crystal shimmer
+  oscHarmonic.type = 'triangle'
+  oscHarmonic.frequency.setValueAtTime(freq * 2, now)
+
   filter.type = 'lowpass'
-  filter.frequency.setValueAtTime(freq * 2.2, now)
-  filter.frequency.exponentialRampToValueAtTime(freq * 0.9, now + 2.2)
+  filter.frequency.setValueAtTime(freq * 3.5, now)
+  filter.frequency.exponentialRampToValueAtTime(freq * 1.2, now + 2.4)
 
   gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.linearRampToValueAtTime(0.035, now + 0.06)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.4)
+  gain.gain.linearRampToValueAtTime(0.04, now + 0.05)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5)
 
   osc.connect(filter)
+  oscHarmonic.connect(filter)
   filter.connect(gain)
   gain.connect(destination)
 
   osc.start(now)
-  osc.stop(now + 2.5)
+  oscHarmonic.start(now)
+  osc.stop(now + 2.6)
+  oscHarmonic.stop(now + 2.6)
 }
 
 /**
@@ -284,7 +295,8 @@ export function startOrbitalMusicEngine(): boolean {
 
     masterFilter = ctx.createBiquadFilter()
     masterFilter.type = 'lowpass'
-    masterFilter.frequency.setValueAtTime(3200, now)
+    // Full high-fidelity acoustic bandwidth (16kHz transparent ceiling)
+    masterFilter.frequency.setValueAtTime(16000, now)
     masterFilter.Q.setValueAtTime(0.7, now)
 
     masterGain.connect(masterFilter)
@@ -450,7 +462,8 @@ export function updateOrbitalProximity(cameraDistance: number): number {
   const ctx = getAudioContext()
   if (ctx && masterGain && masterFilter) {
     const targetGain = Math.pow(proximity, 1.3) * (manualSoothingMusicActive ? soundscapeVolume : 0.22)
-    const targetFilterFreq = 1800 + Math.pow(proximity, 1.1) * 2400
+    // High-fidelity studio clarity: opens up to 20kHz sparkle on close proximity
+    const targetFilterFreq = 10000 + Math.pow(proximity, 1.1) * 8000
 
     const now = ctx.currentTime
     masterGain.gain.setTargetAtTime(targetGain, now, 0.2)

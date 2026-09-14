@@ -126,6 +126,15 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
   return null
 }
 
+export const OWNER_EMAILS = ['abhi@uncodemy.com', 'admin@uncodemy.com']
+
+export function resolveUserRole(email: string, isFirstUser: boolean = false): 'owner' | 'member' {
+  const norm = normalizeEmail(email)
+  if (OWNER_EMAILS.includes(norm)) return 'owner'
+  if (process.env.NEMI_OWNER_EMAIL && normalizeEmail(process.env.NEMI_OWNER_EMAIL) === norm) return 'owner'
+  return isFirstUser ? 'owner' : 'member'
+}
+
 export async function createUser(params: {
   email: string
   password: string
@@ -155,7 +164,7 @@ export async function createUser(params: {
     name: (params.name && params.name.trim()) || key.split('@')[0],
     passwordHash,
     salt,
-    role: params.role || (isFirstUser ? 'owner' : 'member'),
+    role: params.role || resolveUserRole(key, isFirstUser),
     createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
   }
@@ -344,9 +353,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return
       }
 
-      // ── ACTION: GOOGLE AUTHENTICATION ──
-      if (action === 'google') {
-        const { credential, email: directEmail, name: directName, picture } = body
+      // ── ACTION: GOOGLE VERIFICATION & LOGIN / ONBOARDING ──
+      if (action === 'google' || action === 'google_verify') {
+        const { credential, email: directEmail, name: directName } = body
         let googleEmail = ''
         let googleName = ''
 
@@ -379,31 +388,99 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         }
 
         const normEmail = normalizeEmail(googleEmail)
+        const user = await findUserByEmail(normEmail)
+
+        // If user does not exist yet: return requiresProfileSetup = true so user chooses Username & Password
+        if (!user) {
+          res.statusCode = 200
+          res.end(
+            JSON.stringify({
+              success: true,
+              requiresProfileSetup: true,
+              verifiedEmail: normEmail,
+              suggestedName: googleName || normEmail.split('@')[0],
+              role: resolveUserRole(normEmail),
+            })
+          )
+          return
+        }
+
+        // User exists: update last login and issue token
+        await updateUserLastLogin(user.id)
+        const sessionToken = createSessionToken(user)
+        res.statusCode = 200
+        res.end(
+          JSON.stringify({
+            success: true,
+            requiresProfileSetup: false,
+            token: sessionToken,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              createdAt: user.createdAt,
+            },
+          })
+        )
+        return
+      }
+
+      // ── ACTION: COMPLETE GOOGLE SETUP (CREATE USERNAME & PASSWORD) ──
+      if (action === 'google_setup' || action === 'google_complete') {
+        const { email: setupEmail, username: setupUsername, password: setupPassword } = body
+        if (!setupEmail || !setupEmail.includes('@')) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ success: false, error: 'Valid Google verified email is required.' }))
+          return
+        }
+        if (!setupUsername || setupUsername.trim().length < 2) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ success: false, error: 'Username must be at least 2 characters.' }))
+          return
+        }
+        if (!setupPassword || setupPassword.length < 6) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ success: false, error: 'Password must be at least 6 characters long.' }))
+          return
+        }
+
+        const normEmail = normalizeEmail(setupEmail)
         let user = await findUserByEmail(normEmail)
 
-        if (!user) {
-          // Register new user directly with verified Google email
+        if (user) {
+          // If user already exists, update password and name if desired
           const db = loadDatabase()
           const salt = generateSalt()
-          const randomPassword = crypto.randomBytes(24).toString('hex')
-          const passwordHash = hashPassword(randomPassword, salt)
+          const passwordHash = hashPassword(setupPassword, salt)
+          user.name = setupUsername.trim()
+          user.salt = salt
+          user.passwordHash = passwordHash
+          user.role = resolveUserRole(normEmail)
+          user.lastLoginAt = new Date().toISOString()
+          db.users[normEmail] = user
+          saveDatabase(db)
+        } else {
+          // Register new user with explicitly chosen Username, Password, and Role
+          const db = loadDatabase()
+          const salt = generateSalt()
+          const passwordHash = hashPassword(setupPassword, salt)
           const isFirstUser = Object.keys(db.users).length === 0
+          const assignedRole = resolveUserRole(normEmail, isFirstUser)
 
           user = {
             id: `usr_g_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
             email: normEmail,
-            name: googleName || normEmail.split('@')[0],
+            name: setupUsername.trim(),
             passwordHash,
             salt,
-            role: isFirstUser ? 'owner' : 'member',
+            role: assignedRole,
             createdAt: new Date().toISOString(),
             lastLoginAt: new Date().toISOString(),
           }
 
           db.users[normEmail] = user
           saveDatabase(db)
-        } else {
-          await updateUserLastLogin(user.id)
         }
 
         const sessionToken = createSessionToken(user)

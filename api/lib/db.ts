@@ -135,6 +135,15 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
   return null
 }
 
+export const OWNER_EMAILS = ['abhi@uncodemy.com', 'admin@uncodemy.com']
+
+export function resolveUserRole(email: string, isFirstUser: boolean = false): 'owner' | 'member' {
+  const norm = normalizeEmail(email)
+  if (OWNER_EMAILS.includes(norm)) return 'owner'
+  if (process.env.NEMI_OWNER_EMAIL && normalizeEmail(process.env.NEMI_OWNER_EMAIL) === norm) return 'owner'
+  return isFirstUser ? 'owner' : 'member'
+}
+
 export async function createUser(params: {
   email: string
   password: string
@@ -164,7 +173,7 @@ export async function createUser(params: {
     name: (params.name && params.name.trim()) || key.split('@')[0],
     passwordHash,
     salt,
-    role: params.role || (isFirstUser ? 'owner' : 'member'),
+    role: params.role || resolveUserRole(key, isFirstUser),
     createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
   }

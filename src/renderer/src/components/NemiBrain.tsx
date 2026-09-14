@@ -638,10 +638,10 @@ function SceneLights({ isListening, isThinking, nimActive }: { isListening: bool
 // ABHI GURJAR MINIMALIST MOVING ORBITAL RING
 // ──────────────────────────────────────────────────────────
 function createOrbitalTextTexture(nameText: string): THREE.CanvasTexture {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const canvas = document.createElement('canvas')
-  canvas.width = isMobile ? 1024 : 4096
-  canvas.height = isMobile ? 64 : 128
+  // Topmost ultra-high resolution canvas for crystal-clear 3D text
+  canvas.width = 4096
+  canvas.height = 128
   const ctx = canvas.getContext('2d')
   if (!ctx) return new THREE.CanvasTexture(canvas)
 
@@ -697,6 +697,9 @@ function createOrbitalTextTexture(nameText: string): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas)
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
   texture.repeat.set(1, 1)
   texture.needsUpdate = true
   return texture
@@ -850,13 +853,13 @@ function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
       ref={controlsRef}
       enableRotate={true}
       enableZoom={true}
-      enablePan={!isMobile}
-      screenSpacePanning={!isMobile}
+      enablePan={true}
+      screenSpacePanning={true}
       minDistance={1.2}
       maxDistance={40}
       dampingFactor={0.06}
       enableDamping={true}
-      rotateSpeed={isMobile ? 0.65 : 0.85}
+      rotateSpeed={0.85}
       zoomSpeed={1.05}
       makeDefault
     />
@@ -1033,23 +1036,23 @@ export default function NemiBrain({
         <BrainErrorBoundary fallback={fallbackNode}>
           <Canvas
         className="brain-canvas pointer-events-auto"
-        dpr={isMobile ? [1, 1.2] : [1, 1.5]}
-        performance={{ min: 0.5 }}
+        dpr={[1, 2.5]}
+        performance={{ min: 0.8 }}
         gl={{
           alpha: true,
-          antialias: false,
+          antialias: true,
           powerPreference: 'high-performance',
           stencil: false,
           depth: true,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.2,
         }}
-        camera={{ position: [0, 0, isMobile ? 19.5 : 14], fov: isMobile ? 58 : 55, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0, isMobile ? 18 : 14], fov: 55, near: 0.1, far: 100 }}
         style={{
           position: 'absolute',
           inset: 0,
           background: 'transparent',
-          touchAction: 'manipulation',
+          touchAction: 'none',
         }}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
@@ -1078,10 +1081,10 @@ export default function NemiBrain({
           />
         </group>
 
-        {/* Optimized Post-processing: Fast Mipmap Bloom without costly multi-pass convolution */}
-        <EffectComposer multisampling={0}>
+        {/* Topmost High-Fidelity Post-processing: 4x MSAA + Luminous Mipmap Bloom */}
+        <EffectComposer multisampling={4}>
           <Bloom
-            intensity={isMobile ? (nimActive ? 1.2 : 0.8) : (nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2))}
+            intensity={nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 2.0) : (isListening ? 2.4 : isThinking ? 2.0 : 1.6)}
             luminanceThreshold={0.15}
             luminanceSmoothing={0.85}
             mipmapBlur
