@@ -572,10 +572,12 @@ export default function App() {
     }
     return false
   })
-  const [authRole, setAuthRole] = useState<'owner' | 'guest'>(() => {
+  const [authRole, setAuthRole] = useState<'owner' | 'member' | 'guest'>(() => {
     if (typeof window !== 'undefined' && window.nemi) return 'owner'
     if (typeof localStorage !== 'undefined') {
-      return (localStorage.getItem('nemi_session_role') as 'owner' | 'guest') || 'guest'
+      const stored = localStorage.getItem('nemi_session_role')
+      if (stored === 'owner' || stored === 'member' || stored === 'guest') return stored
+      return 'member'
     }
     return 'guest'
   })
@@ -600,9 +602,10 @@ export default function App() {
           const data = await res.json()
           if (data.valid && data.user) {
             setIsAuthenticated(true)
-            setAuthRole(data.user.role || 'owner')
+            setAuthRole(data.user.role || 'member')
             setCurrentUser(data.user)
             if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('nemi_session_role', data.user.role || 'member')
               localStorage.setItem('nemi_session_user', JSON.stringify(data.user))
             }
           } else if (!data.valid) {
@@ -2405,8 +2408,14 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   <span className="font-semibold text-[11px] truncate max-w-[100px]">
                     {currentUser?.name || currentUser?.email || (authRole === 'owner' ? 'Owner' : 'Guest')}
                   </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-400/20 text-emerald-300">
-                    {authRole === 'owner' ? 'OWNER' : 'PRO'}
+                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${
+                    authRole === 'owner'
+                      ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                      : authRole === 'member'
+                      ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/30'
+                      : 'bg-emerald-400/20 text-emerald-300'
+                  }`}>
+                    {authRole === 'owner' ? 'OWNER' : authRole === 'member' ? 'MEMBER' : 'GUEST'}
                   </span>
                 </>
               ) : (
@@ -2721,28 +2730,28 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   <ChevronRight className="w-4 h-4 text-cyan-300/50" />
                 </button>
 
-                {/* 0.5. Autonomous Learning Hub */}
+                {/* 0.5. Neural Training & Learning Hub */}
                 <button
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false)
                     setLearningModalOpen(true)
                   }}
-                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-purple-500/15 border border-cyan-400/40 active:bg-cyan-500/25 transition-all text-left shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-fuchsia-600/20 via-purple-600/15 to-cyan-500/20 border border-fuchsia-400/50 active:bg-fuchsia-500/30 transition-all text-left shadow-[0_0_20px_rgba(217,70,239,0.2)]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300">
-                      <BrainCircuit className="w-5 h-5 animate-pulse" />
+                    <div className="w-9 h-9 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/50 flex items-center justify-center text-fuchsia-300">
+                      <Brain className="w-5 h-5 animate-pulse" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white">Autonomous Learning Hub</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">LIVE</span>
+                        <span className="text-sm font-semibold text-white">TRAIN: Neural Training Hub</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-fuchsia-400/20 text-fuchsia-300 border border-fuchsia-400/30">LAB</span>
                       </div>
-                      <div className="text-xs text-cyan-300/70">11-Bot Swarm Mastery & Continuous GitHub Ingestion</div>
+                      <div className="text-xs text-fuchsia-200/70">Live Convergence Loss Curve &amp; 11-Bot Distillation</div>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-cyan-300/60" />
+                  <ChevronRight className="w-4 h-4 text-fuchsia-300/60" />
                 </button>
 
                 {/* 0.7. World's Hardest 100 Benchmark */}
@@ -3108,7 +3117,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
           onOpenTradingFleet={() => setTradingFleetModalOpen(true)}
         />
 
-        {/* ── World-Class 2-Swarm Dashboard (When Chat is closed & Dashboard is open) ── */}
+        {/* ── World-Class 3-Swarm Dashboard (When Chat is closed & Dashboard is open) ── */}
         {!chatOpen && dashboardOpen && (
           <div className="absolute inset-0 z-20 flex flex-col justify-between overflow-y-auto nemi-scroll pointer-events-none">
             <WorldClassDashboard
@@ -3118,6 +3127,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               onOpenAuth={() => setAuthModalOpen(true)}
               onOpenCodeSwarm={() => setSwarmDagModalOpen(true)}
               onOpenTradeSwarm={() => setTradingFleetModalOpen(true)}
+              onOpenTrainSwarm={() => setLearningModalOpen(true)}
               onOpenChat={() => handleToggleChatOpen(true)}
               onToggleVoice={toggleVoice}
               isListening={isListening}
@@ -3132,8 +3142,8 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
 
         {/* ── Home Screen Persistent Dock (When Dashboard is cancelled / stay on home screen) ── */}
         {!chatOpen && !dashboardOpen && (
-          <div className="absolute bottom-7 inset-x-0 z-30 flex flex-col items-center gap-2.5 pointer-events-none px-4">
-            <div className="pointer-events-auto flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-full bg-slate-950/85 backdrop-blur-2xl border border-white/20 shadow-[0_12px_48px_rgba(0,0,0,0.9),0_0_30px_rgba(0,212,255,0.15)]">
+          <div className="absolute bottom-6 sm:bottom-7 inset-x-0 z-30 flex flex-col items-center gap-2 pointer-events-none px-2 sm:px-4">
+            <div className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 p-1.5 sm:p-2.5 rounded-full bg-slate-950/90 backdrop-blur-2xl border border-white/20 shadow-[0_12px_48px_rgba(0,0,0,0.9),0_0_30px_rgba(0,212,255,0.15)] max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar">
               {/* TRADE Action Button */}
               <button
                 type="button"
@@ -3141,11 +3151,11 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   setTradingFleetModalOpen(true)
                   showToast('⚡ Trade Swarm Active: 10 Quant Agents Initialized (Win Rate ≥ 70%)')
                 }}
-                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer transition-all active:scale-95"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
                 title="Launch Trade Swarm (10 Quant Agents)"
                 aria-label="TRADE Swarm"
               >
-                <TrendingUp className="w-4 h-4 fill-slate-950" />
+                <TrendingUp className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-slate-950" />
                 <span>TRADE</span>
               </button>
 
@@ -3156,36 +3166,51 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
                   setSwarmDagModalOpen(true)
                   showToast('⚡ Code Swarm Active: 11 Multi-Agent DAG Bots Initialized')
                 }}
-                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.5)] cursor-pointer transition-all active:scale-95"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(6,182,212,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
                 title="Launch Code Swarm (11 Bots)"
                 aria-label="CODE Swarm"
               >
-                <Code2 className="w-4 h-4" />
+                <Code2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                 <span>CODE</span>
               </button>
 
-              <div className="w-[1px] h-6 bg-white/15 mx-0.5" />
+              {/* TRAIN Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setLearningModalOpen(true)
+                  showToast('⚡ Train Swarm Active: Neural Training & Learning Hub Initialized')
+                }}
+                className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-500 hover:from-fuchsia-500 hover:to-cyan-400 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-[0_0_20px_rgba(217,70,239,0.5)] cursor-pointer transition-all active:scale-95 flex-shrink-0"
+                title="Launch Neural Training Hub (Continuous Architecture Distillation)"
+                aria-label="TRAIN Swarm"
+              >
+                <Brain className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-white" />
+                <span>TRAIN</span>
+              </button>
+
+              <div className="w-[1px] h-5 sm:h-6 bg-white/15 mx-0.5 flex-shrink-0" />
 
               {/* Reopen Swarm Cards Overlay */}
               <button
                 type="button"
                 onClick={() => setDashboardOpen(true)}
-                className="px-3.5 py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
-                title="Open Dual Swarm Dashboard Cards"
+                className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
+                title="Open Triple Swarm Dashboard Cards"
               >
                 <Layers className="w-3.5 h-3.5 text-purple-400" />
-                <span className="hidden sm:inline">Swarm Cards</span>
+                <span className="hidden sm:inline">Swarms</span>
               </button>
 
               {/* Chat Toggle */}
               <button
                 type="button"
                 onClick={() => handleToggleChatOpen(true)}
-                className="px-3.5 py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
                 title="Ask NEMI Anything"
               >
                 <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden sm:inline">Chat</span>
+                <span className="hidden xs:inline">Chat</span>
               </button>
             </div>
           </div>
@@ -3281,14 +3306,16 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
         isGuest={authRole === 'guest'}
         currentUser={currentUser}
         onLoginSuccess={(token, role, user) => {
+          const resolvedRole: 'owner' | 'member' | 'guest' =
+            user?.role || (role === 'guest' ? 'guest' : role === 'owner' ? 'owner' : 'member')
           setIsAuthenticated(true)
-          setAuthRole(role === 'guest' ? 'guest' : 'owner')
+          setAuthRole(resolvedRole)
           if (user) {
             setCurrentUser(user)
           }
           if (typeof localStorage !== 'undefined') {
             localStorage.setItem('nemi_session_token', token)
-            localStorage.setItem('nemi_session_role', role)
+            localStorage.setItem('nemi_session_role', resolvedRole)
             if (user) {
               localStorage.setItem('nemi_session_user', JSON.stringify(user))
             }

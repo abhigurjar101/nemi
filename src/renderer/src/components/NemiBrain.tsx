@@ -638,9 +638,10 @@ function SceneLights({ isListening, isThinking, nimActive }: { isListening: bool
 // ABHI GURJAR MINIMALIST MOVING ORBITAL RING
 // ──────────────────────────────────────────────────────────
 function createOrbitalTextTexture(nameText: string): THREE.CanvasTexture {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const canvas = document.createElement('canvas')
-  canvas.width = 4096
-  canvas.height = 128
+  canvas.width = isMobile ? 1024 : 4096
+  canvas.height = isMobile ? 64 : 128
   const ctx = canvas.getContext('2d')
   if (!ctx) return new THREE.CanvasTexture(canvas)
 
@@ -835,24 +836,27 @@ function CameraRig({ resetSignal, zoomSignal }: CameraRigProps) {
     const controls = controlsRef.current
     if (!controls) return
 
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
     controls.target.set(0, 0, 0)
-    camera.position.set(0, 0, 14)
+    camera.position.set(0, 0, isMobile ? 19.5 : 14)
     camera.up.set(0, 1, 0)
     controls.update()
   }, [resetSignal, camera])
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
   return (
     <OrbitControls
       ref={controlsRef}
       enableRotate={true}
       enableZoom={true}
-      enablePan={true}
-      screenSpacePanning={true}
+      enablePan={!isMobile}
+      screenSpacePanning={!isMobile}
       minDistance={1.2}
       maxDistance={40}
       dampingFactor={0.06}
       enableDamping={true}
-      rotateSpeed={0.85}
+      rotateSpeed={isMobile ? 0.65 : 0.85}
       zoomSpeed={1.05}
       makeDefault
     />
@@ -1019,6 +1023,8 @@ export default function NemiBrain({
     />
   )
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
   return (
     <div className="fixed inset-0 pointer-events-none z-0">
       {!webGlSupported ? (
@@ -1027,7 +1033,7 @@ export default function NemiBrain({
         <BrainErrorBoundary fallback={fallbackNode}>
           <Canvas
         className="brain-canvas pointer-events-auto"
-        dpr={[1, 1.5]}
+        dpr={isMobile ? [1, 1.2] : [1, 1.5]}
         performance={{ min: 0.5 }}
         gl={{
           alpha: true,
@@ -1038,12 +1044,12 @@ export default function NemiBrain({
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.2,
         }}
-        camera={{ position: [0, 0, 14], fov: 55, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0, isMobile ? 19.5 : 14], fov: isMobile ? 58 : 55, near: 0.1, far: 100 }}
         style={{
           position: 'absolute',
           inset: 0,
           background: 'transparent',
-          touchAction: 'none',
+          touchAction: 'manipulation',
         }}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
@@ -1075,7 +1081,7 @@ export default function NemiBrain({
         {/* Optimized Post-processing: Fast Mipmap Bloom without costly multi-pass convolution */}
         <EffectComposer multisampling={0}>
           <Bloom
-            intensity={nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2)}
+            intensity={isMobile ? (nimActive ? 1.2 : 0.8) : (nimActive ? (isListening ? 2.8 : isThinking ? 2.4 : 1.8) : (isListening ? 2.2 : isThinking ? 1.8 : 1.2))}
             luminanceThreshold={0.15}
             luminanceSmoothing={0.85}
             mipmapBlur
@@ -1088,7 +1094,7 @@ export default function NemiBrain({
 
       {/* ── Sleek Minimalist 3D Brain Camera HUD (Fixed Lower-Left) ── */}
       <div
-        className="fixed bottom-24 sm:bottom-6 left-4 sm:left-6 z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl glass-panel bg-slate-950/85 backdrop-blur-2xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.75)] select-none"
+        className="fixed bottom-28 sm:bottom-6 left-3 sm:left-6 z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl glass-panel bg-slate-950/85 backdrop-blur-2xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.75)] select-none"
         role="toolbar"
         aria-label="3D Brain Navigation Controls"
       >

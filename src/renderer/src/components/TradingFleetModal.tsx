@@ -317,46 +317,46 @@ if __name__ == '__main__':
       aria-modal="true"
       aria-labelledby="trading-fleet-title"
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-6xl h-[92vh] max-h-[900px] flex flex-col glass-panel bg-slate-950/95 border border-purple-500/30 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden"
+        className="relative w-full max-w-6xl h-[92dvh] sm:h-[92vh] max-h-[900px] flex flex-col glass-panel bg-slate-950/95 border border-purple-500/30 rounded-2xl sm:rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden"
       >
           {/* Top Bar Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02]">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-emerald-500/30 border border-purple-400/30 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-white/[0.02] flex-wrap sm:flex-nowrap gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-emerald-500/30 border border-purple-400/30 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold bg-gradient-to-r from-purple-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">
+                  <h2 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-purple-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">
                     NEMI Algorithmic Trading Fleet
                   </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    10 AGENTS ACTIVE
+                    10 AGENTS
                   </span>
                 </div>
-                <p className="text-xs text-white/50">
-                  Institutional Multi-Agent Swarm with Bayesian Consensus & n8n Workflow Automation
+                <p className="text-[10px] sm:text-xs text-white/50 line-clamp-1">
+                  Institutional Multi-Agent Swarm with Bayesian Consensus &amp; n8n Automation
                 </p>
               </div>
             </div>
 
             {/* Asset Selector & Action Buttons */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
+            <div className="flex items-center gap-2 overflow-x-auto max-w-full">
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto">
                 {(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'NVDA', 'SPY'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setSelectedTicker(t)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                       selectedTicker === t
                         ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]'
                         : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -370,7 +370,7 @@ if __name__ == '__main__':
               <button
                 type="button"
                 onClick={handleDownloadAllWorkflows}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all whitespace-nowrap"
                 title="Download All 10 n8n Workflow JSONs"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -380,17 +380,16 @@ if __name__ == '__main__':
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                aria-label="Close modal"
+                className="p-1.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center justify-between px-6 py-2 border-b border-white/10 bg-slate-900/50 overflow-x-auto">
-            <div className="flex items-center gap-2">
+          {/* Navigation Tabs (Smooth horizontal scrolling on mobile) */}
+          <div className="flex items-center justify-between px-3 sm:px-6 py-2 border-b border-white/10 bg-slate-900/50 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
               <button
                 type="button"
                 onClick={() => setActiveTab('cockpit')}

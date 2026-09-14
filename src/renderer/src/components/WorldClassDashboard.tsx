@@ -34,6 +34,9 @@ import {
   VolumeX,
   ChevronDown,
   X,
+  TrendingDown,
+  Award,
+  GitBranch,
 } from 'lucide-react'
 import { dailyLearningFeed, DailyFeedStatus } from '../services/dailyLearningFeed'
 import {
@@ -52,12 +55,13 @@ import {
 export interface WorldClassDashboardProps {
   isAuthenticated: boolean
   currentUser: { name?: string; email?: string } | null
-  authRole: 'owner' | 'guest'
+  authRole: 'owner' | 'guest' | 'member'
   onOpenAuth: () => void
 
-  // The 2 Primary Swarms
+  // The Primary Swarms
   onOpenCodeSwarm: () => void
   onOpenTradeSwarm: () => void
+  onOpenTrainSwarm?: () => void
 
   // Minimalist Chat Trigger
   onOpenChat: () => void
@@ -79,6 +83,7 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
   onOpenAuth,
   onOpenCodeSwarm,
   onOpenTradeSwarm,
+  onOpenTrainSwarm,
   onOpenChat,
   onToggleVoice,
   isListening = false,
@@ -457,18 +462,18 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
         >
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-[11px] font-mono text-cyan-300 mb-2.5 shadow-[0_0_20px_rgba(0,212,255,0.15)]">
             <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>NEMI DUAL SWARM INTELLIGENCE</span>
+            <span>NEMI TRIPLE SWARM INTELLIGENCE</span>
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-b from-white via-white/95 to-white/70 bg-clip-text text-transparent">
-            TRADE &amp; CODE
+            TRADE • CODE • TRAIN
           </h1>
-          <p className="text-xs sm:text-sm text-white/60 mt-2 max-w-md mx-auto leading-relaxed">
-            Institutional Quantitative Trading &amp; Autonomous Multi-Agent Software Compilation.
+          <p className="text-xs sm:text-sm text-white/60 mt-2 max-w-lg mx-auto leading-relaxed">
+            Institutional Quantitative Trading, Autonomous Multi-Agent Compilation &amp; Continuous Neural Training.
           </p>
         </motion.div>
 
-        {/* ── THE EXACTLY TWO (2) SWARM ACTION BUTTONS (HERO CARDS): TRADE AND CODE ── */}
-        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-stretch mb-6">
+        {/* ── THE THREE (3) SWARM ACTION BUTTONS (HERO CARDS): TRADE, CODE, AND TRAIN ── */}
+        <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6 items-stretch mb-6">
           {/* ═════════ BUTTON 1: TRADE SWARM (TRADE) ═════════ */}
           <motion.div
             initial={{ opacity: 0, x: -25 }}
@@ -631,6 +636,90 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
               <Zap className="w-4.5 h-4.5 text-cyan-200 fill-cyan-200 group-hover/btn:animate-bounce" />
               <span className="tracking-wide">CODE</span>
               <span className="text-[11px] font-normal opacity-70 hidden sm:inline">(Launch Code Swarm)</span>
+              <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+            </button>
+          </motion.div>
+
+          {/* ═════════ BUTTON 3: TRAIN SWARM (TRAIN) ═════════ */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            onClick={onOpenTrainSwarm}
+            className="group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-fuchsia-950/40 via-slate-900/75 to-slate-950/85 border border-fuchsia-500/30 hover:border-fuchsia-400/70 shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_30px_rgba(217,70,239,0.15)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_40px_rgba(217,70,239,0.3)] backdrop-blur-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+          >
+            {/* Ambient Corner Accent */}
+            <div className="absolute top-0 right-0 w-36 h-36 bg-fuchsia-500/10 rounded-bl-full blur-2xl group-hover:bg-fuchsia-500/20 transition-all" />
+
+            <div>
+              {/* Header Badge */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/30 text-[10px] font-mono text-fuchsia-300">
+                  <Brain className="w-3 h-3 text-fuchsia-400 animate-pulse" />
+                  <span>NEURAL LAB • 24/7 CONTINUOUS</span>
+                </div>
+                <span className="text-[10px] font-mono text-fuchsia-300/80 group-hover:text-fuchsia-200 transition-colors">
+                  TRAIN SWARM • 48 BLUEPRINTS
+                </span>
+              </div>
+
+              {/* Icon & Title */}
+              <div className="flex items-center gap-3.5 mb-3">
+                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-fuchsia-500/25 to-purple-500/25 border border-fuchsia-400/40 flex items-center justify-center text-fuchsia-300 shadow-[0_0_20px_rgba(217,70,239,0.25)] group-hover:scale-105 group-hover:border-fuchsia-400/80 transition-all">
+                  <Brain className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-white group-hover:text-fuchsia-200 transition-colors">
+                    TRAIN
+                  </h2>
+                  <p className="text-xs text-fuchsia-300/75 font-medium">
+                    Autonomous Neural Training &amp; Architecture Lab
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-xs text-white/70 leading-relaxed mb-5">
+                Continuous architecture distillation from top GitHub repos (vLLM, NanoGPT, DeepSeek-R1).
+                Live loss convergence modeling, token throughput tracking, and verified pattern synthesis.
+              </p>
+
+              {/* Specs Pills */}
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-2 text-[11px] text-white/85">
+                  <TrendingDown className="w-3.5 h-3.5 text-fuchsia-400 flex-shrink-0" />
+                  <span className="truncate">Loss Convergence Lab</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-2 text-[11px] text-white/85">
+                  <Award className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span className="truncate">99.6% Accuracy Check</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-2 text-[11px] text-white/85">
+                  <GitBranch className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                  <span className="truncate">Daily Repo Ingestion</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-2 text-[11px] text-white/85">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span className="truncate">Memory Checkpoint Vault</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Big Launch Action Button: TRAIN */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onOpenTrainSwarm) onOpenTrainSwarm()
+              }}
+              className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-500 hover:from-fuchsia-500 hover:to-cyan-400 text-white font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(217,70,239,0.35)] hover:shadow-[0_0_35px_rgba(217,70,239,0.55)] active:scale-[0.99] transition-all cursor-pointer group/btn"
+              title="Launch Neural Training Hub"
+              aria-label="Launch Neural Training Hub"
+            >
+              <Brain className="w-4.5 h-4.5 text-fuchsia-200 fill-fuchsia-200 group-hover/btn:animate-pulse" />
+              <span className="tracking-wide">TRAIN</span>
+              <span className="text-[11px] font-normal opacity-70 hidden sm:inline">(Launch Training Hub)</span>
               <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
             </button>
           </motion.div>
