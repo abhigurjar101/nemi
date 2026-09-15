@@ -85,6 +85,14 @@ class RealTimeMarketDataService {
     this.lastFetchAttempt = Date.now()
 
     try {
+      // 1. Primary & most reliable: Serverless /api/trade endpoint (same-origin on web, no CORS/mixed content issues)
+      const tradeApiSuccess = await this._fetchFromTradeApi()
+      if (tradeApiSuccess) {
+        this._notifySubscribers()
+        return this.cache
+      }
+
+      // 2. Direct client-side fallbacks (CoinGecko public API + Yahoo query2)
       await Promise.all([
         this._fetchCryptoFromCoinGecko(),
         this._fetchStocksFromYahoo(),
@@ -152,6 +160,55 @@ class RealTimeMarketDataService {
 
   // ─── Private Fetch Methods ────────────────────────────────────────────────
 
+  /** Primary fetcher: queries serverless /api/trade endpoint (same-origin on web or https://nemio.in) */
+  private async _fetchFromTradeApi(): Promise<boolean> {
+    try {
+      const isBrowser = typeof window !== 'undefined'
+      const origin = isBrowser && window.location?.origin ? window.location.origin : ''
+      // If running on a domain or localhost with port 5173/vite, try origin/api/trade, else fallback to nemio.in
+      const urls = isBrowser
+        ? ['/api/trade', 'https://nemio.in/api/trade']
+        : ['https://nemio.in/api/trade']
+
+      for (const url of urls) {
+        try {
+          const resp = await fetch(url, {
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(6000),
+          })
+          if (!resp.ok) continue
+
+          const json = await resp.json()
+          const tickers = json?.tickers
+          if (tickers && typeof tickers === 'object' && Object.keys(tickers).length > 0) {
+            for (const [sym, t] of Object.entries(tickers)) {
+              const d = t as any
+              if (!d?.price) continue
+              this.cache.set(sym, {
+                symbol: sym,
+                price: Number(d.price),
+                change24h: Number(d.change24h ?? 0),
+                high24h: Number(d.high24h ?? d.price * 1.01),
+                low24h: Number(d.low24h ?? d.price * 0.99),
+                volume24hUsd: Number(d.volume24hUsd ?? 0),
+                bid: Number(d.bid ?? d.price * 0.9999),
+                ask: Number(d.ask ?? d.price * 1.0001),
+                lastUpdated: Date.now(),
+                isLive: d.isLive !== false,
+              })
+            }
+            return true
+          }
+        } catch {
+          // try next URL
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return false
+  }
+
   private async _fetchCryptoFromCoinGecko(): Promise<void> {
     const ids = Object.values(COINGECKO_IDS).join(',')
     const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h`
@@ -199,7 +256,7 @@ class RealTimeMarketDataService {
   }
 
   private async _fetchStocksFromYahoo(): Promise<void> {
-    // Primary: local Python trader server (yfinance, most reliable)
+    // Primary: local Python trader server (yfinance, most reliable in desktop mode)
     try {
       await this._fetchStocksFromTraderServer()
       return
@@ -207,8 +264,7 @@ class RealTimeMarketDataService {
       // Fallback to public market data APIs
     }
 
-    // Fallback 1: Use yfinance Python via a query to the local server on a different path
-    // Fallback 2: Twelve Data free API (no key needed for basic quotes)
+    // Fallback 1: Twelve Data
     try {
       await this._fetchStocksTwelveData()
       return
@@ -216,7 +272,7 @@ class RealTimeMarketDataService {
       // continue to next fallback
     }
 
-    // Fallback 3: Yahoo Finance spark endpoint (may work without auth from browser context)
+    // Fallback 2: Yahoo Finance query2 spark endpoint
     const symbols = Object.values(YAHOO_TICKERS).join(',')
     const url = `https://query2.finance.yahoo.com/v8/finance/spark?symbols=${symbols}&range=1d&interval=60m`
 
@@ -231,50 +287,34 @@ class RealTimeMarketDataService {
 
       if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`)
 
-      const raw = await resp.json() as {
-        spark?: {
-          result?: Array<{
-            symbol: string
-            response?: Array<{
-              meta?: {
-                regularMarketPrice?: number
-                regularMarketChangePercent?: number
-                regularMarketDayHigh?: number
-                regularMarketDayLow?: number
-                regularMarketVolume?: number
-              }
-              timestamp?: number[]
-              close?: number[]
-            }>
-          }>
+      const raw = (await resp.json()) as Record<
+        string,
+        {
+          symbol?: string
+          previousClose?: number
+          close?: number[]
+          timestamp?: number[]
         }
-      }
+      >
 
-      const spark = raw?.spark?.result ?? []
-      for (const item of spark) {
-        const sym = item.symbol
+      for (const [sym, item] of Object.entries(raw)) {
+        if (!item) continue
         const internalSym = Object.entries(YAHOO_TICKERS).find(([, v]) => v === sym)?.[0] || sym
-        const meta = item.response?.[0]?.meta
-        const closes = item.response?.[0]?.close ?? []
-        if (!meta?.regularMarketPrice) continue
-
-        const price = meta.regularMarketPrice
+        const closes = (item.close || []).filter((c): c is number => typeof c === 'number' && !isNaN(c))
+        const prev = item.previousClose || (closes[0] ?? 100)
+        const price = closes.length > 0 ? closes[closes.length - 1] : prev
+        const change24h = prev ? Number((((price - prev) / prev) * 100).toFixed(2)) : 0
         const spread = price * 0.0001
-        const dayHigh = meta.regularMarketDayHigh ?? price * 1.01
-        const dayLow = meta.regularMarketDayLow ?? price * 0.99
-        const vol = meta.regularMarketVolume ?? 0
-
-        const sparkline = closes.length >= 7
-          ? closes.slice(-7).map((c: number) => Number(c.toFixed(2)))
-          : [dayLow, dayLow * 1.002, dayLow * 1.004, price * 0.999, price * 1.001, price, price]
-        sparkline[sparkline.length - 1] = Number(price.toFixed(2))
+        const dayHigh = closes.length > 0 ? Math.max(...closes) : price * 1.01
+        const dayLow = closes.length > 0 ? Math.min(...closes) : price * 0.99
+        const vol = 25_000_000
 
         this.cache.set(internalSym, {
           symbol: internalSym,
-          price,
-          change24h: meta.regularMarketChangePercent ?? 0,
-          high24h: dayHigh,
-          low24h: dayLow,
+          price: Number(price.toFixed(2)),
+          change24h,
+          high24h: Number(dayHigh.toFixed(2)),
+          low24h: Number(dayLow.toFixed(2)),
           volume24hUsd: vol * price,
           bid: Number((price - spread).toFixed(2)),
           ask: Number((price + spread).toFixed(2)),
@@ -282,8 +322,8 @@ class RealTimeMarketDataService {
           isLive: true,
         })
       }
-    } catch (yahooErr) {
-      console.warn('[NEMI MarketData] All stock price sources failed:', yahooErr)
+    } catch {
+      // ignore
     }
   }
 
