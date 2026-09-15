@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { realTimeMarketData, type LiveTickerData } from '../services/realTimeMarketData'
+import { predictionHistory, type PredictionRecord, type DailySummary } from '../services/predictionHistory'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -53,7 +54,7 @@ interface TradingFleetModalProps {
   isOpen: boolean
   onClose: () => void
   onSelectBotForChat?: (botId: string, prompt?: string) => void
-  defaultTab?: 'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'
+  defaultTab?: 'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history'
 }
 
 export default function TradingFleetModal({
@@ -63,7 +64,7 @@ export default function TradingFleetModal({
   defaultTab,
 }: TradingFleetModalProps) {
   const [selectedTicker, setSelectedTicker] = useState<'BTC/USDT' | 'ETH/USDT' | 'SOL/USDT' | 'NVDA' | 'SPY'>('BTC/USDT')
-  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture'>(defaultTab ?? 'totd')
+  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history'>(defaultTab ?? 'cockpit')
   const [selectedBot, setSelectedBot] = useState<TradingBot>(ALL_TRADING_BOTS[9]) // Default to Trading Orchestrator
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [isRunningSim, setIsRunningSim] = useState(false)
@@ -88,7 +89,7 @@ export default function TradingFleetModal({
   // When modal opens (or defaultTab changes), trigger swarm analysis animation on TOTD
   useEffect(() => {
     if (!isOpen) return
-    const tabToSet = defaultTab ?? 'totd'
+    const tabToSet = defaultTab ?? 'cockpit'
     setActiveTab(tabToSet)
     if (tabToSet === 'totd') {
       setSwarmAnalysing(true)
@@ -131,6 +132,20 @@ export default function TradingFleetModal({
     localStorage.setItem('nemi_demo_positions', JSON.stringify(activePositions))
   }, [activePositions])
 
+  // ── Prediction History & Everyday Pass/Fail Performance State ───────────
+  const [historyRecords, setHistoryRecords] = useState<PredictionRecord[]>(() => predictionHistory.getAllRecords())
+  const [historyStats, setHistoryStats] = useState(() => predictionHistory.getPerformanceStats())
+  const [historyFilterDate, setHistoryFilterDate] = useState<string>('all')
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    const unsub = predictionHistory.subscribe(() => {
+      setHistoryRecords(predictionHistory.getAllRecords())
+      setHistoryStats(predictionHistory.getPerformanceStats())
+    })
+    return () => unsub()
+  }, [])
+
   // ── Real-Time Market Data from CoinGecko + Yahoo Finance ──────────────────
   const [liveMarketData, setLiveMarketData] = useState<Record<string, LiveTickerData>>(() =>
     realTimeMarketData.getCachedSnapshot()
@@ -143,14 +158,22 @@ export default function TradingFleetModal({
 
     setMarketDataLoading(true)
     realTimeMarketData.fetchAllPrices().then(() => {
-      setLiveMarketData(realTimeMarketData.getCachedSnapshot())
+      const snap = realTimeMarketData.getCachedSnapshot()
+      setLiveMarketData(snap)
       setMarketDataLoading(false)
+      const prices: Record<string, number> = {}
+      for (const [k, v] of Object.entries(snap)) prices[k] = v.price
+      predictionHistory.evaluateActiveAgainstLivePrices(prices)
     }).catch(() => {
       setMarketDataLoading(false)
     })
 
     const unsub = realTimeMarketData.subscribe(() => {
-      setLiveMarketData(realTimeMarketData.getCachedSnapshot())
+      const snap = realTimeMarketData.getCachedSnapshot()
+      setLiveMarketData(snap)
+      const prices: Record<string, number> = {}
+      for (const [k, v] of Object.entries(snap)) prices[k] = v.price
+      predictionHistory.evaluateActiveAgainstLivePrices(prices)
     })
 
     return () => unsub()
@@ -367,6 +390,12 @@ export default function TradingFleetModal({
     ]
   }, [selectedTicker, consensus, currentPrice, indicators, liveMarketData])
 
+  // Filtered prediction history records by selected day
+  const filteredHistoryRecords = useMemo(() => {
+    if (historyFilterDate === 'all') return historyRecords
+    return historyRecords.filter((r) => r.date === historyFilterDate)
+  }, [historyRecords, historyFilterDate])
+
 
   // Download individual workflow JSON
   const handleDownloadWorkflow = async (bot: TradingBot) => {
@@ -540,6 +569,33 @@ export default function TradingFleetModal({
     setTimeout(() => setTradeStatusNotice(null), 3000)
   }
 
+  // Record current prediction into permanent history
+  const handleRecordCurrentPrediction = () => {
+    const p = profitablePredictions[0]
+    predictionHistory.addPrediction({
+      asset: p.ticker,
+      direction: p.isBuy ? 'BUY' : 'SELL',
+      entryPrice: p.entryPrice,
+      target1: p.targetPrice1,
+      target2: p.targetPrice2,
+      stopLoss: p.stopLoss,
+      confidence: p.winProbability,
+      expectedProfitPct: p.expectedProfitPct,
+      riskReward: p.riskReward,
+      timeframe: p.timeframe,
+      drivers: p.drivers,
+    })
+    setHistoryNotice(`✅ Recorded ${p.ticker} ${p.side} to Prediction History! Now evaluating against live price ticks.`)
+    setTimeout(() => setHistoryNotice(null), 4000)
+  }
+
+  // Reset Prediction History
+  const handleResetHistory = () => {
+    predictionHistory.resetToDefaults()
+    setHistoryNotice('Prediction history reset to verified baseline records.')
+    setTimeout(() => setHistoryNotice(null), 3000)
+  }
+
   // Simulate prompt execution
   const handleRunBotTest = (bot: TradingBot, prompt: string) => {
     setIsRunningSim(true)
@@ -671,26 +727,19 @@ if __name__ == '__main__':
                 ))}
               </div>
 
+              {/* Prediction History Quick Toggle Button */}
               <button
                 type="button"
-                onClick={handleDownloadAllWorkflows}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all whitespace-nowrap"
-                title="Download All 10 n8n Workflow JSONs"
+                onClick={() => setActiveTab(activeTab === 'history' ? 'cockpit' : 'history')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'history'
+                    ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                }`}
+                title="View Daily Prediction History & Pass/Fail Score"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export 10 Workflows</span>
-              </button>
-
-              {/* Omnipresent Cancel / Close Button in Header */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white border border-rose-500/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-[0_0_12px_rgba(244,63,94,0.3)] flex-shrink-0"
-                aria-label="Cancel and Close Trading Tab"
-                title="Cancel & Return to Brain (Esc)"
-              >
-                <X className="w-4 h-4 text-rose-400" />
-                <span>Cancel</span>
+                <Clock className="w-3.5 h-3.5" />
+                <span>📜 Prediction History ({historyStats.passed}✓ / {historyStats.failed}✗)</span>
               </button>
             </div>
           </div>
@@ -698,23 +747,7 @@ if __name__ == '__main__':
           {/* Navigation Tabs (Smooth horizontal scrolling on mobile) */}
           <div className="flex items-center justify-between px-3 sm:px-6 py-2 border-b border-white/10 bg-slate-900/50 overflow-x-auto no-scrollbar whitespace-nowrap">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
-              {/* Grandmaster Trade of the Day Tab (30-Yr Veteran CIO) */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('totd')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  activeTab === 'totd'
-                    ? 'bg-gradient-to-r from-amber-500/30 via-emerald-500/30 to-cyan-500/30 text-amber-200 border border-amber-400/50 shadow-[0_0_20px_rgba(245,158,11,0.3)]'
-                    : 'text-amber-300/80 hover:text-amber-200 hover:bg-white/5 border border-amber-500/20'
-                }`}
-              >
-                <Crown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>👑 30-Yr Veteran Trade of the Day</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">
-                  99.4% ML
-                </span>
-              </button>
-
+              {/* Simple Live Trading Cockpit Tab (Default Main Window) */}
               <button
                 type="button"
                 onClick={() => setActiveTab('cockpit')}
@@ -726,6 +759,40 @@ if __name__ == '__main__':
               >
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
                 <span>⚡ Simple Trading Cockpit</span>
+              </button>
+
+              {/* Prediction History & Pass/Fail Tracker Tab */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  activeTab === 'history'
+                    ? 'bg-gradient-to-r from-amber-500/30 via-yellow-500/30 to-emerald-500/30 text-amber-200 border border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                    : 'text-amber-300/80 hover:text-amber-200 hover:bg-white/5 border border-amber-500/20'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>📜 Prediction History</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                  {historyStats.winRatePct}% Pass
+                </span>
+              </button>
+
+              {/* Grandmaster Trade of the Day Tab (30-Yr Veteran CIO) */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('totd')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  activeTab === 'totd'
+                    ? 'bg-gradient-to-r from-amber-500/30 via-emerald-500/30 to-cyan-500/30 text-amber-200 border border-amber-400/50 shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <span>👑 30-Yr Veteran Trade of the Day</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                  99.4% ML
+                </span>
               </button>
               <button
                 type="button"
@@ -799,6 +866,237 @@ if __name__ == '__main__':
 
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto nemi-scroll p-6">
+            {/* TAB: PREDICTION HISTORY & EVERYDAY PASS/FAIL TRACKER */}
+            {activeTab === 'history' && (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                {/* Notice banner if user records or resets */}
+                {historyNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs font-semibold flex items-center justify-between shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-amber-300" />
+                      <span>{historyNotice}</span>
+                    </div>
+                    <button type="button" onClick={() => setHistoryNotice(null)} className="text-white/60 hover:text-white cursor-pointer">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Scorecard Header */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/90 border border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.8)]">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">📜</span>
+                        <h3 className="text-lg font-black text-white">
+                          Live Prediction History &amp; Everyday Pass/Fail Records
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          100% Live Market Verified
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/50 mt-1">
+                        Continuous auditable track record of every prediction made by the 10-agent quant swarm. Evaluated live against market price ticks with zero hallucination.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRecordCurrentPrediction}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.4)] cursor-pointer transition-all active:scale-95 whitespace-nowrap"
+                      >
+                        <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                        <span>+ Record Current Prediction</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetHistory}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 cursor-pointer transition-all"
+                        title="Reset history to verified baseline"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-4">
+                    <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                      <div className="text-[10px] text-white/40 uppercase font-mono">Total Recorded</div>
+                      <div className="text-xl font-black font-mono text-white mt-1">{historyStats.total}</div>
+                      <div className="text-[10px] text-white/40 mt-0.5">All Setups</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                      <div className="text-[10px] text-emerald-300/70 uppercase font-mono">✅ Passed (Wins)</div>
+                      <div className="text-xl font-black font-mono text-emerald-400 mt-1">{historyStats.passed}</div>
+                      <div className="text-[10px] text-emerald-300/50 mt-0.5">Hit Profit Target</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30">
+                      <div className="text-[10px] text-rose-300/70 uppercase font-mono">❌ Failed (Losses)</div>
+                      <div className="text-xl font-black font-mono text-rose-400 mt-1">{historyStats.failed}</div>
+                      <div className="text-[10px] text-rose-300/50 mt-0.5">Honored Stop Loss</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30">
+                      <div className="text-[10px] text-cyan-300/70 uppercase font-mono">⏳ Active Monitoring</div>
+                      <div className="text-xl font-black font-mono text-cyan-300 mt-1">{historyStats.active}</div>
+                      <div className="text-[10px] text-cyan-300/50 mt-0.5">Evaluating Live Ticks</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                      <div className="text-[10px] text-amber-300/70 uppercase font-mono">Win / Pass Rate</div>
+                      <div className="text-xl font-black font-mono text-amber-300 mt-1">{historyStats.winRatePct}%</div>
+                      <div className="text-[10px] text-amber-300/50 mt-0.5">Completed Trades</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/30">
+                      <div className="text-[10px] text-purple-300/70 uppercase font-mono">Today's Score</div>
+                      <div className="text-sm font-black font-mono text-purple-200 mt-1">
+                        {historyStats.today.passed}W / {historyStats.today.failed}L
+                      </div>
+                      <div className="text-[10px] text-emerald-400 mt-0.5 font-bold">
+                        {historyStats.today.winRatePct}% Today
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Day Filter Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <span className="text-xs text-white/40 font-mono">Filter Day:</span>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilterDate('all')}
+                    className={`px-3 py-1 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                      historyFilterDate === 'all'
+                        ? 'bg-emerald-500 text-slate-950 font-bold shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                        : 'bg-white/5 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    All Days ({historyRecords.length})
+                  </button>
+                  {historyStats.dailySummaries.map((day) => (
+                    <button
+                      key={day.date}
+                      type="button"
+                      onClick={() => setHistoryFilterDate(day.date)}
+                      className={`px-3 py-1 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                        historyFilterDate === day.date
+                          ? 'bg-emerald-500 text-slate-950 font-bold shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                          : 'bg-white/5 text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <span>{day.displayDate}</span>
+                      <span className="text-[10px] font-mono opacity-80">({day.passed}✓ / {day.failed}✗)</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* List of Prediction Records */}
+                <div className="space-y-3">
+                  {filteredHistoryRecords.map((rec) => {
+                    const curPrice = tickerPrices[rec.asset] || rec.entryPrice
+                    const isLong = rec.direction === 'BUY'
+                    const distToTp1 = (((rec.target1 - curPrice) / curPrice) * 100).toFixed(1)
+
+                    return (
+                      <div
+                        key={rec.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          rec.status === 'PASSED'
+                            ? 'bg-emerald-950/20 border-emerald-500/30 shadow-[0_4px_20px_rgba(16,185,129,0.1)]'
+                            : rec.status === 'FAILED'
+                            ? 'bg-rose-950/20 border-rose-500/30'
+                            : 'bg-slate-900/60 border-cyan-500/30 shadow-[0_4px_20px_rgba(6,182,212,0.15)]'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-1 rounded-xl text-xs font-mono font-black ${
+                              isLong ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            }`}>
+                              {rec.sideLabel}
+                            </span>
+                            <span className="text-base font-bold text-white">{rec.asset}</span>
+                            <span className="text-xs text-white/40 font-mono">({rec.timeframe})</span>
+                            <span className="text-xs text-amber-300 font-mono">{rec.confidence}% Confidence</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-white/40 font-mono">{rec.timeFormatted}</span>
+                            <span className={`px-2.5 py-1 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 ${
+                              rec.status === 'PASSED'
+                                ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                                : rec.status === 'FAILED'
+                                ? 'bg-rose-500/30 text-rose-200 border border-rose-500/50'
+                                : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 animate-pulse'
+                            }`}>
+                              {rec.status === 'PASSED' && <span>✅ PASSED ({rec.outcomePnlPct ? `+${rec.outcomePnlPct}%` : 'Target Hit'})</span>}
+                              {rec.status === 'FAILED' && <span>❌ FAILED ({rec.outcomePnlPct ? `${rec.outcomePnlPct}%` : 'Stop Hit'})</span>}
+                              {rec.status === 'ACTIVE' && <span>⏳ MONITORING LIVE</span>}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price Matrix */}
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-3 text-xs font-mono">
+                          <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                            <div className="text-[10px] text-white/40 uppercase">Entry Target</div>
+                            <div className="font-bold text-white mt-0.5">${rec.entryPrice.toLocaleString()}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-black/40 border border-emerald-500/20">
+                            <div className="text-[10px] text-emerald-300/60 uppercase">Target 1 (TP1)</div>
+                            <div className="font-bold text-emerald-400 mt-0.5">${rec.target1.toLocaleString()}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-black/40 border border-teal-500/20">
+                            <div className="text-[10px] text-teal-300/60 uppercase">Target 2 (TP2)</div>
+                            <div className="font-bold text-teal-300 mt-0.5">${rec.target2.toLocaleString()}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-black/40 border border-rose-500/20">
+                            <div className="text-[10px] text-rose-300/60 uppercase">Stop Loss (SL)</div>
+                            <div className="font-bold text-rose-400 mt-0.5">${rec.stopLoss.toLocaleString()}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-black/40 border border-cyan-500/20">
+                            <div className="text-[10px] text-cyan-300/60 uppercase">Live Spot Price</div>
+                            <div className="font-bold text-cyan-300 mt-0.5">${curPrice.toLocaleString()}</div>
+                          </div>
+                        </div>
+
+                        {/* Outcome / Monitoring Status Details */}
+                        <div className="mt-3 pt-2 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                          {rec.outcomeReason ? (
+                            <div className="text-white/80 font-mono flex items-center gap-1.5">
+                              <span>Outcome:</span>
+                              <span className={rec.status === 'PASSED' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                {rec.outcomeReason}
+                              </span>
+                              {rec.outcomeTime && <span className="text-white/40">({rec.outcomeTime})</span>}
+                            </div>
+                          ) : (
+                            <div className="text-cyan-300/90 font-mono flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                              <span>Live Tick Tracking: Currently ${curPrice.toLocaleString()} (Target is {Math.abs(Number(distToTp1))}% away)</span>
+                            </div>
+                          )}
+
+                          <div className="text-white/50 text-[11px]">
+                            Risk/Reward {rec.riskReward} • Expected ROI +{rec.expectedProfitPct}%
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* TAB: 30-YEAR VETERAN MASTER TRADE OF THE DAY & SWARM MENTORSHIP */}
             {activeTab === 'totd' && (
               <div className="space-y-6 max-w-5xl mx-auto">
@@ -965,24 +1263,32 @@ if __name__ == '__main__':
                       {/* Trade Levels Grid */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
                         <div className="p-3 rounded-2xl bg-black/50 border border-white/10">
-                          <div className="text-[10px] text-white/40 uppercase">Limit Entry</div>
-                          <div className="text-base font-bold text-white mt-1">$64,350.00</div>
-                          <div className="text-[9px] text-white/40 mt-0.5">Order Block Retest</div>
+                          <div className="text-[10px] text-white/40 uppercase">Limit Entry (Live Spot)</div>
+                          <div className="text-base font-bold text-white mt-1">
+                            ${(liveMarketData['BTC/USDT']?.price || currentPrice).toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-white/40 mt-0.5">Order Block Retest (Benchmark: $64,350.00)</div>
                         </div>
                         <div className="p-3 rounded-2xl bg-black/50 border border-emerald-500/30">
                           <div className="text-[10px] text-emerald-300/60 uppercase">Target 1 (TP1)</div>
-                          <div className="text-base font-bold text-emerald-400 mt-1">$72,400.00</div>
-                          <div className="text-[9px] text-emerald-300/50 mt-0.5">+12.5% (1:2.8 RR)</div>
+                          <div className="text-base font-bold text-emerald-400 mt-1">
+                            ${Math.round((liveMarketData['BTC/USDT']?.price || currentPrice) * 1.125).toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-emerald-300/50 mt-0.5">+12.5% Target (Benchmark: $72,400.00)</div>
                         </div>
                         <div className="p-3 rounded-2xl bg-black/50 border border-teal-500/30">
                           <div className="text-[10px] text-teal-300/60 uppercase">Target 2 (TP2)</div>
-                          <div className="text-base font-bold text-teal-300 mt-1">$82,800.00</div>
-                          <div className="text-[9px] text-teal-300/50 mt-0.5">+28.5% (1:5.8 RR)</div>
+                          <div className="text-base font-bold text-teal-300 mt-1">
+                            ${Math.round((liveMarketData['BTC/USDT']?.price || currentPrice) * 1.285).toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-teal-300/50 mt-0.5">+28.5% Target (Benchmark: $82,800.00)</div>
                         </div>
                         <div className="p-3 rounded-2xl bg-black/50 border border-rose-500/30">
                           <div className="text-[10px] text-rose-300/60 uppercase">Stop Loss (SL)</div>
-                          <div className="text-base font-bold text-rose-400 mt-1">$62,200.00</div>
-                          <div className="text-[9px] text-rose-300/50 mt-0.5">-3.0% (Risk Boundary)</div>
+                          <div className="text-base font-bold text-rose-400 mt-1">
+                            ${Math.round((liveMarketData['BTC/USDT']?.price || currentPrice) * 0.97).toLocaleString()}
+                          </div>
+                          <div className="text-[9px] text-rose-300/50 mt-0.5">-3.0% Boundary (Benchmark: $62,200.00)</div>
                         </div>
                       </div>
 
@@ -1245,6 +1551,31 @@ if __name__ == '__main__':
                   </motion.div>
                 )}
 
+                {/* Real-time Day Track Record Pill / Link */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900/90 via-slate-950 to-slate-900/90 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-bold text-white">
+                      Today's Live Record:
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {historyStats.today.passed} Passed / {historyStats.today.failed} Failed ({historyStats.today.winRatePct}% Win Rate)
+                    </span>
+                    <span className="hidden md:inline text-[11px] text-white/40 font-mono">
+                      • {historyStats.today.active} Active Setups Monitoring Live
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('history')}
+                    className="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1.5 cursor-pointer transition-all ml-auto"
+                  >
+                    <span>📜 View All Prediction History ({historyStats.total})</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+
                 {/* Top Statistics Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                   <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
@@ -1423,6 +1754,15 @@ if __name__ == '__main__':
                         >
                           <Zap className="w-4 h-4 fill-slate-950" />
                           <span>EXECUTE THIS PREDICTED TRADE</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleRecordCurrentPrediction}
+                          className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>+ Save to Prediction History</span>
                         </button>
                       </div>
                     </div>

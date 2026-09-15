@@ -900,7 +900,7 @@ export default function App() {
   const [p2pMeshModalOpen, setP2PMeshModalOpen] = useState(false)
   const [offlineModeModalOpen, setOfflineModeModalOpen] = useState(false)
   const [tradingFleetModalOpen, setTradingFleetModalOpen] = useState(false)
-  const [tradingFleetDefaultTab, setTradingFleetDefaultTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | undefined>(undefined)
+  const [tradingFleetDefaultTab, setTradingFleetDefaultTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history' | undefined>(undefined)
   const [telemetryHudOpen, setTelemetryHudOpen] = useState(false)
   const [universalPaletteOpen, setUniversalPaletteOpen] = useState(false)
   const [swarmModeEnabled, setSwarmModeEnabled] = useState(true)
@@ -3180,6 +3180,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
             <button
               type="button"
               onClick={() => {
+                setTradingFleetDefaultTab('cockpit')
                 setTradingFleetModalOpen(true)
                 showToast('⚡ Live Trade Feed Connected: 10 Quant Agents (Win Rate ≥ 70%)')
               }}
