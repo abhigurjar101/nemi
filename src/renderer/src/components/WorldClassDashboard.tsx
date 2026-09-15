@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { realTimeMarketData } from '../services/realTimeMarketData'
 import { motion } from 'framer-motion'
 import {
   Code2,
@@ -97,25 +98,68 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
   showHeader = true,
   onClose,
 }) => {
-  // Real-time micro-fluctuation ticker for the trading card preview
-  const [marketPrices, setMarketPrices] = useState([
-    { symbol: 'BTC', price: 64380, change: '+2.4%', up: true },
-    { symbol: 'ETH', price: 3485, change: '+1.8%', up: true },
-    { symbol: 'SOL', price: 152.8, change: '+4.2%', up: true },
-    { symbol: 'SPY', price: 562.4, change: '+0.7%', up: true },
-  ])
+  // ── Real-Time Market Data ────────────────────────────────────────────────
+  // Initialize with cached data immediately, then fetch live
+  const [marketPrices, setMarketPrices] = useState(() => {
+    const snapshot = realTimeMarketData.getCachedSnapshot()
+    return [
+      { symbol: 'BTC', price: snapshot['BTC/USDT']?.price || 60000, change: `${(snapshot['BTC/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['BTC/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['BTC/USDT']?.change24h ?? 0) >= 0 },
+      { symbol: 'ETH', price: snapshot['ETH/USDT']?.price || 3200,  change: `${(snapshot['ETH/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['ETH/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['ETH/USDT']?.change24h ?? 0) >= 0 },
+      { symbol: 'SOL', price: snapshot['SOL/USDT']?.price || 140,   change: `${(snapshot['SOL/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SOL/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SOL/USDT']?.change24h ?? 0) >= 0 },
+      { symbol: 'SPY', price: snapshot['SPY']?.price || 540,        change: `${(snapshot['SPY']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SPY']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SPY']?.change24h ?? 0) >= 0 },
+    ]
+  })
 
   // Live BTC price for Trade of the Day card
-  const [btcTotdPrice, setBtcTotdPrice] = useState(64380)
+  const [btcTotdPrice, setBtcTotdPrice] = useState(() =>
+    realTimeMarketData.getCachedSnapshot()['BTC/USDT']?.price || 60000
+  )
   const [btcTotdDir, setBtcTotdDir] = useState<'up' | 'down' | 'neutral'>('neutral')
   const [totdAgentsVoted, setTotdAgentsVoted] = useState(10)
   const [totdSwarmBias, setTotdSwarmBias] = useState<'BULLISH' | 'BEARISH'>('BULLISH')
 
+  // Subscribe to live market data updates (every 15s)
+  useEffect(() => {
+    // Initial live fetch
+    realTimeMarketData.fetchAllPrices().then(() => {
+      const snapshot = realTimeMarketData.getCachedSnapshot()
+      const btcPrice = snapshot['BTC/USDT']?.price
+      if (btcPrice) setBtcTotdPrice(btcPrice)
+
+      setMarketPrices([
+        { symbol: 'BTC', price: snapshot['BTC/USDT']?.price || 60000, change: `${(snapshot['BTC/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['BTC/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['BTC/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'ETH', price: snapshot['ETH/USDT']?.price || 3200,  change: `${(snapshot['ETH/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['ETH/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['ETH/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'SOL', price: snapshot['SOL/USDT']?.price || 140,   change: `${(snapshot['SOL/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SOL/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SOL/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'SPY', price: snapshot['SPY']?.price || 540,        change: `${(snapshot['SPY']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SPY']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SPY']?.change24h ?? 0) >= 0 },
+      ])
+    }).catch(() => {})
+
+    const unsub = realTimeMarketData.subscribe(() => {
+      const snapshot = realTimeMarketData.getCachedSnapshot()
+      const btcPrice = snapshot['BTC/USDT']?.price
+      if (btcPrice) setBtcTotdPrice((prev) => {
+        setBtcTotdDir(btcPrice >= prev ? 'up' : 'down')
+        setTimeout(() => setBtcTotdDir('neutral'), 800)
+        return btcPrice
+      })
+      setMarketPrices([
+        { symbol: 'BTC', price: snapshot['BTC/USDT']?.price || 60000, change: `${(snapshot['BTC/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['BTC/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['BTC/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'ETH', price: snapshot['ETH/USDT']?.price || 3200,  change: `${(snapshot['ETH/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['ETH/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['ETH/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'SOL', price: snapshot['SOL/USDT']?.price || 140,   change: `${(snapshot['SOL/USDT']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SOL/USDT']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SOL/USDT']?.change24h ?? 0) >= 0 },
+        { symbol: 'SPY', price: snapshot['SPY']?.price || 540,        change: `${(snapshot['SPY']?.change24h ?? 0) >= 0 ? '+' : ''}${(snapshot['SPY']?.change24h ?? 0).toFixed(1)}%`, up: (snapshot['SPY']?.change24h ?? 0) >= 0 },
+      ])
+    })
+    return () => unsub()
+  }, [])
+
+  // Fast BTC micro-tick (2.2s) — small ripple around real live base price
   useEffect(() => {
     const interval = setInterval(() => {
       setBtcTotdPrice((prev) => {
-        const delta = (Math.random() - 0.47) * 38
-        const next = +(prev + delta).toFixed(1)
+        const liveBase = realTimeMarketData.getCachedSnapshot()['BTC/USDT']?.price || prev
+        const delta = (Math.random() - 0.49) * liveBase * 0.0002  // ±0.02%
+        const clamped = Math.max(liveBase * 0.998, Math.min(liveBase * 1.002, prev + delta))
+        const next = +clamped.toFixed(1)
         setBtcTotdDir(next >= prev ? 'up' : 'down')
         setTimeout(() => setBtcTotdDir('neutral'), 800)
         return next
@@ -126,21 +170,20 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
     return () => clearInterval(interval)
   }, [])
 
+  // Fast market price micro-tick (2.5s) — ripples around real live prices
   useEffect(() => {
     const interval = setInterval(() => {
       setMarketPrices((prev) =>
         prev.map((item) => {
-          const delta = (Math.random() - 0.48) * (item.price * 0.001)
+          const delta = (Math.random() - 0.48) * (item.price * 0.0002)
           const newPrice = +(item.price + delta).toFixed(item.price > 100 ? 1 : 2)
-          return {
-            ...item,
-            price: newPrice,
-          }
+          return { ...item, price: newPrice }
         })
       )
     }, 2500)
     return () => clearInterval(interval)
   }, [])
+
 
   // Daily Continuous Learning Feed state & sync
   const [feedStatus, setFeedStatus] = useState<DailyFeedStatus>(() => dailyLearningFeed.getStatus())

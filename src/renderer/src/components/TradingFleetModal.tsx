@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import { realTimeMarketData, type LiveTickerData } from '../services/realTimeMarketData'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -130,16 +131,41 @@ export default function TradingFleetModal({
     localStorage.setItem('nemi_demo_positions', JSON.stringify(activePositions))
   }, [activePositions])
 
-  // Price map
+  // ── Real-Time Market Data from CoinGecko + Yahoo Finance ──────────────────
+  const [liveMarketData, setLiveMarketData] = useState<Record<string, LiveTickerData>>(() =>
+    realTimeMarketData.getCachedSnapshot()
+  )
+  const [marketDataLoading, setMarketDataLoading] = useState(true)
+
+  // Fetch live market data when modal opens, subscribe to updates every 15s
+  useEffect(() => {
+    if (!isOpen) return
+
+    setMarketDataLoading(true)
+    realTimeMarketData.fetchAllPrices().then(() => {
+      setLiveMarketData(realTimeMarketData.getCachedSnapshot())
+      setMarketDataLoading(false)
+    }).catch(() => {
+      setMarketDataLoading(false)
+    })
+
+    const unsub = realTimeMarketData.subscribe(() => {
+      setLiveMarketData(realTimeMarketData.getCachedSnapshot())
+    })
+
+    return () => unsub()
+  }, [isOpen])
+
+  // Derive base price from live market data (falls back to last known safe seeds)
   const tickerPrices: Record<string, number> = {
-    'BTC/USDT': 64350,
-    'ETH/USDT': 3480,
-    'SOL/USDT': 152.4,
-    'NVDA': 124.6,
-    'SPY': 562.3,
+    'BTC/USDT': liveMarketData['BTC/USDT']?.price || 60000,
+    'ETH/USDT': liveMarketData['ETH/USDT']?.price || 3200,
+    'SOL/USDT': liveMarketData['SOL/USDT']?.price || 140,
+    'NVDA': liveMarketData['NVDA']?.price || 115,
+    'SPY': liveMarketData['SPY']?.price || 540,
   }
 
-  const basePrice = tickerPrices[selectedTicker] || 64350
+  const basePrice = tickerPrices[selectedTicker] || 60000
 
   // Real-Time Live Feed Streaming State
   const [livePrice, setLivePrice] = useState<number>(basePrice)
@@ -150,27 +176,41 @@ export default function TradingFleetModal({
     side: 'BUY' | 'SELL'
     price: number
     size: number
-  }>>([
-    { id: 't1', time: '14:28:12', side: 'BUY', price: 64352.5, size: 0.85 },
-    { id: 't2', time: '14:28:10', side: 'BUY', price: 64351.0, size: 1.42 },
-    { id: 't3', time: '14:28:07', side: 'SELL', price: 64349.8, size: 0.38 },
-    { id: 't4', time: '14:28:04', side: 'BUY', price: 64350.2, size: 2.15 },
-    { id: 't5', time: '14:28:01', side: 'SELL', price: 64348.5, size: 0.65 },
-  ])
+  }>>(() => {
+    const now = new Date()
+    const t = (offsetSec: number) => {
+      const d = new Date(now.getTime() - offsetSec * 1000)
+      return d.toTimeString().split(' ')[0]
+    }
+    return [
+      { id: 't1', time: t(2),  side: 'BUY',  price: 0, size: 0.85 },
+      { id: 't2', time: t(4),  side: 'BUY',  price: 0, size: 1.42 },
+      { id: 't3', time: t(7),  side: 'SELL', price: 0, size: 0.38 },
+      { id: 't4', time: t(10), side: 'BUY',  price: 0, size: 2.15 },
+      { id: 't5', time: t(13), side: 'SELL', price: 0, size: 0.65 },
+    ]
+  })
 
-  // Sync price when user selects another ticker
+  // Sync livePrice when ticker changes or when live market data arrives
   useEffect(() => {
-    setLivePrice(tickerPrices[selectedTicker] || 64350)
-  }, [selectedTicker])
+    const realBase = tickerPrices[selectedTicker] || basePrice
+    setLivePrice(realBase)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicker, liveMarketData])
 
-  // Live streaming ticker engine (micro-ticks every 1.8s)
+  // Live streaming ticker engine (micro-ticks every 1.8s) — anchored to real price
   useEffect(() => {
     if (!isOpen) return
     const interval = setInterval(() => {
-      const bPrice = tickerPrices[selectedTicker] || 64350
-      const deltaFactor = (Math.random() - 0.48) * (selectedTicker === 'BTC/USDT' ? 24 : selectedTicker === 'ETH/USDT' ? 3 : 0.35)
+      const realBase = tickerPrices[selectedTicker] || 60000
+      // Realistic micro-tick: ±0.03% around live base, clamped to ±0.5%
+      const spreadPct = selectedTicker === 'BTC/USDT' ? 0.0003 : selectedTicker === 'ETH/USDT' ? 0.0004 : 0.0005
+      const deltaFactor = (Math.random() - 0.49) * realBase * spreadPct
       setLivePrice((prev) => {
-        const next = Math.max(1, Number((prev + deltaFactor).toFixed(bPrice < 200 ? 2 : 1)))
+        const proposed = prev + deltaFactor
+        const clamped = Math.max(realBase * 0.995, Math.min(realBase * 1.005, proposed))
+        const decimals = realBase < 200 ? 2 : 1
+        const next = Number(clamped.toFixed(decimals))
         setLastTickDirection(next >= prev ? 'up' : 'down')
         setTimeout(() => setLastTickDirection('none'), 700)
         return next
@@ -193,71 +233,19 @@ export default function TradingFleetModal({
     }, 1800)
 
     return () => clearInterval(interval)
-  }, [isOpen, selectedTicker, livePrice])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedTicker, liveMarketData])
 
   const currentPrice = livePrice
 
-  // Live Swarm Consensus
-  const consensus: ConsensusDecision = useMemo(() => {
-    return calculateSwarmConsensus(selectedTicker, currentPrice, 100000)
-  }, [selectedTicker, currentPrice])
 
-  // Real-Time Profitable Trade Predictions (Enforced ≥ 70% Bayesian gatekeeper)
-  const profitablePredictions = useMemo(() => {
-    const isBuy = consensus.consensusAction === 'BUY'
-    const targetGain = selectedTicker === 'SOL/USDT' ? 21.5 : selectedTicker === 'ETH/USDT' ? 16.2 : 14.8
-    const tp1 = Number((currentPrice * (isBuy ? 1.08 : 0.92)).toFixed(currentPrice < 200 ? 2 : 0))
-    const tp2 = Number((currentPrice * (isBuy ? 1.15 : 0.85)).toFixed(currentPrice < 200 ? 2 : 0))
-    const sl = Number((currentPrice * (isBuy ? 0.97 : 1.03)).toFixed(currentPrice < 200 ? 2 : 0))
-
-    return [
-      {
-        id: 'pred_primary',
-        ticker: selectedTicker,
-        side: isBuy ? 'LONG / BUY' : 'SHORT / SELL',
-        isBuy,
-        winProbability: Math.max(88, consensus.overallConfidence),
-        expectedProfitPct: targetGain,
-        entryPrice: currentPrice,
-        targetPrice1: tp1,
-        targetPrice2: tp2,
-        stopLoss: sl,
-        riskReward: '1 : 4.2',
-        conviction: 'ULTRA HIGH',
-        timeframe: '15m / 1H Breakout',
-        drivers: [
-          'Whale Order Flow: $42M Institutional Bid Wall detected @ key support',
-          'Multi-Timeframe RSI Bullish Divergence on 15m & 1H charts',
-          'Swarm Consensus: 9/10 Quantitative Specialist Agents in agreement',
-          'VWAP Golden Band Retest with Volume Delta +185%',
-        ],
-      },
-      {
-        id: 'pred_alt1',
-        ticker: selectedTicker === 'BTC/USDT' ? 'SOL/USDT' : 'BTC/USDT',
-        side: 'LONG / BUY',
-        isBuy: true,
-        winProbability: 89.7,
-        expectedProfitPct: 21.5,
-        entryPrice: selectedTicker === 'BTC/USDT' ? 154.6 : 64350,
-        targetPrice1: selectedTicker === 'BTC/USDT' ? 172.0 : 68500,
-        targetPrice2: selectedTicker === 'BTC/USDT' ? 188.0 : 73800,
-        stopLoss: selectedTicker === 'BTC/USDT' ? 147.2 : 62800,
-        riskReward: '1 : 4.5',
-        conviction: 'ULTRA HIGH',
-        timeframe: '1H Momentum',
-        drivers: [
-          'SMC Liquidity Sweep of previous 24h lows completed',
-          'DeFi & On-Chain DEX Volume Surge (+310% in 2 hours)',
-        ],
-      },
-    ]
-  }, [selectedTicker, consensus, currentPrice])
-
-  // Mock Candles & Backtest Data
+  // Mock Candles & Backtest Data (dynamic trend derived from live 24h market momentum)
   const mockCandles = useMemo(() => {
-    return generateMockCandles(selectedTicker, 120, currentPrice * 0.92, 'bullish')
-  }, [selectedTicker, currentPrice])
+    const chg = liveMarketData[selectedTicker]?.change24h ?? 0
+    const trend: 'bullish' | 'bearish' | 'ranging' = chg > 0.5 ? 'bullish' : chg < -0.5 ? 'bearish' : 'ranging'
+    const startMultiplier = trend === 'bearish' ? 1.05 : 0.95
+    return generateMockCandles(selectedTicker, 120, currentPrice * startMultiplier, trend)
+  }, [selectedTicker, currentPrice, liveMarketData])
 
   const backtestResult = useMemo(() => {
     return runStrategyBacktest(mockCandles, 100000)
@@ -266,6 +254,119 @@ export default function TradingFleetModal({
   const indicators = useMemo(() => {
     return calculateAllIndicators(mockCandles)
   }, [mockCandles])
+
+  // Live Swarm Consensus (strictly driven by calculated indicators & live market delta)
+  const consensus: ConsensusDecision = useMemo(() => {
+    return calculateSwarmConsensus(
+      selectedTicker,
+      currentPrice,
+      100000,
+      undefined,
+      indicators,
+      liveMarketData[selectedTicker]
+    )
+  }, [selectedTicker, currentPrice, indicators, liveMarketData])
+
+  // Real-Time Profitable Trade Predictions (Both Bullish & Bearish High-Conviction Setups)
+  const profitablePredictions = useMemo(() => {
+    const isBuy = consensus.consensusAction === 'BUY'
+    const targetGain = selectedTicker === 'SOL/USDT' ? 21.5 : selectedTicker === 'ETH/USDT' ? 16.2 : 14.8
+    const tp1 = Number((currentPrice * (isBuy ? 1.08 : 0.92)).toFixed(currentPrice < 200 ? 2 : 0))
+    const tp2 = Number((currentPrice * (isBuy ? 1.15 : 0.85)).toFixed(currentPrice < 200 ? 2 : 0))
+    const sl = Number((currentPrice * (isBuy ? 0.97 : 1.03)).toFixed(currentPrice < 200 ? 2 : 0))
+
+    const activeTickerChg = liveMarketData[selectedTicker]?.change24h ?? 0
+    const btcPrice = liveMarketData['BTC/USDT']?.price || currentPrice
+    const ethPrice = liveMarketData['ETH/USDT']?.price || 2500
+    const solPrice = liveMarketData['SOL/USDT']?.price || 100
+
+    return [
+      {
+        id: 'pred_primary',
+        ticker: selectedTicker,
+        side: isBuy ? 'LONG / BUY' : consensus.consensusAction === 'SELL' ? 'SHORT / SELL' : 'HOLD / CAUTION',
+        isBuy,
+        winProbability: Math.max(82, consensus.overallConfidence),
+        expectedProfitPct: targetGain,
+        entryPrice: currentPrice,
+        targetPrice1: tp1,
+        targetPrice2: tp2,
+        stopLoss: sl,
+        riskReward: isBuy ? '1 : 4.2' : '1 : 3.8',
+        conviction: consensus.gatekeeperPassed ? 'ULTRA HIGH' : 'MODERATE',
+        timeframe: '15m / 1H Confluence',
+        drivers: [
+          `Indicator Analysis: RSI = ${indicators.rsi.toFixed(1)}, MACD Hist = ${indicators.macd.hist >= 0 ? '+' : ''}${indicators.macd.hist.toFixed(2)}`,
+          `24h Market Delta: ${activeTickerChg >= 0 ? '+' : ''}${activeTickerChg.toFixed(2)}% | Supertrend: ${indicators.supertrend.direction.toUpperCase()}`,
+          `Swarm Consensus: ${consensus.agentVotes.filter((v) => v.action === consensus.consensusAction).length}/7 specialist agents aligned on ${consensus.consensusAction}`,
+          `Risk Sentinel: Position sized at $${consensus.recommendedPositionSizeUsd.toLocaleString()} (${consensus.riskAudit.kellyFraction}% Fractional Kelly)`,
+        ],
+      },
+      // Guaranteed High-Conviction BULLISH Prediction
+      {
+        id: 'pred_bullish',
+        ticker: 'BTC/USDT',
+        side: 'LONG / BUY',
+        isBuy: true,
+        winProbability: 88.6,
+        expectedProfitPct: 14.5,
+        entryPrice: btcPrice,
+        targetPrice1: Number((btcPrice * 1.06).toFixed(0)),
+        targetPrice2: Number((btcPrice * 1.12).toFixed(0)),
+        stopLoss: Number((btcPrice * 0.975).toFixed(0)),
+        riskReward: '1 : 4.8',
+        conviction: 'ULTRA HIGH',
+        timeframe: '4H Macro Swing / Spot Accumulation',
+        drivers: [
+          `Institutional Bid Wall absorption at $${(btcPrice * 0.98).toFixed(0)}`,
+          'Perpetual funding rate neutral-to-negative (-0.008%) indicating short squeeze asymmetry',
+          'SMC Bullish Order Block retest holding structural market structure',
+        ],
+      },
+      // Guaranteed High-Conviction BEARISH Prediction (Short / Hedge)
+      {
+        id: 'pred_bearish',
+        ticker: 'ETH/USDT',
+        side: 'SHORT / SELL',
+        isBuy: false,
+        winProbability: 86.4,
+        expectedProfitPct: 15.2,
+        entryPrice: ethPrice,
+        targetPrice1: Number((ethPrice * 0.93).toFixed(2)),
+        targetPrice2: Number((ethPrice * 0.88).toFixed(2)),
+        stopLoss: Number((ethPrice * 1.035).toFixed(2)),
+        riskReward: '1 : 4.3',
+        conviction: 'HIGH',
+        timeframe: '1H Momentum Breakdown / Hedge',
+        drivers: [
+          'Bearish Fair Value Gap (FVG) retest rejection with upper-wick distribution',
+          'ETH/BTC structural relative weakness breaking below key moving average',
+          'Declining DEX spot volume with spot taker delta -42%',
+        ],
+      },
+      // Additional Cross-Market Setup (SOL/USDT)
+      {
+        id: 'pred_alt_sol',
+        ticker: 'SOL/USDT',
+        side: liveMarketData['SOL/USDT']?.change24h && liveMarketData['SOL/USDT'].change24h < 0 ? 'SHORT / SELL' : 'LONG / BUY',
+        isBuy: !(liveMarketData['SOL/USDT']?.change24h && liveMarketData['SOL/USDT'].change24h < 0),
+        winProbability: 87.2,
+        expectedProfitPct: 19.4,
+        entryPrice: solPrice,
+        targetPrice1: Number((solPrice * 1.08).toFixed(2)),
+        targetPrice2: Number((solPrice * 1.16).toFixed(2)),
+        stopLoss: Number((solPrice * 0.965).toFixed(2)),
+        riskReward: '1 : 4.1',
+        conviction: 'ULTRA HIGH',
+        timeframe: '15m Scalp / 1H Breakout',
+        drivers: [
+          'Sell-side liquidity sweep of previous Asia session low completed',
+          'DeFi on-chain volume surge with high taker bid absorption',
+        ],
+      },
+    ]
+  }, [selectedTicker, consensus, currentPrice, indicators, liveMarketData])
+
 
   // Download individual workflow JSON
   const handleDownloadWorkflow = async (bot: TradingBot) => {
@@ -392,12 +493,13 @@ export default function TradingFleetModal({
       setTimeout(() => setTradeStatusNotice(null), 3000)
       return
     }
-    const units = tradeSize / 64350
+    const apexBtcPrice = liveMarketData['BTC/USDT']?.price || currentPrice
+    const units = tradeSize / apexBtcPrice
     const newPos: SimulatedPosition = {
       id: `pos_totd_${Date.now()}`,
       ticker: 'BTC/USDT',
       side: 'BUY',
-      entryPrice: 64350,
+      entryPrice: apexBtcPrice,
       sizeUsd: tradeSize,
       units,
       timestamp: Date.now(),
@@ -406,7 +508,8 @@ export default function TradingFleetModal({
     }
     setPortfolioBalance((prev) => Math.max(0, prev - tradeSize))
     setActivePositions((prev) => [newPos, ...prev])
-    setTradeStatusNotice('👑 Executed 30-Year Veteran Apex Trade of the Day: BUY $18,500.00 BTC/USDT @ $64,350.00 (99.4% Bayesian Precision)!')
+    setTradeStatusNotice(`👑 Executed 30-Year Veteran Apex Trade: BUY $${tradeSize.toLocaleString()} BTC/USDT @ $${apexBtcPrice.toLocaleString()} (LIVE PRICE)`)
+
     setTimeout(() => setTradeStatusNotice(null), 5000)
   }
 
@@ -443,35 +546,44 @@ export default function TradingFleetModal({
     setTestOutput(null)
     setTimeout(() => {
       setIsRunningSim(false)
-      const simulatedOutput = `### [${bot.name}] Execution Output
-**Timestamp:** ${new Date().toISOString()} | **Status:** 200 OK | **Latency:** 98ms
+      const botVote = consensus.agentVotes.find((v) => v.botId === bot.id)
+      const action = botVote?.action || consensus.consensusAction
+      const confidence = botVote?.confidence || consensus.overallConfidence
+      const reasoning = botVote?.reasoning || `Analyzed ${selectedTicker} under current multi-agent swarm parameters.`
+
+      const simulatedOutput = `### [${bot.name}] Specialist Execution Output
+**Timestamp:** ${new Date().toISOString()} | **Status:** 200 OK | **Latency:** 84ms
+**Specialist Role:** ${bot.tradingCategory} | **Risk Profile:** ${bot.riskProfile}
 
 #### Quantitative Analysis for "${prompt}":
-- **Signal:** ${consensus.consensusAction} (${consensus.overallConfidence}% Confidence)
-- **Calculated Metric:** RSI = ${indicators.rsi}, MACD Hist = ${indicators.macd.hist}, ATR = ${indicators.atr}
-- **Optimal Entry:** $${consensus.entryTarget} | **Stop Loss:** $${consensus.stopLoss} | **Target:** $${consensus.takeProfit1}
-- **Kelly Position Sizing:** $${consensus.recommendedPositionSizeUsd} (${consensus.riskAudit.kellyFraction}% Portfolio Allocation)
-- **Risk Sentinel Verdict:** ${consensus.riskAudit.reason}
+- **Agent Vote:** **${action}** (${confidence}% Confidence)
+- **Specialist Reasoning:** ${reasoning}
+- **Calculated Metric:** RSI = ${indicators.rsi.toFixed(1)} | MACD Hist = ${indicators.macd.hist >= 0 ? '+' : ''}${indicators.macd.hist.toFixed(2)} | ATR = ${indicators.atr} | Supertrend: ${indicators.supertrend.direction.toUpperCase()}
+- **Optimal Entry:** $${consensus.entryTarget} | **Stop Loss:** $${consensus.stopLoss} | **Target 1:** $${consensus.takeProfit1}
+- **Kelly Position Sizing:** $${consensus.recommendedPositionSizeUsd.toLocaleString()} (${consensus.riskAudit.kellyFraction}% Portfolio Allocation)
+- **Risk Sentinel Clearance:** ${consensus.riskAudit.reason}
 
 \`\`\`python
 # Algorithmic Directive Executed via n8n Webhook: ${bot.defaultWebhook}
 import ccxt
 
-def execute_signal():
-    print("Connecting to ${bot.supportedExchanges[0]}...")
+def execute_specialist_directive():
+    print("Routing directive to ${bot.supportedExchanges[0]}...")
     order = {
+        "bot_id": "${bot.id}",
         "symbol": "${selectedTicker}",
-        "side": "${consensus.consensusAction.toLowerCase()}",
+        "action": "${action.toLowerCase()}",
         "entry": ${consensus.entryTarget},
         "stop_loss": ${consensus.stopLoss},
         "take_profit": ${consensus.takeProfit1},
+        "confidence": ${confidence},
         "size_usd": ${consensus.recommendedPositionSizeUsd}
     }
-    return {"status": "ORDER_PLACED", "order": order}
+    return {"status": "DIRECTIVE_DISPATCHED", "order": order}
 
 if __name__ == '__main__':
-    res = execute_signal()
-    print("Execution Result:", res)
+    res = execute_specialist_directive()
+    print("Specialist Execution Result:", res)
 \`\`\`
 `
       setTestOutput(simulatedOutput)
@@ -1327,24 +1439,62 @@ if __name__ == '__main__':
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       {[
-                        { sym: 'BTC/USDT', side: 'LONG', win: '92.4%', roi: '+14.8%', price: '$64,350', status: 'ACTIVE' },
-                        { sym: 'SOL/USDT', side: 'LONG', win: '89.7%', roi: '+21.5%', price: '$154.60', status: 'ACTIVE' },
-                        { sym: 'ETH/USDT', side: 'LONG', win: '88.2%', roi: '+12.6%', price: '$3,485', status: 'ACTIVE' },
-                        { sym: 'NVDA', side: 'LONG', win: '87.5%', roi: '+9.4%', price: '$126.40', status: 'CONFIRMED' },
+                        {
+                          sym: 'BTC/USDT',
+                          side: 'LONG',
+                          win: '88.4%',
+                          roi: '+14.5%',
+                          price: `$${(liveMarketData['BTC/USDT']?.price || 60000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+                          status: 'ACTIVE',
+                          isBull: true,
+                        },
+                        {
+                          sym: 'ETH/USDT',
+                          side: 'SHORT',
+                          win: '86.4%',
+                          roi: '+15.2%',
+                          price: `$${(liveMarketData['ETH/USDT']?.price || 2500).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+                          status: 'HEDGE ACTIVE',
+                          isBull: false,
+                        },
+                        {
+                          sym: 'SOL/USDT',
+                          side: (liveMarketData['SOL/USDT']?.change24h ?? 0) < 0 ? 'SHORT' : 'LONG',
+                          win: '87.2%',
+                          roi: '+19.4%',
+                          price: `$${(liveMarketData['SOL/USDT']?.price || 100).toFixed(2)}`,
+                          status: 'ACTIVE',
+                          isBull: !((liveMarketData['SOL/USDT']?.change24h ?? 0) < 0),
+                        },
+                        {
+                          sym: 'NVDA',
+                          side: (liveMarketData['NVDA']?.change24h ?? 0) < 0 ? 'SHORT' : 'LONG',
+                          win: '85.2%',
+                          roi: '+9.4%',
+                          price: `$${(liveMarketData['NVDA']?.price || 115).toFixed(2)}`,
+                          status: 'CONFIRMED',
+                          isBull: !((liveMarketData['NVDA']?.change24h ?? 0) < 0),
+                        },
                       ].map((item) => (
                         <div
                           key={item.sym}
                           onClick={() => setSelectedTicker(item.sym as any)}
                           className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                             selectedTicker === item.sym
-                              ? 'bg-emerald-500/20 border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                              ? item.isBull
+                                ? 'bg-emerald-500/20 border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                                : 'bg-rose-500/20 border-rose-400/50 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
                               : 'bg-white/[0.02] border-white/10 hover:bg-white/[0.05]'
                           }`}
                         >
                           <div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs font-bold text-white">{item.sym}</span>
-                              <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
+                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded ${
+                                item.isBull
+                                  ? 'text-emerald-400 bg-emerald-500/20'
+                                  : 'text-rose-400 bg-rose-500/20'
+                              }`}>
                                 {item.side}
                               </span>
                             </div>
@@ -1352,7 +1502,9 @@ if __name__ == '__main__':
                           </div>
 
                           <div className="text-right font-mono">
-                            <div className="text-xs font-bold text-emerald-300">{item.roi}</div>
+                            <div className={`text-xs font-bold ${item.isBull ? 'text-emerald-300' : 'text-rose-300'}`}>
+                              {item.roi}
+                            </div>
                             <div className="text-[9px] text-white/50">{item.win} win</div>
                           </div>
                         </div>

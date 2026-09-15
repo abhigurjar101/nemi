@@ -25,6 +25,8 @@ import {
 } from '../../../../n8n/benchmarks/hardest100Catalog'
 import { evaluateProblemCode } from '../../../../n8n/benchmarks/benchmarkEngine'
 import { validateCodeBlock } from '../../../../n8n/bots/validation'
+import { realTimeMarketData } from './realTimeMarketData'
+
 
 export interface ApexState {
   taskId: string
@@ -317,16 +319,36 @@ export class NEMILangGraphApexAgent {
 
     const stateGraph = new StateGraph<ApexState>()
 
-    // Node 1: Ingestion
-    stateGraph.addNode('ingestMarketData', (state) => ({
-      marketData: {
-        symbol: state.symbol || 'BTC/USDT',
-        price: 64380,
-        atr: 1250,
-        trend: 'BULLISH',
-      },
-      iteration: 0,
-    }))
+    // Node 1: Ingestion — fetches REAL live market price
+    stateGraph.addNode('ingestMarketData', async (state) => {
+      const targetSymbol = state.symbol || 'BTC/USDT'
+      let price = 60000
+      let trend = 'NEUTRAL'
+      let atr = 1200
+      try {
+        const liveData = await realTimeMarketData.getLivePrice(targetSymbol)
+        price = liveData.price
+        const change = liveData.change24h
+        trend = change > 1.5 ? 'BULLISH' : change < -1.5 ? 'BEARISH' : 'NEUTRAL'
+        // Approximate ATR as ~1.5% of price (realistic for crypto)
+        atr = Number((price * 0.015).toFixed(2))
+      } catch {
+        // Fallback: use seed price if fetch fails
+        price = 60000
+        trend = 'NEUTRAL'
+        atr = 900
+      }
+      return {
+        marketData: {
+          symbol: targetSymbol,
+          price,
+          atr,
+          trend,
+        },
+        iteration: 0,
+      }
+    })
+
 
     // Node 2: Hypothesis Generator
     stateGraph.addNode('generateSignal', (state) => {
@@ -339,7 +361,7 @@ export class NEMILangGraphApexAgent {
         tradeSetup: {
           symbol: state.marketData?.symbol || 'BTC/USDT',
           action: 'BUY',
-          entry: state.marketData?.price || 64380,
+          entry: state.marketData?.price || 60000,
           winProbability: winProb,
           riskRewardRatio: rr,
         },

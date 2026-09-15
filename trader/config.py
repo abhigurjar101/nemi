@@ -44,8 +44,11 @@ class Config:
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
 
     # --- Data ---
-    lookback_period: str = "6mo"
-    lookback_interval: str = "1d"
+    # Use 5m candles over last 5 days for real-time intraday analysis.
+    # The last candle's close = current live price (within ~5 minutes).
+    lookback_period: str = "5d"
+    lookback_interval: str = "5m"
+
 
     # --- Logging ---
     log_dir: str = "logs"

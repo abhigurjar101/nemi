@@ -70,6 +70,8 @@ import { TelemetryHUD } from './components/TelemetryHUD'
 import { UniversalCommandPalette } from './components/UniversalCommandPalette'
 import { globalVectorIndex } from './services/vectorIndex'
 import WorldClassDashboard from './components/WorldClassDashboard'
+import { realTimeMarketData } from './services/realTimeMarketData'
+
 
 declare global {
   interface Window {
@@ -1794,7 +1796,20 @@ Answer directly in 1-3 short, clear sentences.
 If code is requested, provide only the clean, complete, working code block with minimal or no conversational wrapper.
 Deliver immediate value fast.`
 
-    const completeSystemPrompt = systemPrompt + runtimeContext
+    // ── Inject live real-time market data into system prompt ──
+    // This ensures NEMI always uses today's actual prices, not training-time data
+    let realTimeMarketContext = ''
+    try {
+      realTimeMarketContext = realTimeMarketData.buildMarketContextBlock()
+      // Trigger a background refresh for next request (non-blocking)
+      realTimeMarketData.fetchAllPrices().catch(() => {})
+    } catch {
+      // Proceed without market context if unavailable
+    }
+
+    const completeSystemPrompt = systemPrompt + runtimeContext + realTimeMarketContext
+
+
 
     // ── Seamless RAG knowledge base context retrieval ──
     let ragAugmentation = ''

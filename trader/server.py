@@ -112,6 +112,56 @@ def health():
     }
 
 
+@app.get("/market/live-prices")
+def get_live_market_prices(symbols: str = "NVDA,SPY,TSLA,AAPL,MSFT,QQQ,AMZN"):
+    """
+    Returns real-time stock prices via yfinance.
+    Called by the NEMI frontend to get live stock data.
+    Query param: symbols=NVDA,SPY,TSLA (comma-separated)
+    """
+    sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    results = {}
+    for sym in sym_list:
+        try:
+            ticker = yf.Ticker(sym)
+            info = ticker.fast_info
+            price = float(info.last_price) if info.last_price else None
+            prev_close = float(info.previous_close) if info.previous_close else None
+            day_high = float(info.day_high) if info.day_high else None
+            day_low = float(info.day_low) if info.day_low else None
+            volume = int(info.three_month_average_volume) if info.three_month_average_volume else 0
+
+            if price is None:
+                results[sym] = {"error": "No price data available"}
+                continue
+
+            change_pct = 0.0
+            if prev_close and prev_close > 0:
+                change_pct = round(((price - prev_close) / prev_close) * 100, 4)
+
+            spread = price * 0.0001
+            results[sym] = {
+                "symbol": sym,
+                "price": round(price, 4),
+                "change24h": change_pct,
+                "high24h": round(day_high, 4) if day_high else round(price * 1.01, 4),
+                "low24h": round(day_low, 4) if day_low else round(price * 0.99, 4),
+                "volume24hUsd": round(volume * price, 2),
+                "bid": round(price - spread, 4),
+                "ask": round(price + spread, 4),
+                "isLive": True,
+            }
+        except Exception as e:
+            results[sym] = {"symbol": sym, "error": str(e), "isLive": False}
+
+    return {
+        "success": True,
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+        "source": "yfinance",
+        "prices": results,
+    }
+
+
 @app.get("/portfolio")
 def get_portfolio():
     return trading_system.portfolio.snapshot()

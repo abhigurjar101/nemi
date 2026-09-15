@@ -649,9 +649,11 @@ export function buildTradeSwarmGraph(): CompiledStateGraph<any> {
 
   graph.addNode('ingestion', (s) => ({
     symbol: s.symbol || 'BTC/USDT',
-    price: 64380,
+    // price comes from caller via initial state (s.price), fallback to a neutral seed
+    price: s.price || 60000,
     tradeIteration: 0,
   }))
+
 
   graph.addNode('generator', (s) => {
     const iter = (s.tradeIteration || 0) + 1
