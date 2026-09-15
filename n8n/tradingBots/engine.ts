@@ -535,19 +535,36 @@ export function calculateSwarmConsensus(
     { botId: 'macro-regime', botName: 'Macro Regime & Fed Watchdog', action: macroAction, weight: 0.10, confidence: macroConfidence, reasoning: macroReasoning },
   ]
 
+  // Load human-approved calibration weight overrides (written only after explicit user approval).
+  // Hard-coded defaults above are never mutated — this overlay is applied on top transparently.
+  function _loadApprovedWeights(): Record<string, number> {
+    try {
+      const raw = typeof localStorage !== 'undefined'
+        ? localStorage.getItem('nemi_approved_calibration_weights')
+        : null
+      return raw ? (JSON.parse(raw) as Record<string, number>) : {}
+    } catch { return {} }
+  }
+  const approvedWeights = _loadApprovedWeights()
+
   // Apply custom overrides if provided
   const votes = defaultVotes.map((v) => {
+    // 1. Apply human-approved calibration weight overlay (set only after explicit human approval)
+    const calibratedWeight = approvedWeights[v.botId] ?? v.weight
+    const base = { ...v, weight: calibratedWeight }
+    // 2. Apply per-cycle custom vote overrides (existing mechanism, layered on top)
     if (customVotes && customVotes[v.botId]) {
       const override = customVotes[v.botId]!
       return {
-        ...v,
+        ...base,
         action: override.action,
         confidence: override.confidence,
-        reasoning: override.reasoning || v.reasoning,
+        reasoning: override.reasoning || base.reasoning,
       }
     }
-    return v
+    return base
   })
+
 
   // Calculate weighted Bayesian scores
   let buyScore = 0

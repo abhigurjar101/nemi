@@ -1,6 +1,18 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { realTimeMarketData, type LiveTickerData } from '../services/realTimeMarketData'
 import { predictionHistory, type PredictionRecord, type DailySummary } from '../services/predictionHistory'
+import {
+  runWeeklyCalibration,
+  approveProposal,
+  rejectProposal,
+  resetAllWeightsToDefaults,
+  getPendingProposals,
+  getAllProposals,
+  getLastRunTimestamp,
+  type CalibrationReport,
+} from '../services/calibrationModule'
+import { manualTriggerCalibration, isCalibrationRunning, onCalibrationEvent, bootstrapCalibrationScheduler } from '../services/swarmCalibrationScheduler'
+import type { CalibrationProposal } from '../../../../n8n/tradingBots/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -55,7 +67,7 @@ interface TradingFleetModalProps {
   isOpen: boolean
   onClose: () => void
   onSelectBotForChat?: (botId: string, prompt?: string) => void
-  defaultTab?: 'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history'
+  defaultTab?: 'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history' | 'calibration'
 }
 
 export default function TradingFleetModal({
@@ -65,7 +77,7 @@ export default function TradingFleetModal({
   defaultTab,
 }: TradingFleetModalProps) {
   const [selectedTicker, setSelectedTicker] = useState<'BTC/USDT' | 'ETH/USDT' | 'SOL/USDT' | 'NVDA' | 'SPY'>('BTC/USDT')
-  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history'>(defaultTab ?? 'cockpit')
+  const [activeTab, setActiveTab] = useState<'totd' | 'cockpit' | 'fleet' | 'consensus' | 'backtest' | 'n8n-export' | 'architecture' | 'history' | 'calibration'>(defaultTab ?? 'cockpit')
   const [selectedBot, setSelectedBot] = useState<TradingBot>(ALL_TRADING_BOTS[9]) // Default to Trading Orchestrator
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [isRunningSim, setIsRunningSim] = useState(false)
@@ -145,6 +157,64 @@ export default function TradingFleetModal({
       setHistoryStats(predictionHistory.getPerformanceStats())
     })
     return () => unsub()
+  }, [])
+
+  // ── Calibration Module State ──────────────────────────────────────────────
+  const [calibrationProposals, setCalibrationProposals] = useState<CalibrationProposal[]>(() => getAllProposals())
+  const [calibrationReports, setCalibrationReports] = useState<CalibrationReport[]>([])
+  const [calibrationRunning, setCalibrationRunning] = useState(() => isCalibrationRunning())
+  const [calibrationStatusMsg, setCalibrationStatusMsg] = useState<string | null>(null)
+  const [calibrationLastRun, setCalibrationLastRun] = useState<number | null>(() => getLastRunTimestamp())
+  const [expandedReportBot, setExpandedReportBot] = useState<string | null>(null)
+
+  // Bootstrap the weekly scheduler once on mount
+  useEffect(() => {
+    bootstrapCalibrationScheduler()
+    const unsub = onCalibrationEvent((phase, detail) => {
+      if (phase === 'start') setCalibrationRunning(true)
+      if (phase === 'complete' || phase === 'error') {
+        setCalibrationRunning(false)
+        setCalibrationProposals(getAllProposals())
+        setCalibrationLastRun(getLastRunTimestamp())
+        setCalibrationStatusMsg(detail ?? null)
+        setTimeout(() => setCalibrationStatusMsg(null), 6000)
+      }
+    })
+    return () => unsub()
+  }, [])
+
+  const handleRunCalibrationNow = useCallback(() => {
+    setCalibrationRunning(true)
+    setCalibrationStatusMsg('Running calibration analysis…')
+    // Run in next tick to allow React to re-render the loading state
+    setTimeout(() => {
+      const reports = runWeeklyCalibration()
+      setCalibrationReports(reports)
+      setCalibrationProposals(getAllProposals())
+      setCalibrationLastRun(getLastRunTimestamp())
+      setCalibrationRunning(false)
+      const pendingCount = getPendingProposals().length
+      setCalibrationStatusMsg(
+        `✅ Calibration complete — ${reports.length} agents analyzed, ${pendingCount} proposal${pendingCount !== 1 ? 's' : ''} pending your review.`
+      )
+      setTimeout(() => setCalibrationStatusMsg(null), 7000)
+    }, 50)
+  }, [])
+
+  const handleApproveProposal = useCallback((proposalId: string) => {
+    approveProposal(proposalId)
+    setCalibrationProposals(getAllProposals())
+  }, [])
+
+  const handleRejectProposal = useCallback((proposalId: string) => {
+    rejectProposal(proposalId)
+    setCalibrationProposals(getAllProposals())
+  }, [])
+
+  const handleResetWeightsToDefaults = useCallback(() => {
+    resetAllWeightsToDefaults()
+    setCalibrationStatusMsg('✅ All agent weights reset to factory defaults.')
+    setTimeout(() => setCalibrationStatusMsg(null), 4000)
   }, [])
 
   // ── Real-Time Market Data from CoinGecko + Yahoo Finance ──────────────────
@@ -901,7 +971,26 @@ if __name__ == '__main__':
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Agentic RAG & MCP Architecture</span>
+                <span>Agentic RAG &amp; MCP Architecture</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('calibration')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all ${
+                  activeTab === 'calibration'
+                    ? 'bg-purple-500/20 text-purple-200 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
+                <span>
+                  ⚖️ Calibration
+                  {getPendingProposals().length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/30 text-amber-300 border border-amber-500/40">
+                      {getPendingProposals().length}
+                    </span>
+                  )}
+                </span>
               </button>
             </div>
 
@@ -2962,6 +3051,462 @@ if __name__ == '__main__':
                     <code>curl -X POST http://localhost:8000/mcp -H "Content-Type: application/json" -d '{`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`}'</code>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ⚖️ TAB: CALIBRATION MODULE */}
+            {activeTab === 'calibration' && (
+              <div className="flex flex-col gap-6 max-w-5xl mx-auto">
+                {/* Header */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-violet-950/40 via-slate-950 to-slate-900 border border-violet-500/30 shadow-xl">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-violet-500/20 border border-violet-400/40 text-violet-300">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                          ⚖️ SWARM CALIBRATION MODULE
+                        </h3>
+                        <p className="text-xs text-white/50 mt-0.5">
+                          Weekly scheduled. Every proposal requires explicit human approval before any weight changes take effect.
+                          This module never executes trades or modifies hard stops.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleRunCalibrationNow}
+                        disabled={calibrationRunning}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border border-violet-400/40 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${calibrationRunning ? 'animate-spin' : ''}`} />
+                        <span>{calibrationRunning ? 'Running…' : 'Run Calibration Now'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetWeightsToDefaults}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 cursor-pointer transition-all whitespace-nowrap"
+                        title="Reset all approved weight overrides back to factory defaults"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Reset All Weights</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Meta row */}
+                  <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-white/10 text-xs text-white/50 font-mono">
+                    <span>
+                      Last run: {calibrationLastRun
+                        ? new Date(calibrationLastRun).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : 'Never'}
+                    </span>
+                    <span>•</span>
+                    <span>N_MIN = 50 resolved cycles required per agent</span>
+                    <span>•</span>
+                    <span>Max weekly adjustment: ±10% of current weight</span>
+                    <span>•</span>
+                    <span className="text-amber-300">Human approval required for every change</span>
+                  </div>
+
+                  {/* Status message */}
+                  {calibrationStatusMsg && (
+                    <div className="mt-3 p-3 rounded-xl bg-violet-500/15 border border-violet-400/30 text-xs text-violet-200">
+                      {calibrationStatusMsg}
+                    </div>
+                  )}
+                </div>
+
+                {/* Hard Rules reminder */}
+                <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 space-y-1.5">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>CALIBRATION HARD RULES (enforced in code, not policy)</span>
+                  </div>
+                  <ul className="space-y-1 text-amber-100/80 list-disc list-inside">
+                    <li>No proposal generated if an agent has fewer than 50 resolved cycles — small samples produce false patterns.</li>
+                    <li>A calibration score drop &gt;15 points week-over-week triggers DATA_FEED_ANOMALY_ALERT — investigate data feed before reweighting.</li>
+                    <li>No single weekly adjustment exceeds ±10% of current weight.</li>
+                    <li>A 10-cycle hot streak is explicitly flagged LOW_CONFIDENCE_STREAK and never used as the sole basis for upward reweighting.</li>
+                    <li>This module never silently changes live trading behavior. Every weight change requires your explicit [✅ Approve].</li>
+                  </ul>
+                </div>
+
+                {/* Pending Proposals */}
+                {(() => {
+                  const pending = calibrationProposals.filter(
+                    (p) => p.status === 'PENDING' && p.expiresAt > Date.now()
+                  )
+                  const decided = calibrationProposals.filter((p) => p.status !== 'PENDING')
+                  return (
+                    <div className="flex flex-col gap-4">
+                      <h4 className="text-sm font-bold text-white/80 flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono">
+                          ⚠️ PENDING
+                        </span>
+                        {pending.length > 0 ? `${pending.length} proposal${pending.length > 1 ? 's' : ''} awaiting your decision` : 'No pending proposals'}
+                      </h4>
+
+                      {pending.length === 0 && !calibrationRunning && (
+                        <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 text-center">
+                          <p className="text-sm text-white/40">
+                            No pending proposals. Click &quot;Run Calibration Now&quot; to generate a fresh weekly analysis.
+                          </p>
+                          <p className="text-xs text-white/25 mt-1">
+                            Each agent needs ≥50 resolved prediction cycles before a proposal can be generated.
+                          </p>
+                        </div>
+                      )}
+
+                      {pending.map((proposal) => {
+                        const deltaSign = proposal.delta >= 0 ? '+' : ''
+                        const isIncrease = proposal.delta > 0
+                        const isDecrease = proposal.delta < 0
+                        const hasAnomaly = proposal.flags.includes('DATA_FEED_ANOMALY_ALERT')
+                        const hasStreakFlag = proposal.flags.includes('LOW_CONFIDENCE_STREAK')
+                        const hasIncreaseCandidate = proposal.flags.includes('WEIGHT_INCREASE_CANDIDATE')
+                        const hasDecreaseCandidate = proposal.flags.includes('WEIGHT_DECREASE_CANDIDATE')
+
+                        return (
+                          <div
+                            key={proposal.id}
+                            className={`p-5 rounded-2xl border flex flex-col gap-3 ${
+                              hasAnomaly
+                                ? 'bg-amber-950/30 border-amber-500/40'
+                                : isIncrease
+                                ? 'bg-emerald-950/20 border-emerald-500/30'
+                                : isDecrease
+                                ? 'bg-rose-950/20 border-rose-500/30'
+                                : 'bg-white/[0.03] border-white/10'
+                            }`}
+                          >
+                            {/* Agent header */}
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div>
+                                <h5 className="text-sm font-bold text-white">{proposal.botName}</h5>
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  <span className="text-xs font-mono text-white/50">
+                                    Current: <span className="text-white">{(proposal.currentWeight * 100).toFixed(1)}%</span>
+                                  </span>
+                                  <span className="text-white/30">→</span>
+                                  <span className={`text-xs font-mono font-bold ${isIncrease ? 'text-emerald-300' : isDecrease ? 'text-rose-300' : 'text-white/60'}`}>
+                                    Proposed: {(proposal.proposedWeight * 100).toFixed(1)}% ({deltaSign}{(proposal.delta * 100).toFixed(1)}%)
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                  proposal.calibrationScore >= 80 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : proposal.calibrationScore >= 65 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                }`}>
+                                  CAL SCORE {proposal.calibrationScore}%
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                  DISSENTER {(proposal.dissenterHitRate * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Flags */}
+                            {proposal.flags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {hasAnomaly && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/30 text-amber-200 border border-amber-500/50">
+                                    <AlertTriangle className="w-3 h-3" /> DATA_FEED_ANOMALY_ALERT
+                                  </span>
+                                )}
+                                {hasStreakFlag && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-slate-600/40 text-white/60 border border-white/15">
+                                    ⚠️ LOW_CONFIDENCE_STREAK (last-10-cycle hot streak — recency ≠ credibility)
+                                  </span>
+                                )}
+                                {hasIncreaseCandidate && !hasAnomaly && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    🏷 WEIGHT_INCREASE_CANDIDATE (systematic under-weighting in dissenter audit)
+                                  </span>
+                                )}
+                                {hasDecreaseCandidate && !hasAnomaly && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    🏷 WEIGHT_DECREASE_CANDIDATE
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Data feed anomaly — extra warning before approve */}
+                            {hasAnomaly && (
+                              <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/40 text-xs text-amber-200">
+                                <strong>⚠️ Investigate before approving:</strong> This agent&apos;s calibration score degraded sharply vs. last week.
+                                This is more likely a data-feed disruption than a genuine skill change. Review the agent&apos;s data source before reweighting.
+                              </div>
+                            )}
+
+                            {/* Streak caution */}
+                            {hasStreakFlag && !hasAnomaly && (
+                              <div className="p-3 rounded-xl bg-slate-700/30 border border-white/10 text-xs text-white/60">
+                                This proposal is partly driven by a 10-cycle recent hot streak. Consider rejecting until more cycles accumulate.
+                                Recency is not automatically credibility.
+                              </div>
+                            )}
+
+                            {/* Evidence summary */}
+                            <p className="text-xs text-white/60 leading-relaxed italic">
+                              &ldquo;{proposal.proposalReason}&rdquo;
+                            </p>
+
+                            {/* Approve / Reject */}
+                            <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveProposal(proposal.id)}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                ✅ Approve — Apply {deltaSign}{(proposal.delta * 100).toFixed(1)}% adjustment
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectProposal(proposal.id)}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 cursor-pointer transition-all"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                ❌ Reject — Keep current weight
+                              </button>
+                              <span className="text-[10px] text-white/30 font-mono ml-auto">
+                                Expires {new Date(proposal.expiresAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* Historical decisions */}
+                      {decided.length > 0 && (
+                        <div className="mt-2">
+                          <h4 className="text-xs font-semibold text-white/40 uppercase font-mono mb-3">
+                            Historical Decisions ({decided.length})
+                          </h4>
+                          <div className="flex flex-col gap-2">
+                            {decided.slice(0, 10).map((proposal) => (
+                              <div
+                                key={proposal.id}
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                                  proposal.status === 'APPROVED'
+                                    ? 'bg-emerald-950/15 border-emerald-500/20'
+                                    : 'bg-white/[0.02] border-white/5'
+                                }`}
+                              >
+                                <div>
+                                  <span className="font-semibold text-white/70">{proposal.botName}</span>
+                                  <span className="text-white/40 ml-2 font-mono">
+                                    {proposal.delta >= 0 ? '+' : ''}{(proposal.delta * 100).toFixed(1)}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                    proposal.status === 'APPROVED'
+                                      ? 'bg-emerald-500/20 text-emerald-300'
+                                      : 'bg-rose-500/15 text-rose-300'
+                                  }`}>
+                                    {proposal.status}
+                                  </span>
+                                  {proposal.decidedAt && (
+                                    <span className="text-white/30 text-[10px] font-mono">
+                                      {new Date(proposal.decidedAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Calibration Reports — per-agent detail */}
+                {calibrationReports.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    <h4 className="text-sm font-bold text-white/80 flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-violet-400" />
+                      Full Calibration Reports ({calibrationReports.length} agents)
+                    </h4>
+                    {calibrationReports.map((report) => {
+                      const isExpanded = expandedReportBot === report.botId
+                      return (
+                        <div
+                          key={report.botId}
+                          className="p-4 rounded-2xl bg-white/[0.02] border border-white/10"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setExpandedReportBot(isExpanded ? null : report.botId)}
+                            className="w-full flex items-center justify-between text-left cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-bold text-white group-hover:text-violet-200 transition-colors">
+                                {report.botName}
+                              </span>
+                              {!report.hasEnoughData && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-600/40 text-white/50 border border-white/10">
+                                  INSUFFICIENT DATA ({report.resolvedCycles}/{report.minCyclesRequired})
+                                </span>
+                              )}
+                              {report.hasEnoughData && (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                  report.calibrationScore >= 80 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : report.calibrationScore >= 65 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                }`}>
+                                  CAL {report.calibrationScore}%
+                                </span>
+                              )}
+                              {report.flags.map((flag) => (
+                                <span key={flag} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                                  {flag}
+                                </span>
+                              ))}
+                            </div>
+                            <span className="text-white/40 text-xs font-mono">
+                              {isExpanded ? '▲ Collapse' : '▼ Expand'}
+                            </span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-4 flex flex-col gap-4 text-xs">
+                              {/* Confidence Bucket Table */}
+                              {report.calibrationBuckets.length > 0 && (
+                                <div>
+                                  <h6 className="text-[10px] uppercase font-mono text-white/40 mb-2">Confidence Calibration Buckets</h6>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="text-[10px] font-mono text-white/40 border-b border-white/5">
+                                          <th className="text-left py-1 pr-4">Bucket</th>
+                                          <th className="text-right py-1 pr-4">Calls</th>
+                                          <th className="text-right py-1 pr-4">Empirical Rate</th>
+                                          <th className="text-right py-1 pr-4">Cal Error</th>
+                                          <th className="text-right py-1">Note</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {report.calibrationBuckets.map((bkt) => (
+                                          <tr key={bkt.bucketLabel} className="border-b border-white/[0.03] font-mono">
+                                            <td className="py-1.5 pr-4 text-white/70">{bkt.bucketLabel}</td>
+                                            <td className="text-right pr-4 text-white/60">{bkt.totalCalls}</td>
+                                            <td className={`text-right pr-4 ${Math.abs(bkt.calibrationError) < 0.1 ? 'text-emerald-300' : Math.abs(bkt.calibrationError) < 0.2 ? 'text-amber-300' : 'text-rose-300'}`}>
+                                              {(bkt.empiricalRate * 100).toFixed(1)}%
+                                            </td>
+                                            <td className={`text-right pr-4 ${Math.abs(bkt.calibrationError) < 0.1 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                              {(bkt.calibrationError * 100).toFixed(1)}pp
+                                            </td>
+                                            <td className="text-right text-white/30">
+                                              {bkt.sparse ? 'SPARSE' : ''}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Regime Hit Rate Table */}
+                              <div>
+                                <h6 className="text-[10px] uppercase font-mono text-white/40 mb-2">Regime-Segmented Hit Rates (never collapsed)</h6>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-[10px] font-mono text-white/40 border-b border-white/5">
+                                        <th className="text-left py-1 pr-4">Regime</th>
+                                        <th className="text-right py-1 pr-4">Cycles</th>
+                                        <th className="text-right py-1 pr-4">Wins</th>
+                                        <th className="text-right py-1">Hit Rate</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {report.regimeHitRates.map((row) => (
+                                        <tr key={row.regime} className="border-b border-white/[0.03] font-mono">
+                                          <td className="py-1.5 pr-4 text-white/70">{row.regime.replace('_', ' ')}</td>
+                                          <td className="text-right pr-4 text-white/60">{row.totalCycles}</td>
+                                          <td className="text-right pr-4 text-white/60">{row.wins}</td>
+                                          <td className={`text-right ${row.lowSampleCount ? 'text-white/30 italic' : row.hitRate >= 0.6 ? 'text-emerald-300' : row.hitRate >= 0.45 ? 'text-amber-300' : 'text-rose-300'}`}>
+                                            {row.lowSampleCount ? 'LOW SAMPLE' : `${(row.hitRate * 100).toFixed(1)}%`}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+
+                              {/* Dissenter Audit */}
+                              <div className="p-3 rounded-xl bg-violet-950/30 border border-violet-500/20">
+                                <h6 className="text-[10px] uppercase font-mono text-white/40 mb-2">Dissenter Contribution Audit</h6>
+                                {report.dissenterAudit.insufficientDisagreements ? (
+                                  <p className="text-white/40 italic">
+                                    Insufficient disagreements ({report.dissenterAudit.totalDisagreements}/20 required) for reliable dissenter audit.
+                                  </p>
+                                ) : (
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div>
+                                      <div className="text-[10px] text-white/40">Disagreements</div>
+                                      <div className="font-mono font-bold text-white">{report.dissenterAudit.totalDisagreements}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-white/40">Agent Hit Rate</div>
+                                      <div className={`font-mono font-bold ${report.dissenterAudit.dissenterHitRate >= 0.5 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                        {(report.dissenterAudit.dissenterHitRate * 100).toFixed(1)}%
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-white/40">Consensus Hit Rate</div>
+                                      <div className={`font-mono font-bold ${report.dissenterAudit.consensusHitRate >= 0.5 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                        {(report.dissenterAudit.consensusHitRate * 100).toFixed(1)}%
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-white/40">Signal</div>
+                                      <div className={`font-mono font-bold text-[11px] ${
+                                        report.dissenterAudit.signal === 'WEIGHT_INCREASE_CANDIDATE' ? 'text-emerald-300'
+                                        : report.dissenterAudit.signal === 'WEIGHT_DECREASE_CANDIDATE' ? 'text-rose-300'
+                                        : 'text-white/50'
+                                      }`}>
+                                        {report.dissenterAudit.signal}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Proposal reason */}
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10">
+                                <h6 className="text-[10px] uppercase font-mono text-white/40 mb-1">Evidence Summary</h6>
+                                <p className="text-white/60 leading-relaxed italic">&ldquo;{report.proposalReason}&rdquo;</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {calibrationReports.length === 0 && !calibrationRunning && (
+                  <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/10 text-center">
+                    <p className="text-sm text-white/40">
+                      No calibration reports yet. Click &quot;Run Calibration Now&quot; above to generate per-agent analysis.
+                    </p>
+                    <p className="text-xs text-white/25 mt-1.5">
+                      Reports show confidence bucket calibration scores, regime-segmented hit rates, and dissenter contribution audit
+                      for each of the 7 specialist agents.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

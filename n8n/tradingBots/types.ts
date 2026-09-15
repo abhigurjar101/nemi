@@ -144,3 +144,149 @@ export interface TradingBot extends N8nBot {
   timeframes: string[]
   supportedExchanges: string[]
 }
+
+// ==========================================
+// Calibration Module Types
+// ==========================================
+
+/**
+ * Market regime at the time of a swarm decision cycle.
+ * Used to segment hit-rate reporting — never collapsed into a lifetime average.
+ */
+export type MarketRegime =
+  | 'TRENDING_BULL'
+  | 'TRENDING_BEAR'
+  | 'RANGING'
+  | 'HIGH_VOLATILITY'
+
+/**
+ * One logged Orchestrator decision cycle. Written immediately after
+ * calculateSwarmConsensus() and resolved when the prediction outcome is known.
+ * This is the raw material for calibration — every field here is evidence,
+ * not inference.
+ */
+export interface AgentDecisionEntry {
+  id: string
+  timestamp: number
+  ticker: string
+  regime: MarketRegime
+  change24h: number
+  atr: number
+  // Each agent's raw vote for this cycle
+  agentVotes: Array<{
+    botId: string
+    botName: string
+    action: TradeAction
+    confidence: number // 0-100
+    weight: number
+  }>
+  // What the Orchestrator decided
+  orchestratorAction: TradeAction
+  orchestratorConfidence: number
+  winProbability: number
+  gatekeeperPassed: boolean
+  // Resolved after outcome is known
+  resolved: boolean
+  outcome?: 'WIN' | 'LOSS' | 'SCRATCH' // null until resolved
+  finalPrice?: number
+  resolvedAt?: number
+}
+
+/**
+ * A single row in a calibration score table.
+ * One row per confidence bucket (e.g. 70-80%).
+ */
+export interface CalibrationBucketRow {
+  bucketLabel: string      // e.g. '70-80%'
+  midpoint: number         // e.g. 75 (as 0-100)
+  totalCalls: number
+  wins: number
+  empiricalRate: number    // wins / totalCalls (0-1)
+  calibrationError: number // |empiricalRate - midpoint/100|
+  sparse: boolean          // true if totalCalls < 5
+}
+
+/**
+ * Per-regime hit rate row. Always reported separately,
+ * never collapsed into a lifetime average.
+ */
+export interface RegimeHitRow {
+  regime: MarketRegime
+  totalCycles: number
+  wins: number
+  hitRate: number          // 0-1
+  lowSampleCount: boolean  // true if totalCycles < 10
+}
+
+/**
+ * Dissenter contribution audit for one agent.
+ * Tracks cycles where this agent disagreed with consensus,
+ * and who was right more often.
+ */
+export interface DissenterAudit {
+  totalDisagreements: number
+  agentCorrect: number            // agent disagreed AND was right
+  consensusCorrect: number        // consensus prevailed AND was right
+  dissenterHitRate: number        // agentCorrect / totalDisagreements
+  consensusHitRate: number        // consensusCorrect / totalDisagreements
+  signal: 'WEIGHT_INCREASE_CANDIDATE' | 'WEIGHT_DECREASE_CANDIDATE' | 'NEUTRAL'
+  insufficientDisagreements: boolean // true if totalDisagreements < 20
+}
+
+/**
+ * Complete calibration report for one agent, produced weekly.
+ * Read-only — contains findings and a proposed adjustment but never
+ * applies anything automatically.
+ */
+export interface CalibrationReport {
+  botId: string
+  botName: string
+  currentWeight: number
+  resolvedCycles: number
+  minCyclesRequired: number        // 50
+  hasEnoughData: boolean
+
+  calibrationScore: number         // 0-100: 100 = perfectly calibrated
+  calibrationScoreLastWeek?: number
+  calibrationBuckets: CalibrationBucketRow[]
+
+  regimeHitRates: RegimeHitRow[]
+
+  dissenterAudit: DissenterAudit
+
+  flags: Array<
+    | 'INSUFFICIENT_DATA'
+    | 'DATA_FEED_ANOMALY_ALERT'
+    | 'LOW_CONFIDENCE_STREAK'
+    | 'WEIGHT_INCREASE_CANDIDATE'
+    | 'WEIGHT_DECREASE_CANDIDATE'
+  >
+
+  proposedWeightDelta: number      // e.g. -0.02 = decrease by 2 percentage points
+  proposedWeight: number           // clamped result
+  proposalReason: string           // human-readable evidence summary
+
+  generatedAt: number
+}
+
+/**
+ * A human-approval record for a single agent's proposed weight change.
+ * Nothing in live trading changes until status is set to 'APPROVED'.
+ */
+export interface CalibrationProposal {
+  id: string
+  botId: string
+  botName: string
+  currentWeight: number
+  proposedWeight: number
+  delta: number
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  flags: CalibrationReport['flags']
+  calibrationScore: number
+  dissenterHitRate: number
+  proposalReason: string
+  createdAt: number
+  expiresAt: number              // auto-expire after 7 days
+  decidedAt?: number
+  decidedBy?: string
+}
