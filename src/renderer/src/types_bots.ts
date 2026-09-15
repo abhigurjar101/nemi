@@ -51,6 +51,7 @@ export {
   calculateSwarmConsensus,
   runStrategyBacktest,
   generateMockCandles,
+  generateDeterministicLiveCandles,
   sentimentTraderBot,
   technicalAnalystBot,
   smcLiquidityBot,

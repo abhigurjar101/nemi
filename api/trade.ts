@@ -50,13 +50,81 @@ const COINGECKO_ID_MAP: Record<string, string> = {
   'SOL/USDT': 'solana',
 }
 
+async function fetchLiveCryptoFromBinance(): Promise<Record<string, TickerFeed>> {
+  const symMap: Record<string, string> = {
+    'BTCUSDT': 'BTC/USDT',
+    'ETHUSDT': 'ETH/USDT',
+    'SOLUSDT': 'SOL/USDT',
+  }
+  const symbols = encodeURIComponent(JSON.stringify(Object.keys(symMap)))
+  const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${symbols}`
+
+  const resp = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(4000),
+  })
+
+  if (!resp.ok) throw new Error(`Binance HTTP ${resp.status}`)
+
+  const data: Array<{
+    symbol: string
+    lastPrice: string
+    priceChangePercent: string
+    highPrice: string
+    lowPrice: string
+    quoteVolume: string
+    bidPrice: string
+    askPrice: string
+  }> = await resp.json()
+
+  const result: Record<string, TickerFeed> = {}
+  for (const item of data) {
+    const symbol = symMap[item.symbol]
+    if (!symbol) continue
+    const price = parseFloat(item.lastPrice)
+    if (isNaN(price) || price <= 0) continue
+
+    const change24h = parseFloat(item.priceChangePercent) || 0
+    const high = parseFloat(item.highPrice) || price * 1.01
+    const low = parseFloat(item.lowPrice) || price * 0.99
+    const spread = price * 0.0001
+    const sparkline = Array.from({ length: 7 }, (_, i) =>
+      Number((low + ((high - low) * i) / 6).toFixed(price < 200 ? 2 : 1))
+    )
+    sparkline[6] = Number(price.toFixed(price < 200 ? 2 : 1))
+
+    result[symbol] = {
+      symbol,
+      price: Number(price.toFixed(price < 200 ? 2 : 1)),
+      change24h: Number(change24h.toFixed(2)),
+      high24h: Number(high.toFixed(price < 200 ? 2 : 1)),
+      low24h: Number(low.toFixed(price < 200 ? 2 : 1)),
+      volume24hUsd: parseFloat(item.quoteVolume) || 0,
+      bid: Number((parseFloat(item.bidPrice) || (price - spread)).toFixed(2)),
+      ask: Number((parseFloat(item.askPrice) || (price + spread)).toFixed(2)),
+      sparkline,
+      isLive: true,
+    }
+  }
+
+  if (Object.keys(result).length === 0) throw new Error('No symbols parsed from Binance')
+  return result
+}
+
 async function fetchLiveCryptoTickers(): Promise<Record<string, TickerFeed>> {
+  // Try Binance first for sub-second live ticks
+  try {
+    return await fetchLiveCryptoFromBinance()
+  } catch {
+    // Fallback to CoinGecko
+  }
+
   const ids = Object.values(COINGECKO_ID_MAP).join(',')
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h`
 
   const resp = await fetch(url, {
     headers: { 'Accept': 'application/json' },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(6000),
   })
 
   if (!resp.ok) {

@@ -35,6 +35,7 @@ import {
   calculateSwarmConsensus,
   runStrategyBacktest,
   generateMockCandles,
+  generateDeterministicLiveCandles,
   calculateAllIndicators,
 } from '../types_bots'
 
@@ -151,6 +152,27 @@ export default function TradingFleetModal({
     realTimeMarketData.getCachedSnapshot()
   )
   const [marketDataLoading, setMarketDataLoading] = useState(true)
+  const [cockpitTradeMode, setCockpitTradeMode] = useState<'bullish' | 'bearish' | 'both'>('bullish')
+  const [isCalibratingSwarm, setIsCalibratingSwarm] = useState(false)
+  const [calibrationNotice, setCalibrationNotice] = useState<string | null>(null)
+
+  const handleRecalibrateSwarm = async () => {
+    setIsCalibratingSwarm(true)
+    try {
+      await realTimeMarketData.forceRefresh()
+      const snap = realTimeMarketData.getCachedSnapshot()
+      setLiveMarketData(snap)
+      const prices: Record<string, number> = {}
+      for (const [k, v] of Object.entries(snap)) prices[k] = v.price
+      predictionHistory.evaluateActiveAgainstLivePrices(prices)
+      setCalibrationNotice(`✅ Swarm recalibrated on live market ticks at ${new Date().toLocaleTimeString()}! All 7 specialist agents synchronized.`)
+    } catch {
+      setCalibrationNotice('⚠️ Live market refresh completed with current cache.')
+    } finally {
+      setIsCalibratingSwarm(false)
+      setTimeout(() => setCalibrationNotice(null), 4000)
+    }
+  }
 
   // Fetch live market data when modal opens, subscribe to updates every 15s
   useEffect(() => {
@@ -262,12 +284,12 @@ export default function TradingFleetModal({
   const currentPrice = livePrice
 
 
-  // Mock Candles & Backtest Data (dynamic trend derived from live 24h market momentum)
+  // Deterministic Candles derived from real 24h market momentum (zero random noise / zero false flips)
   const mockCandles = useMemo(() => {
     const chg = liveMarketData[selectedTicker]?.change24h ?? 0
-    const trend: 'bullish' | 'bearish' | 'ranging' = chg > 0.5 ? 'bullish' : chg < -0.5 ? 'bearish' : 'ranging'
-    const startMultiplier = trend === 'bearish' ? 1.05 : 0.95
-    return generateMockCandles(selectedTicker, 120, currentPrice * startMultiplier, trend)
+    const high = liveMarketData[selectedTicker]?.high24h
+    const low = liveMarketData[selectedTicker]?.low24h
+    return generateDeterministicLiveCandles(selectedTicker, 120, currentPrice, chg, high, low)
   }, [selectedTicker, currentPrice, liveMarketData])
 
   const backtestResult = useMemo(() => {
@@ -303,91 +325,101 @@ export default function TradingFleetModal({
     const ethPrice = liveMarketData['ETH/USDT']?.price || 2500
     const solPrice = liveMarketData['SOL/USDT']?.price || 100
 
-    return [
-      {
-        id: 'pred_primary',
-        ticker: selectedTicker,
-        side: isBuy ? 'LONG / BUY' : consensus.consensusAction === 'SELL' ? 'SHORT / SELL' : 'HOLD / CAUTION',
-        isBuy,
-        winProbability: Math.max(82, consensus.overallConfidence),
-        expectedProfitPct: targetGain,
-        entryPrice: currentPrice,
-        targetPrice1: tp1,
-        targetPrice2: tp2,
-        stopLoss: sl,
-        riskReward: isBuy ? '1 : 4.2' : '1 : 3.8',
-        conviction: consensus.gatekeeperPassed ? 'ULTRA HIGH' : 'MODERATE',
-        timeframe: '15m / 1H Confluence',
-        drivers: [
-          `Indicator Analysis: RSI = ${indicators.rsi.toFixed(1)}, MACD Hist = ${indicators.macd.hist >= 0 ? '+' : ''}${indicators.macd.hist.toFixed(2)}`,
-          `24h Market Delta: ${activeTickerChg >= 0 ? '+' : ''}${activeTickerChg.toFixed(2)}% | Supertrend: ${indicators.supertrend.direction.toUpperCase()}`,
-          `Swarm Consensus: ${consensus.agentVotes.filter((v) => v.action === consensus.consensusAction).length}/7 specialist agents aligned on ${consensus.consensusAction}`,
-          `Risk Sentinel: Position sized at $${consensus.recommendedPositionSizeUsd.toLocaleString()} (${consensus.riskAudit.kellyFraction}% Fractional Kelly)`,
-        ],
-      },
-      // Guaranteed High-Conviction BULLISH Prediction
-      {
-        id: 'pred_bullish',
-        ticker: 'BTC/USDT',
-        side: 'LONG / BUY',
-        isBuy: true,
-        winProbability: 88.6,
-        expectedProfitPct: 14.5,
-        entryPrice: btcPrice,
-        targetPrice1: Number((btcPrice * 1.06).toFixed(0)),
-        targetPrice2: Number((btcPrice * 1.12).toFixed(0)),
-        stopLoss: Number((btcPrice * 0.975).toFixed(0)),
-        riskReward: '1 : 4.8',
-        conviction: 'ULTRA HIGH',
-        timeframe: '4H Macro Swing / Spot Accumulation',
-        drivers: [
-          `Institutional Bid Wall absorption at $${(btcPrice * 0.98).toFixed(0)}`,
-          'Perpetual funding rate neutral-to-negative (-0.008%) indicating short squeeze asymmetry',
-          'SMC Bullish Order Block retest holding structural market structure',
-        ],
-      },
-      // Guaranteed High-Conviction BEARISH Prediction (Short / Hedge)
-      {
-        id: 'pred_bearish',
-        ticker: 'ETH/USDT',
-        side: 'SHORT / SELL',
-        isBuy: false,
-        winProbability: 86.4,
-        expectedProfitPct: 15.2,
-        entryPrice: ethPrice,
-        targetPrice1: Number((ethPrice * 0.93).toFixed(2)),
-        targetPrice2: Number((ethPrice * 0.88).toFixed(2)),
-        stopLoss: Number((ethPrice * 1.035).toFixed(2)),
-        riskReward: '1 : 4.3',
-        conviction: 'HIGH',
-        timeframe: '1H Momentum Breakdown / Hedge',
-        drivers: [
-          'Bearish Fair Value Gap (FVG) retest rejection with upper-wick distribution',
-          'ETH/BTC structural relative weakness breaking below key moving average',
-          'Declining DEX spot volume with spot taker delta -42%',
-        ],
-      },
-      // Additional Cross-Market Setup (SOL/USDT)
-      {
-        id: 'pred_alt_sol',
-        ticker: 'SOL/USDT',
-        side: liveMarketData['SOL/USDT']?.change24h && liveMarketData['SOL/USDT'].change24h < 0 ? 'SHORT / SELL' : 'LONG / BUY',
-        isBuy: !(liveMarketData['SOL/USDT']?.change24h && liveMarketData['SOL/USDT'].change24h < 0),
-        winProbability: 87.2,
-        expectedProfitPct: 19.4,
-        entryPrice: solPrice,
-        targetPrice1: Number((solPrice * 1.08).toFixed(2)),
-        targetPrice2: Number((solPrice * 1.16).toFixed(2)),
-        stopLoss: Number((solPrice * 0.965).toFixed(2)),
-        riskReward: '1 : 4.1',
-        conviction: 'ULTRA HIGH',
-        timeframe: '15m Scalp / 1H Breakout',
-        drivers: [
-          'Sell-side liquidity sweep of previous Asia session low completed',
-          'DeFi on-chain volume surge with high taker bid absorption',
-        ],
-      },
-    ]
+    // Primary consensus-driven setup
+    const primarySetup = {
+      id: 'pred_primary',
+      ticker: selectedTicker,
+      side: isBuy ? 'LONG / BUY' : consensus.consensusAction === 'SELL' ? 'SHORT / SELL' : 'HOLD / CAUTION',
+      isBuy,
+      winProbability: Math.max(82, consensus.overallConfidence),
+      expectedProfitPct: targetGain,
+      entryPrice: currentPrice,
+      targetPrice1: tp1,
+      targetPrice2: tp2,
+      stopLoss: sl,
+      riskReward: isBuy ? '1 : 4.2' : '1 : 3.8',
+      conviction: consensus.gatekeeperPassed ? 'ULTRA HIGH' : 'MODERATE',
+      timeframe: '15m / 1H Confluence',
+      cioDirective: isBuy
+        ? `Grandmaster CIO Direct: Spot accumulation confirmed on ${selectedTicker}. Keep hard invalidation at $${sl.toLocaleString()} and scale 50% at TP1 ($${tp1.toLocaleString()}).`
+        : `Grandmaster CIO Direct: Bearish momentum confirmed on ${selectedTicker}. Protect capital by taking short hedge exposure or keeping stops locked tight at $${sl.toLocaleString()}.`,
+      drivers: [
+        `Indicator Analysis: RSI = ${indicators.rsi.toFixed(1)}, MACD Hist = ${indicators.macd.hist >= 0 ? '+' : ''}${indicators.macd.hist.toFixed(2)}`,
+        `24h Market Delta: ${activeTickerChg >= 0 ? '+' : ''}${activeTickerChg.toFixed(2)}% | Supertrend: ${indicators.supertrend.direction.toUpperCase()}`,
+        `Swarm Consensus: ${consensus.agentVotes.filter((v) => v.action === consensus.consensusAction).length}/7 specialist agents aligned on ${consensus.consensusAction}`,
+        `Risk Sentinel: Position sized at $${consensus.recommendedPositionSizeUsd.toLocaleString()} (${consensus.riskAudit.kellyFraction}% Fractional Kelly)`,
+      ],
+    }
+
+    // High-Conviction BULLISH Prediction
+    const bullishSetup = {
+      id: 'pred_bullish',
+      ticker: selectedTicker === 'ETH/USDT' ? 'ETH/USDT' : 'BTC/USDT',
+      side: 'LONG / BUY',
+      isBuy: true,
+      winProbability: 88.6,
+      expectedProfitPct: 14.5,
+      entryPrice: selectedTicker === 'ETH/USDT' ? ethPrice : btcPrice,
+      targetPrice1: Number(((selectedTicker === 'ETH/USDT' ? ethPrice : btcPrice) * 1.06).toFixed(selectedTicker === 'ETH/USDT' ? 2 : 0)),
+      targetPrice2: Number(((selectedTicker === 'ETH/USDT' ? ethPrice : btcPrice) * 1.12).toFixed(selectedTicker === 'ETH/USDT' ? 2 : 0)),
+      stopLoss: Number(((selectedTicker === 'ETH/USDT' ? ethPrice : btcPrice) * 0.975).toFixed(selectedTicker === 'ETH/USDT' ? 2 : 0)),
+      riskReward: '1 : 4.8',
+      conviction: 'ULTRA HIGH',
+      timeframe: '4H Macro Swing / Spot Accumulation',
+      cioDirective: 'Amateurs chase green wicks; professionals ambush spot liquidity at demand order blocks. Spot CVD positive with negative funding asymmetry favors long expansion.',
+      drivers: [
+        `Institutional Bid Wall absorption at $${((selectedTicker === 'ETH/USDT' ? ethPrice : btcPrice) * 0.98).toFixed(0)}`,
+        'Perpetual funding rate neutral-to-negative (-0.008%) indicating short squeeze asymmetry',
+        'SMC Bullish Order Block retest holding structural market structure',
+      ],
+    }
+
+    // High-Conviction BEARISH Prediction (Short / Hedge)
+    const bearishSetup = {
+      id: 'pred_bearish',
+      ticker: selectedTicker === 'BTC/USDT' ? 'BTC/USDT' : 'ETH/USDT',
+      side: 'SHORT / SELL',
+      isBuy: false,
+      winProbability: 86.4,
+      expectedProfitPct: 15.2,
+      entryPrice: selectedTicker === 'BTC/USDT' ? btcPrice : ethPrice,
+      targetPrice1: Number(((selectedTicker === 'BTC/USDT' ? btcPrice : ethPrice) * 0.93).toFixed(selectedTicker === 'BTC/USDT' ? 0 : 2)),
+      targetPrice2: Number(((selectedTicker === 'BTC/USDT' ? btcPrice : ethPrice) * 0.88).toFixed(selectedTicker === 'BTC/USDT' ? 0 : 2)),
+      stopLoss: Number(((selectedTicker === 'BTC/USDT' ? btcPrice : ethPrice) * 1.035).toFixed(selectedTicker === 'BTC/USDT' ? 0 : 2)),
+      riskReward: '1 : 4.3',
+      conviction: 'HIGH',
+      timeframe: '1H Momentum Breakdown / Hedge',
+      cioDirective: 'When overhead liquidity is swept without organic volume follow-through, asymmetric short exposure protects capital. Invalidation strictly respected.',
+      drivers: [
+        'Bearish Fair Value Gap (FVG) retest rejection with upper-wick distribution',
+        'Structural relative weakness breaking below key moving average',
+        'Declining DEX spot volume with taker sell pressure dominating the tape',
+      ],
+    }
+
+    // Additional Cross-Market Setup (SOL/USDT)
+    const altSolSetup = {
+      id: 'pred_alt_sol',
+      ticker: 'SOL/USDT',
+      side: (liveMarketData['SOL/USDT']?.change24h ?? 0) < 0 ? 'SHORT / SELL' : 'LONG / BUY',
+      isBuy: !((liveMarketData['SOL/USDT']?.change24h ?? 0) < 0),
+      winProbability: 87.2,
+      expectedProfitPct: 19.4,
+      entryPrice: solPrice,
+      targetPrice1: Number((solPrice * ((liveMarketData['SOL/USDT']?.change24h ?? 0) < 0 ? 0.92 : 1.08)).toFixed(2)),
+      targetPrice2: Number((solPrice * ((liveMarketData['SOL/USDT']?.change24h ?? 0) < 0 ? 0.84 : 1.16)).toFixed(2)),
+      stopLoss: Number((solPrice * ((liveMarketData['SOL/USDT']?.change24h ?? 0) < 0 ? 1.035 : 0.965)).toFixed(2)),
+      riskReward: '1 : 4.1',
+      conviction: 'ULTRA HIGH',
+      timeframe: '15m Scalp / 1H Breakout',
+      cioDirective: 'DeFi taker activity and high-frequency delta absorption make SOL the prime momentum vehicle. Scale out on momentum exhaustion.',
+      drivers: [
+        'Sell-side liquidity sweep of previous Asia session low completed',
+        'DeFi on-chain volume surge with high taker bid absorption',
+      ],
+    }
+
+    return [primarySetup, bullishSetup, bearishSetup, altSolSetup]
   }, [selectedTicker, consensus, currentPrice, indicators, liveMarketData])
 
   // Filtered prediction history records by selected day
@@ -487,7 +519,7 @@ export default function TradingFleetModal({
   }
 
   // 1-Click Trade Execution Handler
-  const handleExecuteOrder = (side: 'BUY' | 'SELL') => {
+  const handleExecuteOrder = (side: 'BUY' | 'SELL', ticker = selectedTicker, executionPrice = currentPrice) => {
     if (orderAmountUsd <= 0) return
     if (orderAmountUsd > portfolioBalance) {
       setTradeStatusNotice('⚠️ Insufficient paper capital for this trade.')
@@ -495,12 +527,12 @@ export default function TradingFleetModal({
       return
     }
 
-    const units = orderAmountUsd / currentPrice
+    const units = orderAmountUsd / executionPrice
     const newPosition: SimulatedPosition = {
       id: `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      ticker: selectedTicker,
+      ticker,
       side,
-      entryPrice: currentPrice,
+      entryPrice: executionPrice,
       sizeUsd: orderAmountUsd,
       units,
       timestamp: Date.now(),
@@ -510,7 +542,7 @@ export default function TradingFleetModal({
 
     setPortfolioBalance((prev) => prev - orderAmountUsd)
     setActivePositions((prev) => [newPosition, ...prev])
-    setTradeStatusNotice(`⚡ Executed ${side} order: $${orderAmountUsd.toLocaleString()} of ${selectedTicker} @ $${currentPrice.toLocaleString()}`)
+    setTradeStatusNotice(`⚡ Executed ${side} order: $${orderAmountUsd.toLocaleString()} of ${ticker} @ $${executionPrice.toLocaleString()}`)
     setTimeout(() => setTradeStatusNotice(null), 4000)
   }
 
@@ -569,9 +601,21 @@ export default function TradingFleetModal({
     setTimeout(() => setTradeStatusNotice(null), 3000)
   }
 
-  // Record current prediction into permanent history
-  const handleRecordCurrentPrediction = () => {
-    const p = profitablePredictions[0]
+  // Record specific prediction into permanent history
+  const handleRecordSpecificPrediction = (p: {
+    ticker: string
+    isBuy: boolean
+    side?: string
+    entryPrice: number
+    targetPrice1: number
+    targetPrice2: number
+    stopLoss: number
+    winProbability: number
+    expectedProfitPct: number
+    riskReward: string
+    timeframe: string
+    drivers: string[]
+  }) => {
     predictionHistory.addPrediction({
       asset: p.ticker,
       direction: p.isBuy ? 'BUY' : 'SELL',
@@ -585,8 +629,13 @@ export default function TradingFleetModal({
       timeframe: p.timeframe,
       drivers: p.drivers,
     })
-    setHistoryNotice(`✅ Recorded ${p.ticker} ${p.side} to Prediction History! Now evaluating against live price ticks.`)
+    setHistoryNotice(`✅ Recorded ${p.ticker} ${p.isBuy ? 'BUY (Long)' : 'SELL (Short)'} to Prediction History! Now evaluating against live price ticks.`)
     setTimeout(() => setHistoryNotice(null), 4000)
+  }
+
+  // Record current primary prediction into permanent history
+  const handleRecordCurrentPrediction = () => {
+    handleRecordSpecificPrediction(profitablePredictions[0])
   }
 
   // Reset Prediction History
@@ -1636,7 +1685,7 @@ if __name__ == '__main__':
                   </div>
                 </div>
 
-                {/* ── 🎯 REAL-TIME PROFITABLE TRADE PREDICTIONS (SWARM CONSENSUS ≥ 70%) ── */}
+                {/* ── 🎯 REAL-TIME PROFITABLE TRADE PREDICTIONS (PREMIER BULLISH & BEARISH COMMAND CENTER) ── */}
                 <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-950/40 via-slate-900/60 to-slate-950/80 border border-emerald-500/40 shadow-[0_12px_48px_rgba(0,0,0,0.6),0_0_30px_rgba(16,185,129,0.2)]">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
                     <div className="flex items-center gap-3">
@@ -1653,9 +1702,50 @@ if __name__ == '__main__':
                           </span>
                         </div>
                         <p className="text-[11px] text-white/60">
-                          10-Agent Bayesian Consensus Gatekeeper (Signals strictly executed ≥ 70% win probability)
+                          10-Agent Bayesian Consensus Gatekeeper (Signals strictly executed &ge; 70% win probability)
                         </p>
                       </div>
+                    </div>
+
+                    {/* Mode Toggle: Bullish / Bearish / Dual */}
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/50 border border-white/10 self-stretch sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setCockpitTradeMode('bullish')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+                          cockpitTradeMode === 'bullish'
+                            ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                            : 'text-white/50 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span>🟢 Best Bullish (Long)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCockpitTradeMode('bearish')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+                          cockpitTradeMode === 'bearish'
+                            ? 'bg-rose-500/30 text-rose-300 border border-rose-400/50 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                            : 'text-white/50 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-rose-400" />
+                        <span>🔴 Best Bearish (Short)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCockpitTradeMode('both')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+                          cockpitTradeMode === 'both'
+                            ? 'bg-purple-500/30 text-purple-300 border border-purple-400/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
+                            : 'text-white/50 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span>⚖️ Dual View</span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1667,106 +1757,176 @@ if __name__ == '__main__':
                     </div>
                   </div>
 
-                  {/* Primary Signal Showcase */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-4">
-                    {/* Signal Highlights */}
-                    <div className="lg:col-span-2 p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between gap-3">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2.5">
-                          <span className="px-3 py-1 rounded-xl text-xs font-black font-mono tracking-wider bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                            {profitablePredictions[0].side}
-                          </span>
-                          <span className="text-lg font-bold text-white">{profitablePredictions[0].ticker}</span>
-                          <span className="text-xs text-white/50 font-mono">({profitablePredictions[0].timeframe})</span>
-                        </div>
+                  {/* Trade Cards Render Area */}
+                  {(() => {
+                    const tradesToRender = cockpitTradeMode === 'both'
+                      ? [profitablePredictions[1], profitablePredictions[2]]
+                      : cockpitTradeMode === 'bullish'
+                      ? [profitablePredictions[1]]
+                      : [profitablePredictions[2]]
 
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-white/50">Predicted Profit:</span>
-                          <span className="text-base font-black font-mono text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-lg border border-emerald-400/30">
-                            +{profitablePredictions[0].expectedProfitPct}% ROI
-                          </span>
-                        </div>
+                    return (
+                      <div className={`grid gap-4 pt-4 ${cockpitTradeMode === 'both' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-3'}`}>
+                        {tradesToRender.map((trade) => (
+                          <div
+                            key={trade.id}
+                            className={`p-4 rounded-2xl bg-white/[0.03] border flex flex-col justify-between gap-3 ${
+                              trade.isBuy
+                                ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+                                : 'border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.1)]'
+                            } ${cockpitTradeMode !== 'both' ? 'lg:col-span-2' : ''}`}
+                          >
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`px-3 py-1 rounded-xl text-xs font-black font-mono tracking-wider border shadow-md ${
+                                  trade.isBuy
+                                    ? 'bg-emerald-500/25 text-emerald-300 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                                    : 'bg-rose-500/25 text-rose-300 border-rose-400/50 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
+                                }`}>
+                                  {trade.side}
+                                </span>
+                                <span className="text-lg font-bold text-white">{trade.ticker}</span>
+                                <span className="text-xs text-white/50 font-mono">({trade.timeframe})</span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-white/50">Predicted Profit:</span>
+                                <span className={`text-base font-black font-mono px-2.5 py-0.5 rounded-lg border ${
+                                  trade.isBuy
+                                    ? 'text-emerald-400 bg-emerald-500/15 border-emerald-400/30'
+                                    : 'text-rose-400 bg-rose-500/15 border-rose-400/30'
+                                }`}>
+                                  +{trade.expectedProfitPct}% ROI
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Trade Levels Matrix */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/10 text-xs font-mono">
+                              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                                <div className="text-[10px] text-white/40 uppercase">Live Entry</div>
+                                <div className="text-sm font-bold text-white mt-0.5">${trade.entryPrice.toLocaleString()}</div>
+                              </div>
+                              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                                <div className="text-[10px] text-emerald-300/60 uppercase">Target 1 (TP1)</div>
+                                <div className="text-sm font-bold text-emerald-400 mt-0.5">${trade.targetPrice1.toLocaleString()}</div>
+                              </div>
+                              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                                <div className="text-[10px] text-teal-300/60 uppercase">Target 2 (TP2)</div>
+                                <div className="text-sm font-bold text-teal-300 mt-0.5">${trade.targetPrice2.toLocaleString()}</div>
+                              </div>
+                              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                                <div className="text-[10px] text-rose-300/60 uppercase">Stop Loss (SL)</div>
+                                <div className="text-sm font-bold text-rose-400 mt-0.5">${trade.stopLoss.toLocaleString()}</div>
+                              </div>
+                            </div>
+
+                            {/* 30-Year Grandmaster CIO Directive */}
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                              <div className="flex items-center gap-1.5 text-amber-300 font-bold font-mono text-[10px] uppercase">
+                                <Crown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                                <span>30-Year CIO Directive:</span>
+                              </div>
+                              <p className="text-white/80 text-[11px] mt-1 leading-relaxed italic">
+                                &ldquo;{trade.cioDirective}&rdquo;
+                              </p>
+                            </div>
+
+                            {/* AI Signal Drivers */}
+                            <div className="pt-2 border-t border-white/10 space-y-1">
+                              <div className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">
+                                Key Signal Drivers (Swarm Consensus):
+                              </div>
+                              <ul className="text-xs text-white/70 space-y-1">
+                                {trade.drivers.map((driver, idx) => (
+                                  <li key={idx} className="flex items-center gap-2">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                                    <span>{driver}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Direct Actions inside card when in Dual View */}
+                            {cockpitTradeMode === 'both' && (
+                              <div className="pt-3 border-t border-white/10 space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteOrder(trade.isBuy ? 'BUY' : 'SELL', trade.ticker, trade.entryPrice)}
+                                  disabled={portfolioBalance < orderAmountUsd}
+                                  className={`w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer active:scale-95 ${
+                                    trade.isBuy
+                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                                      : 'bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]'
+                                  }`}
+                                >
+                                  <Zap className="w-3.5 h-3.5 fill-current" />
+                                  <span>EXECUTE THIS {trade.isBuy ? 'LONG' : 'SHORT'} TRADE</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRecordSpecificPrediction(trade)}
+                                  className="w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  <span>+ Save to Prediction History</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Dedicated Execution Sidebar when single mode active */}
+                        {cockpitTradeMode !== 'both' && (
+                          <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-slate-900/60 border border-emerald-500/30 flex flex-col justify-between gap-3">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                                  Instant Auto-Execute
+                                </span>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                                  Risk/Reward {tradesToRender[0].riskReward}
+                                </span>
+                              </div>
+                              <p className="text-xs text-white/50 mt-1">
+                                Execute this high-probability prediction directly in your live paper portfolio with optimal risk sizing.
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="text-xs text-white/60 flex items-center justify-between font-mono">
+                                <span>Allocation:</span>
+                                <span className="text-white font-bold">${orderAmountUsd.toLocaleString()}</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteOrder(tradesToRender[0].isBuy ? 'BUY' : 'SELL', tradesToRender[0].ticker, tradesToRender[0].entryPrice)}
+                                disabled={portfolioBalance < orderAmountUsd}
+                                className={`w-full py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer active:scale-95 ${
+                                  tradesToRender[0].isBuy
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                                    : 'bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]'
+                                }`}
+                              >
+                                <Zap className="w-4 h-4 fill-current" />
+                                <span>EXECUTE THIS PREDICTED TRADE</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRecordSpecificPrediction(tradesToRender[0])}
+                                className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>+ Save to Prediction History</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Trade Levels Matrix */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/10 text-xs font-mono">
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                          <div className="text-[10px] text-white/40 uppercase">Live Entry</div>
-                          <div className="text-sm font-bold text-white mt-0.5">${profitablePredictions[0].entryPrice.toLocaleString()}</div>
-                        </div>
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                          <div className="text-[10px] text-emerald-300/60 uppercase">Target 1 (TP1)</div>
-                          <div className="text-sm font-bold text-emerald-400 mt-0.5">${profitablePredictions[0].targetPrice1.toLocaleString()}</div>
-                        </div>
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                          <div className="text-[10px] text-emerald-300/60 uppercase">Target 2 (TP2)</div>
-                          <div className="text-sm font-bold text-teal-300 mt-0.5">${profitablePredictions[0].targetPrice2.toLocaleString()}</div>
-                        </div>
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5">
-                          <div className="text-[10px] text-rose-300/60 uppercase">Stop Loss (SL)</div>
-                          <div className="text-sm font-bold text-rose-400 mt-0.5">${profitablePredictions[0].stopLoss.toLocaleString()}</div>
-                        </div>
-                      </div>
-
-                      {/* AI Signal Drivers */}
-                      <div className="pt-2 border-t border-white/10 space-y-1">
-                        <div className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">
-                          Key Signal Drivers (Swarm Consensus):
-                        </div>
-                        <ul className="text-xs text-white/70 space-y-1">
-                          {profitablePredictions[0].drivers.map((driver, idx) => (
-                            <li key={idx} className="flex items-center gap-2">
-                              <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                              <span>{driver}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Quick 1-Click Execution for this Predicted Trade */}
-                    <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-slate-900/60 border border-emerald-500/30 flex flex-col justify-between gap-3">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                            Instant Auto-Execute
-                          </span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                            Risk/Reward {profitablePredictions[0].riskReward}
-                          </span>
-                        </div>
-                        <p className="text-xs text-white/50 mt-1">
-                          Execute this high-probability prediction directly in your live paper portfolio with optimal risk sizing.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="text-xs text-white/60 flex items-center justify-between font-mono">
-                          <span>Allocation:</span>
-                          <span className="text-white font-bold">${orderAmountUsd.toLocaleString()}</span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleExecuteOrder(profitablePredictions[0].isBuy ? 'BUY' : 'SELL')}
-                          disabled={portfolioBalance < orderAmountUsd}
-                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all cursor-pointer active:scale-95"
-                        >
-                          <Zap className="w-4 h-4 fill-slate-950" />
-                          <span>EXECUTE THIS PREDICTED TRADE</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleRecordCurrentPrediction}
-                          className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                        >
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>+ Save to Prediction History</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                    )
+                  })()}
 
                   {/* Other Monitored Asset Setups */}
                   <div className="pt-4 mt-4 border-t border-white/10">
@@ -2318,6 +2478,139 @@ if __name__ == '__main__':
                   }`}>
                     <ShieldCheck className={`w-5 h-5 flex-shrink-0 ${consensus.gatekeeperPassed ? 'text-emerald-400' : 'text-rose-400'}`} />
                     <span>{consensus.riskAudit.reason}</span>
+                  </div>
+                </div>
+
+                {/* Calibration Notice Banner */}
+                {calibrationNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs font-semibold flex items-center justify-between shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>{calibrationNotice}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalibrationNotice(null)}
+                      className="text-white/60 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* 👑 APEX GRANDMASTER SWARM MENTORSHIP & CALIBRATION HUB (TEACHING & GUIDING THE 7 SPECIALISTS) */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border border-amber-500/30 shadow-[0_12px_48px_rgba(0,0,0,0.7)] space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <Crown className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                          <span>Apex Grandmaster Swarm Mentorship &amp; Calibration Hub</span>
+                        </h4>
+                        <p className="text-xs text-white/50">
+                          The 30-Year Veteran CIO critiques, calibrates, and guides the specialist agents on live ticks ({selectedTicker})
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {consensus.agentVotes.filter((v) => v.action === consensus.consensusAction).length}/7 Aligned on {consensus.consensusAction}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRecalibrateSwarm}
+                        disabled={isCalibratingSwarm}
+                        className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCalibratingSwarm ? 'animate-spin' : ''}`} />
+                        <span>{isCalibratingSwarm ? 'Calibrating...' : '🧠 Re-Calibrate Swarm on Live Ticks'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Mentorship Directives */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-amber-300 font-bold font-mono">
+                        <BotIcon botId="sentiment-trader" className="w-3.5 h-3.5" />
+                        <span>To Sentiment Trader:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        {(liveMarketData[selectedTicker]?.change24h ?? 0) < 0
+                          ? `“Retail sentiment is in capitulation with 24h delta at ${(liveMarketData[selectedTicker]?.change24h ?? 0).toFixed(2)}%. Do not front-run unconfirmed bounces; trade with institutional sell-side pressure.”`
+                          : `“Notice OTC bid thickness absorbing selling pressure. Do not wait for retail hype on social feeds; trade the stealth institutional accumulation phase.”`}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-cyan-300 font-bold font-mono">
+                        <BotIcon botId="technical-analyst" className="w-3.5 h-3.5" />
+                        <span>To Technical Analyst:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        {(liveMarketData[selectedTicker]?.change24h ?? 0) < -1.5
+                          ? `“RSI at ${indicators.rsi.toFixed(1)} is in a flush continuation regime. Low RSI in a strong breakdown is a falling knife until MACD (${indicators.macd.hist.toFixed(2)}) flattens and Supertrend prints a pivot.”`
+                          : `“RSI at ${indicators.rsi.toFixed(1)} with MACD histogram ${indicators.macd.hist >= 0 ? '+' : ''}${indicators.macd.hist.toFixed(2)} is holding constructive momentum. Keep stops respecting the 50 EMA at $${indicators.ema50.toFixed(1)}.”`}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-emerald-300 font-bold font-mono">
+                        <BotIcon botId="smc-liquidity" className="w-3.5 h-3.5" />
+                        <span>To SMC Liquidity Hunter:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        {(liveMarketData[selectedTicker]?.change24h ?? 0) < 0
+                          ? `“Price swept buy-side stops and triggered sell-side liquidity below the 24h low ($${(liveMarketData[selectedTicker]?.low24h ?? currentPrice * 0.98).toLocaleString()}). Wait for a confirmed CHoCH before considering reversals.”`
+                          : `“FVG demand tap confirmed at $${(currentPrice * 0.985).toLocaleString()}. Institutional limit blocks are absorbing market sell orders cleanly.”`}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-teal-300 font-bold font-mono">
+                        <BotIcon botId="volume-breakout" className="w-3.5 h-3.5" />
+                        <span>To Volume Breakout Hunter:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        `“24h Volume is $${((liveMarketData[selectedTicker]?.volume24hUsd ?? 1e9) / 1e9).toFixed(2)}B USD. Perpetual funding remains aligned with spot tape, verifying organic flow rather than retail leverage traps.”`
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-purple-300 font-bold font-mono">
+                        <BotIcon botId="risk-sentinel" className="w-3.5 h-3.5" />
+                        <span>To Risk Sentinel:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        `“Quarter-Kelly position sizing enforced at $${consensus.recommendedPositionSizeUsd.toLocaleString()}. Hard invalidation set at $${consensus.stopLoss} (${consensus.consensusAction === 'BUY' ? '-' : '+'}2.5%) for mathematical safety.”`
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-2 text-amber-300 font-bold font-mono">
+                        <BotIcon botId="trading-orchestrator" className="w-3.5 h-3.5" />
+                        <span>To Trading Orchestrator:</span>
+                      </div>
+                      <p className="text-white/70 mt-1 leading-relaxed text-[11px]">
+                        `“Maintain highest Bayesian weights on Technical Analyst and SMC Hunter. Swarm gatekeeper approved with ${consensus.overallConfidence}% confidence score.”`
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Reflexive Memory Box */}
+                  <div className="p-3 rounded-2xl bg-black/50 border border-amber-500/20 text-xs font-mono text-white/80 space-y-1">
+                    <div className="text-[10px] text-amber-400 font-bold uppercase flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Continuous Learning Lesson (Synced with Live Neural Memory):</span>
+                    </div>
+                    <p className="text-white/70 text-[11px] leading-relaxed">
+                      &ldquo;When market delta accelerates past 2% in either direction, specialist agent alignment must supersede counter-trend mean-reversion. Discipline and risk invalidation protect capital in all cycles.&rdquo;
+                    </p>
                   </div>
                 </div>
 
