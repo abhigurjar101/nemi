@@ -116,6 +116,8 @@ export interface ConsensusDecision {
   agentVotes: AgentVote[]
   riskAudit: RiskAuditResult
   timestamp: number
+  /** Full debate transcript from the collaboration round, if it ran */
+  collaborationRound?: CollaborationRound
 }
 
 export interface BacktestResult {
@@ -289,4 +291,142 @@ export interface CalibrationProposal {
   expiresAt: number              // auto-expire after 7 days
   decidedAt?: number
   decidedBy?: string
+}
+
+// ==========================================
+// Cross-Agent Collaboration Round Types
+// ==========================================
+
+/**
+ * A detected genuine disagreement between two agents — either directional split
+ * (BUY vs SELL) or high-confidence conflict (both >= 80% confidence, opposite view).
+ * These are the only disagreements that trigger a collaboration challenge.
+ */
+export interface AgentDisagreement {
+  agentA: {
+    botId: string
+    botName: string
+    action: TradeAction
+    confidence: number
+    reasoning: string
+  }
+  agentB: {
+    botId: string
+    botName: string
+    action: TradeAction
+    confidence: number
+    reasoning: string
+  }
+  conflictType: 'DIRECTIONAL_SPLIT' | 'HIGH_CONFIDENCE_CONFLICT'
+  description: string
+}
+
+/**
+ * The Orchestrator's challenge to disagreeing agents.
+ * Not "who's right" but "what data point would change your view?"
+ */
+export interface CollaborationChallenge {
+  id: string
+  disagreement: AgentDisagreement
+  challengeToA: string     // specific question for agent A citing agent B's evidence
+  challengeToB: string     // specific question for agent B citing agent A's evidence
+  askedAt: number
+}
+
+/**
+ * An agent's response to a challenge — a revision of signal/confidence.
+ * ONLY valid if citedReason references a specific new data point from the challenge.
+ * A revision with no new cited reason is rejected and logged — prevents agents from
+ * silently averaging toward consensus to look less like the outlier.
+ */
+export interface CollaborationRevision {
+  challengeId: string
+  agentId: string
+  priorAction: TradeAction
+  priorConfidence: number
+  revisedAction: TradeAction
+  revisedConfidence: number
+  citedReason: string           // must reference specific indicator or data point
+  isValid: boolean              // false = no new evidence cited → revision rejected
+  rejectionReason?: string      // why the revision was rejected (if isValid = false)
+}
+
+/**
+ * The full record of one collaboration round.
+ * Pre- and post-collaboration votes logged for complete audit trail.
+ * Surviving dissents are preserved as explicit dissent — NOT forced to converge.
+ */
+export interface CollaborationRound {
+  id: string
+  ticker: string
+  timestamp: number
+  preCollaborationVotes: AgentVote[]
+  disagreements: AgentDisagreement[]
+  challenges: CollaborationChallenge[]
+  validRevisions: CollaborationRevision[]
+  rejectedRevisions: CollaborationRevision[]   // logged permanently for audit
+  postCollaborationVotes: AgentVote[]
+  survivingDissents: AgentDisagreement[]       // disagreements that survived scrutiny — valuable info
+  roundRanAt: number
+}
+
+// ==========================================
+// Per-Agent Mistake Journal Types
+// ==========================================
+
+/**
+ * One entry in an agent's mistake journal — logged after every outcome is known.
+ * Requires a specific, falsifiable error hypothesis for losses.
+ * Requires a right-for-wrong-reason check for wins.
+ * "Market was unpredictable" is rejected as an entry — it provides no signal.
+ */
+export interface MistakeJournalEntry {
+  id: string
+  cycleId: string
+  botId: string
+  botName: string
+  timestamp: number
+  // What the agent predicted
+  predictedAction: TradeAction
+  predictedConfidence: number
+  citedEvidence: string
+  // What actually happened
+  actualOutcome: 'WIN' | 'LOSS' | 'SCRATCH'
+  wasCorrectDirection: boolean
+  // For LOSS: specific, falsifiable hypothesis — required, not optional
+  errorHypothesis?: string
+  hypothesisQuality: 'SPECIFIC_FALSIFIABLE' | 'VAGUE_REJECTED' | 'N_A'
+  // For WIN: was the agent right for the stated reason or by coincidence?
+  rightForWrongReason: boolean
+  rightForWrongReasonExplanation?: string
+  // Outcome of post-mortem
+  postMortemCompleted: boolean
+}
+
+/**
+ * A proposal an agent generates from its own mistake journal.
+ * Written in plain, falsifiable language — no "try to be more careful."
+ * Goes into the SAME human-approval queue as calibration proposals.
+ * NEVER automatically applied.
+ * Permanently logged even if rejected — for longitudinal audit of whether
+ * an agent's self-diagnosis actually correlates with real forward improvement.
+ */
+export interface AgentSelfProposal {
+  id: string
+  botId: string
+  botName: string
+  proposalType: 'NEW_CHECK' | 'ABSTAIN_CONDITION' | 'THRESHOLD_REVISION'
+  proposalText: string             // specific, testable, falsifiable
+  isFalsifiable: boolean           // validated at creation time
+  evidenceSummary: string          // which journal entries support this
+  cyclesSupporting: number
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  createdAt: number
+  expiresAt: number
+  decidedAt?: number
+  decidedBy?: string
+  // Longitudinal tracking: did approving this actually help?
+  approvedAtCalibrationScore?: number    // score when approved
+  laterCalibrationScore?: number         // score 4 weeks after approval
+  proposalCorrelatedWithImprovement?: boolean | null  // computed after sufficient cycles
 }

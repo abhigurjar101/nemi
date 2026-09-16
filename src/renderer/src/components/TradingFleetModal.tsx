@@ -12,7 +12,25 @@ import {
   type CalibrationReport,
 } from '../services/calibrationModule'
 import { manualTriggerCalibration, isCalibrationRunning, onCalibrationEvent, bootstrapCalibrationScheduler } from '../services/swarmCalibrationScheduler'
-import type { CalibrationProposal } from '../../../../n8n/tradingBots/types'
+import {
+  getRecentCollaborationRounds,
+} from '../services/collaborationRound'
+import {
+  getAgentJournal,
+  getAllJournalEntries,
+  getJournalStats,
+  generateWeeklyProposals,
+  approveSelfProposal,
+  rejectSelfProposal,
+  getPendingSelfProposals,
+  getAllSelfProposals,
+} from '../services/mistakeJournal'
+import type {
+  CalibrationProposal,
+  CollaborationRound,
+  MistakeJournalEntry,
+  AgentSelfProposal,
+} from '../../../../n8n/tradingBots/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -37,6 +55,8 @@ import {
   BookOpen,
   Award,
   Flame,
+  MessageSquare,
+  Users,
 } from 'lucide-react'
 import BotIcon from './BotIcon'
 import {
@@ -185,17 +205,33 @@ export default function TradingFleetModal({
 
   const handleRunCalibrationNow = useCallback(() => {
     setCalibrationRunning(true)
-    setCalibrationStatusMsg('Running calibration analysis…')
+    setCalibrationStatusMsg('Running calibration analysis & mistake journal audit…')
     // Run in next tick to allow React to re-render the loading state
     setTimeout(() => {
       const reports = runWeeklyCalibration()
+      // Also generate weekly mistake journal proposals for all agents
+      const agentIds = [
+        'technical-analyst',
+        'smc-liquidity',
+        'sentiment-trader',
+        'volume-breakout',
+        'fundamental-valuation',
+        'arbitrage-funding',
+        'macro-regime',
+      ]
+      agentIds.forEach((id) => generateWeeklyProposals(id))
+
       setCalibrationReports(reports)
       setCalibrationProposals(getAllProposals())
       setCalibrationLastRun(getLastRunTimestamp())
+      setRecentCollaborationRounds(getRecentCollaborationRounds(10))
+      setJournalEntries(getAllJournalEntries())
+      setSelfProposals(getAllSelfProposals())
       setCalibrationRunning(false)
-      const pendingCount = getPendingProposals().length
+      const pendingWeightCount = getPendingProposals().length
+      const pendingSelfCount = getPendingSelfProposals().length
       setCalibrationStatusMsg(
-        `✅ Calibration complete — ${reports.length} agents analyzed, ${pendingCount} proposal${pendingCount !== 1 ? 's' : ''} pending your review.`
+        `✅ Swarm review complete — ${reports.length} agents calibrated (${pendingWeightCount} weight proposal${pendingWeightCount !== 1 ? 's' : ''}, ${pendingSelfCount} self-proposal${pendingSelfCount !== 1 ? 's' : ''} pending review).`
       )
       setTimeout(() => setCalibrationStatusMsg(null), 7000)
     }, 50)
@@ -214,6 +250,32 @@ export default function TradingFleetModal({
   const handleResetWeightsToDefaults = useCallback(() => {
     resetAllWeightsToDefaults()
     setCalibrationStatusMsg('✅ All agent weights reset to factory defaults.')
+    setTimeout(() => setCalibrationStatusMsg(null), 4000)
+  }, [])
+
+  // ── Collaboration Rounds & Mistake Journal State ───────────────────────────
+  const [recentCollaborationRounds, setRecentCollaborationRounds] = useState<CollaborationRound[]>(() =>
+    getRecentCollaborationRounds(10)
+  )
+  const [selectedJournalAgent, setSelectedJournalAgent] = useState<string>('technical-analyst')
+  const [journalEntries, setJournalEntries] = useState<MistakeJournalEntry[]>(() =>
+    getAllJournalEntries()
+  )
+  const [selfProposals, setSelfProposals] = useState<AgentSelfProposal[]>(() =>
+    getAllSelfProposals()
+  )
+
+  const handleApproveSelfProposal = useCallback((id: string) => {
+    approveSelfProposal(id)
+    setSelfProposals(getAllSelfProposals())
+    setCalibrationStatusMsg('✅ Agent self-proposal approved and logged.')
+    setTimeout(() => setCalibrationStatusMsg(null), 4000)
+  }, [])
+
+  const handleRejectSelfProposal = useCallback((id: string) => {
+    rejectSelfProposal(id)
+    setSelfProposals(getAllSelfProposals())
+    setCalibrationStatusMsg('❌ Agent self-proposal rejected (preserved in permanent audit log).')
     setTimeout(() => setCalibrationStatusMsg(null), 4000)
   }, [])
 
@@ -3507,6 +3569,386 @@ if __name__ == '__main__':
                     </p>
                   </div>
                 )}
+
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* ⚡ PART 1: CROSS-AGENT COLLABORATION ROUND VIEWER            */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                <div className="mt-4 p-6 rounded-3xl bg-gradient-to-br from-indigo-950/30 via-slate-950 to-slate-900 border border-indigo-500/30 shadow-xl flex flex-col gap-5">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-white tracking-wide flex items-center gap-2">
+                          ⚡ CROSS-AGENT COLLABORATION ROUNDS
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                            STEP 5.5 IN PROTOCOL
+                          </span>
+                        </h4>
+                        <p className="text-xs text-white/50 mt-0.5">
+                          Agents debate when directional splits or high-confidence conflicts occur.
+                          Revisions are accepted ONLY if citing new data. Surviving dissents are preserved into the vote.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono text-white/40">
+                      {recentCollaborationRounds.length} logged round{recentCollaborationRounds.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Empty state */}
+                  {recentCollaborationRounds.length === 0 && (
+                    <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/10 text-center">
+                      <p className="text-xs text-white/40">
+                        No collaboration rounds logged yet. Collaboration triggers automatically during live consensus cycles whenever directional agents split on BUY vs SELL or high-confidence agents conflict.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* List of recent rounds */}
+                  <div className="flex flex-col gap-4">
+                    {recentCollaborationRounds.slice(0, 5).map((round) => {
+                      const hasDisagreements = round.disagreements.length > 0
+                      const hasValidRevisions = round.validRevisions.length > 0
+                      const hasSurviving = round.survivingDissents.length > 0
+
+                      return (
+                        <div
+                          key={round.id}
+                          className={`p-4 rounded-2xl border flex flex-col gap-3.5 ${
+                            hasSurviving
+                              ? 'bg-purple-950/20 border-purple-500/30'
+                              : hasDisagreements
+                              ? 'bg-indigo-950/20 border-indigo-500/30'
+                              : 'bg-white/[0.02] border-white/10'
+                          }`}
+                        >
+                          {/* Round header */}
+                          <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white font-mono">{round.ticker}</span>
+                              <span className="text-white/30">•</span>
+                              <span className="text-white/50 font-mono">
+                                {new Date(round.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {hasDisagreements ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  {round.disagreements.length} DISAGREEMENT{round.disagreements.length > 1 ? 'S' : ''}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                  UNANIMOUS DIRECTION
+                                </span>
+                              )}
+                              {hasValidRevisions && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  {round.validRevisions.length} CITED REVISION{round.validRevisions.length > 1 ? 'S' : ''}
+                                </span>
+                              )}
+                              {hasSurviving && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                  {round.survivingDissents.length} SURVIVING DISSENT{round.survivingDissents.length > 1 ? 'S' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Disagreements & Challenges */}
+                          {hasDisagreements && (
+                            <div className="flex flex-col gap-2.5">
+                              {round.challenges.map((challenge, idx) => (
+                                <div key={challenge.id || idx} className="p-3 rounded-xl bg-slate-950/60 border border-white/5 flex flex-col gap-2 text-xs">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-mono font-bold text-amber-300">
+                                      Conflict: {challenge.disagreement.description}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-white/40">
+                                      {challenge.disagreement.conflictType}
+                                    </span>
+                                  </div>
+
+                                  {/* Orchestrator Challenge Questions */}
+                                  <div className="p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-indigo-200 text-[11px] space-y-1">
+                                    <div>
+                                      <span className="font-bold text-indigo-300">Orchestrator to {challenge.disagreement.agentA.botName}:</span> &ldquo;{challenge.challengeToA}&rdquo;
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-indigo-300">Orchestrator to {challenge.disagreement.agentB.botName}:</span> &ldquo;{challenge.challengeToB}&rdquo;
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Valid Revisions */}
+                          {round.validRevisions.length > 0 && (
+                            <div className="flex flex-col gap-1.5">
+                              <span className="text-[10px] uppercase font-mono text-white/40">
+                                Evidence-Backed Revisions Accepted
+                              </span>
+                              {round.validRevisions.map((rev, rIdx) => (
+                                <div key={rIdx} className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-emerald-300">
+                                      {rev.agentId}: {rev.priorAction} ({rev.priorConfidence}%) → {rev.revisedAction} ({rev.revisedConfidence}%)
+                                    </span>
+                                    <span className="text-[10px] font-mono text-emerald-400">
+                                      -{(rev.priorConfidence - rev.revisedConfidence)}% CONFIDENCE (SCRUTINY BOUND)
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-white/70 italic">&ldquo;{rev.citedReason}&rdquo;</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Surviving Dissents */}
+                          {hasSurviving && (
+                            <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/30 text-xs">
+                              <span className="font-bold text-purple-300 block mb-1">
+                                ⚖️ Explicit Dissent Preserved in Consensus Output:
+                              </span>
+                              <ul className="text-[11px] text-purple-200/80 list-disc list-inside space-y-0.5">
+                                {round.survivingDissents.map((sd, sIdx) => (
+                                  <li key={sIdx}>
+                                    {sd.description} — Scrutiny did not force artificial convergence. Disagreement value preserved.
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* 📓 PART 2: PER-AGENT MISTAKE JOURNAL & SELF-IMPROVEMENT       */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                <div className="mt-4 p-6 rounded-3xl bg-gradient-to-br from-teal-950/30 via-slate-950 to-slate-900 border border-teal-500/30 shadow-xl flex flex-col gap-5">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-teal-500/20 border border-teal-400/40 text-teal-300">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-white tracking-wide flex items-center gap-2">
+                          📓 PER-AGENT MISTAKE JOURNALS &amp; SELF-PROPOSALS
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                            BOUNDED LEARNING
+                          </span>
+                        </h4>
+                        <p className="text-xs text-white/50 mt-0.5">
+                          Each agent logs falsifiable error diagnoses and flags &quot;right for the wrong reason&quot; calls.
+                          Proposals go to human review — no agent silently alters its prompt or risk profile.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Agent Selector Bar */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {[
+                      { id: 'technical-analyst', name: 'Technical' },
+                      { id: 'smc-liquidity', name: 'SMC' },
+                      { id: 'sentiment-trader', name: 'Sentiment' },
+                      { id: 'volume-breakout', name: 'Volume' },
+                      { id: 'fundamental-valuation', name: 'Fundamental' },
+                      { id: 'arbitrage-funding', name: 'Arbitrage' },
+                      { id: 'macro-regime', name: 'Macro' },
+                    ].map((bot) => (
+                      <button
+                        key={bot.id}
+                        type="button"
+                        onClick={() => setSelectedJournalAgent(bot.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${
+                          selectedJournalAgent === bot.id
+                            ? 'bg-teal-500/20 text-teal-200 border border-teal-500/40 font-bold shadow-[0_0_12px_rgba(20,184,166,0.2)]'
+                            : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10 border border-white/5'
+                        }`}
+                      >
+                        {bot.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Stats for Selected Agent */}
+                  {(() => {
+                    const stats = getJournalStats(selectedJournalAgent)
+                    const agentEntries = getAgentJournal(selectedJournalAgent)
+                    const pendingSelf = selfProposals.filter(
+                      (p) => p.botId === selectedJournalAgent && p.status === 'PENDING'
+                    )
+
+                    return (
+                      <div className="flex flex-col gap-4">
+                        {/* Summary metric pills */}
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                            <span className="text-[10px] text-white/40 block">Journal Entries</span>
+                            <span className="text-base font-bold font-mono text-white">{stats.total}</span>
+                            <span className="text-[9px] text-white/30 block mt-0.5">
+                              {stats.sufficientData ? '≥ 50 (Eligible for proposals)' : `${stats.total}/50 needed`}
+                            </span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                            <span className="text-[10px] text-white/40 block">Wins / Losses</span>
+                            <span className="text-base font-bold font-mono text-white">
+                              <span className="text-emerald-300">{stats.wins}</span> / <span className="text-rose-300">{stats.losses}</span>
+                            </span>
+                            <span className="text-[9px] text-white/30 block mt-0.5">Resolved outcomes</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                            <span className="text-[10px] text-amber-300 block">Right Wrong Reason</span>
+                            <span className="text-base font-bold font-mono text-amber-300">{stats.rightForWrongReason}</span>
+                            <span className="text-[9px] text-white/30 block mt-0.5">Coincidental wins flagged</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                            <span className="text-[10px] text-teal-300 block">Hypothesis Quality</span>
+                            <span className="text-base font-bold font-mono text-teal-300">{stats.hypothesisQualityRate}%</span>
+                            <span className="text-[9px] text-white/30 block mt-0.5">Falsifiable vs Vague</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                            <span className="text-[10px] text-purple-300 block">Pending Proposals</span>
+                            <span className="text-base font-bold font-mono text-purple-300">{pendingSelf.length}</span>
+                            <span className="text-[9px] text-white/30 block mt-0.5">Awaiting human approval</span>
+                          </div>
+                        </div>
+
+                        {/* Pending Self-Proposals for this agent */}
+                        {pendingSelf.length > 0 && (
+                          <div className="flex flex-col gap-3">
+                            <h5 className="text-xs font-bold text-amber-300 uppercase font-mono flex items-center gap-1.5">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              Self-Improvement Proposals Pending Human Approval ({pendingSelf.length})
+                            </h5>
+                            {pendingSelf.map((proposal) => (
+                              <div
+                                key={proposal.id}
+                                className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/40 flex flex-col gap-3 text-xs"
+                              >
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                      {proposal.proposalType}
+                                    </span>
+                                    <span className="font-bold text-white">{proposal.botName}</span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-white/40">
+                                    Based on {proposal.cyclesSupporting} supporting cycles
+                                  </span>
+                                </div>
+
+                                <p className="text-xs text-white/90 leading-relaxed font-mono bg-slate-950/60 p-3 rounded-xl border border-white/5">
+                                  &ldquo;{proposal.proposalText}&rdquo;
+                                </p>
+
+                                <p className="text-[11px] text-white/50 italic">
+                                  Evidence: {proposal.evidenceSummary}
+                                </p>
+
+                                <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveSelfProposal(proposal.id)}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    ✅ Approve Proposal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectSelfProposal(proposal.id)}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 cursor-pointer transition-all"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    ❌ Reject Proposal (Logged for longitudinal audit)
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Recent Journal Entries for selected agent */}
+                        <div className="flex flex-col gap-2.5">
+                          <h5 className="text-xs font-bold text-white/70 uppercase font-mono">
+                            Recent Journal Entries ({agentEntries.length})
+                          </h5>
+                          {agentEntries.length === 0 ? (
+                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center text-xs text-white/40">
+                              No mistake journal entries logged yet for this agent. Entries are written after each live prediction resolves.
+                            </div>
+                          ) : (
+                            agentEntries.slice(0, 5).map((entry) => (
+                              <div
+                                key={entry.id}
+                                className={`p-3 rounded-xl border flex flex-col gap-2 text-xs ${
+                                  entry.actualOutcome === 'WIN' && !entry.rightForWrongReason
+                                    ? 'bg-emerald-950/15 border-emerald-500/20'
+                                    : entry.actualOutcome === 'WIN' && entry.rightForWrongReason
+                                    ? 'bg-amber-950/20 border-amber-500/30'
+                                    : 'bg-rose-950/15 border-rose-500/20'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${
+                                      entry.actualOutcome === 'WIN'
+                                        ? 'bg-emerald-500/20 text-emerald-300'
+                                        : 'bg-rose-500/20 text-rose-300'
+                                    }`}>
+                                      {entry.actualOutcome}: Predicted {entry.predictedAction} ({entry.predictedConfidence}%)
+                                    </span>
+                                    {entry.rightForWrongReason && (
+                                      <span className="px-1.5 py-0.5 rounded font-mono text-[9px] bg-amber-500/30 text-amber-200 border border-amber-500/40">
+                                        ⚠️ RIGHT FOR WRONG REASON
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-white/40 font-mono text-[10px]">
+                                    {new Date(entry.timestamp).toLocaleDateString()}
+                                  </span>
+                                </div>
+
+                                <p className="text-[11px] text-white/70">
+                                  <span className="text-white/40">Cited evidence:</span> &ldquo;{entry.citedEvidence}&rdquo;
+                                </p>
+
+                                {entry.actualOutcome === 'LOSS' && entry.errorHypothesis && (
+                                  <div className="p-2 rounded-lg bg-slate-950/70 border border-white/5 text-[11px] flex flex-col gap-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-white/40 font-mono text-[10px]">Error Hypothesis:</span>
+                                      <span className={`text-[9px] font-mono font-bold ${
+                                        entry.hypothesisQuality === 'SPECIFIC_FALSIFIABLE'
+                                          ? 'text-teal-300'
+                                          : 'text-amber-400'
+                                      }`}>
+                                        [{entry.hypothesisQuality}]
+                                      </span>
+                                    </div>
+                                    <p className="text-white/90 italic">&ldquo;{entry.errorHypothesis}&rdquo;</p>
+                                  </div>
+                                )}
+
+                                {entry.rightForWrongReason && entry.rightForWrongReasonExplanation && (
+                                  <p className="text-[11px] text-amber-200/80 italic">
+                                    Audit note: {entry.rightForWrongReasonExplanation}
+                                  </p>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
               </div>
             )}
           </div>

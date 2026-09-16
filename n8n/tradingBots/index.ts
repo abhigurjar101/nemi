@@ -13,6 +13,8 @@ import type { TradingBot } from './types'
 
 export * from './types'
 export * from './engine'
+export * from '../../src/renderer/src/services/collaborationRound'
+export * from '../../src/renderer/src/services/mistakeJournal'
 
 export {
   sentimentTraderBot,

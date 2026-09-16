@@ -7,7 +7,12 @@ import type {
   ConsensusDecision,
   TradeAction,
   BacktestResult,
+  CollaborationRound,
 } from './types'
+import {
+  runCollaborationRound,
+  persistCollaborationRound,
+} from '../../src/renderer/src/services/collaborationRound'
 
 // ==========================================
 // 1. Technical Analysis Mathematics
@@ -566,12 +571,22 @@ export function calculateSwarmConsensus(
   })
 
 
+  // 5.5. Run the Collaboration Round (Part 1) when directional agents
+  // disagree meaningfully. Log all revisions and their stated reasons.
+  // Proceed to the vote using post-collaboration Signal/Strength/
+  // Confidence values, with the pre-collaboration values also logged for audit.
+  const collaborationRound = runCollaborationRound(votes, ticker, indicators, marketData)
+  try {
+    persistCollaborationRound(collaborationRound)
+  } catch {}
+  const finalVotes = collaborationRound.postCollaborationVotes
+
   // Calculate weighted Bayesian scores
   let buyScore = 0
   let sellScore = 0
   let holdScore = 0
 
-  for (const vote of votes) {
+  for (const vote of finalVotes) {
     const score = (vote.confidence / 100) * vote.weight
     if (vote.action === 'BUY') buyScore += score
     else if (vote.action === 'SELL') sellScore += score
@@ -582,15 +597,15 @@ export function calculateSwarmConsensus(
   let rawWinProb = 0.50
   if (buyScore > sellScore) {
     rawWinProb += 0.25 * (buyScore / (buyScore + sellScore + holdScore || 1))
-    const buyVotesCount = votes.filter((v) => v.action === 'BUY').length
-    const sellVotesCount = votes.filter((v) => v.action === 'SELL').length
+    const buyVotesCount = finalVotes.filter((v) => v.action === 'BUY').length
+    const sellVotesCount = finalVotes.filter((v) => v.action === 'SELL').length
     if (buyVotesCount >= 5) rawWinProb += 0.15
     else if (buyVotesCount >= 3) rawWinProb += 0.08
     if (sellVotesCount >= 2) rawWinProb -= 0.10
   } else if (sellScore > buyScore) {
     rawWinProb += 0.25 * (sellScore / (buyScore + sellScore + holdScore || 1))
-    const sellVotesCount = votes.filter((v) => v.action === 'SELL').length
-    const buyVotesCount = votes.filter((v) => v.action === 'BUY').length
+    const sellVotesCount = finalVotes.filter((v) => v.action === 'SELL').length
+    const buyVotesCount = finalVotes.filter((v) => v.action === 'BUY').length
     if (sellVotesCount >= 5) rawWinProb += 0.15
     else if (sellVotesCount >= 3) rawWinProb += 0.08
     if (buyVotesCount >= 2) rawWinProb -= 0.10
@@ -653,7 +668,8 @@ export function calculateSwarmConsensus(
     takeProfit1,
     takeProfit2,
     recommendedPositionSizeUsd: riskAudit.approvedSizeUsd,
-    agentVotes: votes,
+    agentVotes: finalVotes,
+    collaborationRound,
     riskAudit,
     timestamp: Date.now(),
   }
