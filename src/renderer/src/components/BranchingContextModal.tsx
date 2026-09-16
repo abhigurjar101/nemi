@@ -82,7 +82,7 @@ export const BranchingContextModal: React.FC<{
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
+          <button onClick={onClose} aria-label="Close branch context modal" className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -133,6 +133,7 @@ export const BranchingContextModal: React.FC<{
               <div className="flex gap-2">
                 <input
                   type="text"
+                  aria-label="New branch name"
                   placeholder="e.g. quantum-variant"
                   value={newBranchName}
                   onChange={(e) => setNewBranchName(e.target.value)}

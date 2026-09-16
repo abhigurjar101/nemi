@@ -304,6 +304,7 @@ function SettingsPanel({
               <div className="relative">
                 <input
                   type="password"
+                  aria-label="NVIDIA NIM API Key"
                   value={localNvidiaNimKey === 'SERVER_CONFIGURED' ? '••••••••••••••••••••••••' : localNvidiaNimKey}
                   onChange={(event) => setLocalNvidiaNimKey(event.target.value)}
                   placeholder={localNvidiaNimKey === 'SERVER_CONFIGURED' ? 'Cloud Server Key Active' : 'nvapi-...'}
@@ -3365,6 +3366,7 @@ CRITICAL ARCHITECTURE & CODE GENERATION MANDATES:
               <div className="flex gap-2">
                 <input
                   type="text"
+                  aria-label="GitHub repository to ingest"
                   value={customRepoInput}
                   onChange={(e) => setCustomRepoInput(e.target.value)}
                   placeholder="e.g. vllm-project/vllm or astral-sh/uv"

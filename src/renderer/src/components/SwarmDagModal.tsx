@@ -87,7 +87,7 @@ export const SwarmDagModal: React.FC<{
                 </>
               )}
             </button>
-            <button onClick={onClose} className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
+            <button onClick={onClose} aria-label="Close Swarm DAG modal" className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
               <X className="w-5 h-5" />
             </button>
           </div>

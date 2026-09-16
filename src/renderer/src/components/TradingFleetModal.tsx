@@ -875,7 +875,7 @@ if __name__ == '__main__':
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-emerald-200 via-teal-200 to-cyan-200 bg-clip-text text-transparent">
+                  <h2 id="trading-fleet-title" className="text-sm sm:text-lg font-bold bg-gradient-to-r from-emerald-200 via-teal-200 to-cyan-200 bg-clip-text text-transparent">
                     NEMI Live Quantitative Trading &amp; Prediction Engine
                   </h2>
                   <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.3)]">
@@ -1080,7 +1080,7 @@ if __name__ == '__main__':
                       <CheckCircle className="w-4 h-4 text-amber-300" />
                       <span>{historyNotice}</span>
                     </div>
-                    <button type="button" onClick={() => setHistoryNotice(null)} className="text-white/60 hover:text-white cursor-pointer">
+                    <button type="button" onClick={() => setHistoryNotice(null)} aria-label="Dismiss notice" className="text-white/60 hover:text-white cursor-pointer">
                       <X className="w-4 h-4" />
                     </button>
                   </motion.div>
@@ -2216,6 +2216,7 @@ if __name__ == '__main__':
                         <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-white/40" />
                         <input
                           type="number"
+                          aria-label="Trade order amount in USD"
                           min={100}
                           max={portfolioBalance}
                           step={100}

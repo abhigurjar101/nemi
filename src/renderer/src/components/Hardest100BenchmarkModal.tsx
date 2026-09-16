@@ -67,11 +67,24 @@ export default function Hardest100BenchmarkModal({
 
   const summary = benchmarkRun?.summary
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/80 backdrop-blur-md">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hardest-100-title"
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/80 backdrop-blur-md"
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -86,7 +99,7 @@ export default function Hardest100BenchmarkModal({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg md:text-xl font-bold bg-gradient-to-r from-cyan-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                  <h2 id="hardest-100-title" className="text-lg md:text-xl font-bold bg-gradient-to-r from-cyan-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
                     World's Hardest 100 Coding Problems
                   </h2>
                   <span className="px-2 py-0.5 text-[10px] font-mono tracking-wider uppercase rounded-full bg-cyan-500/20 border border-cyan-400/30 text-cyan-300">
@@ -110,6 +123,7 @@ export default function Hardest100BenchmarkModal({
               </button>
               <button
                 onClick={onClose}
+                aria-label="Close benchmark modal"
                 className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
               >
                 <X className="w-5 h-5" />
@@ -198,6 +212,7 @@ export default function Hardest100BenchmarkModal({
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
               <input
                 type="text"
+                aria-label="Search 100 benchmark problems"
                 placeholder="Search 100 problems..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

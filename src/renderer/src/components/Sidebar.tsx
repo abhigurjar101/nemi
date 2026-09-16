@@ -301,6 +301,7 @@ export default function Sidebar({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
                 <input
                   type="text"
+                  aria-label={activeTab === 'bots' ? 'Search 11 bots' : 'Search conversations'}
                   placeholder={activeTab === 'bots' ? 'Search 11 bots...' : 'Search conversations...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

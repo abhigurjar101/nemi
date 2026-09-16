@@ -91,7 +91,7 @@ export const OfflineModeModal: React.FC<{
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
+          <button onClick={onClose} aria-label="Close offline mode modal" className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -168,6 +168,7 @@ export const OfflineModeModal: React.FC<{
             <div className="flex gap-2">
               <input
                 type="text"
+                aria-label="Test prompt for offline local model"
                 value={testPrompt}
                 onChange={(e) => setTestPrompt(e.target.value)}
                 className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-400 text-xs"

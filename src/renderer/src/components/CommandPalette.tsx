@@ -326,6 +326,7 @@ export default function CommandPalette({
               <input
                 ref={inputRef}
                 type="text"
+                aria-label="Search commands, bots, or actions"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Type a command, bot name, or action (e.g. 'colab', 'architect', 'ipynb')..."

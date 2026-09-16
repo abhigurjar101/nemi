@@ -86,3 +86,89 @@ describe('3D Brain Orbit & Camera Discrimination Logic', () => {
     expect(clampDistance(35, 1.5)).toBe(40)
   })
 })
+
+describe('Universal Accessibility (a11y) & WCAG Compliance Standards', () => {
+  const modals = [
+    'AuthModal.tsx',
+    'AutonomousLearningModal.tsx',
+    'BranchingContextModal.tsx',
+    'CodeSandboxModal.tsx',
+    'CryptoVaultModal.tsx',
+    'Hardest100BenchmarkModal.tsx',
+    'OfflineModeModal.tsx',
+    'P2PMeshModal.tsx',
+    'SwarmDagModal.tsx',
+    'TradingFleetModal.tsx',
+    'VoiceEngineModal.tsx',
+  ]
+
+  it('verifies that all 11 modal dialogs contain role="dialog", aria-modal="true", aria-labelledby, and Escape listener', () => {
+    for (const m of modals) {
+      const filePath = path.resolve(__dirname, '../src/renderer/src/components', m)
+      expect(fs.existsSync(filePath)).toBe(true)
+      const content = fs.readFileSync(filePath, 'utf8')
+
+      expect(content).toContain('role="dialog"')
+      expect(content).toContain('aria-modal="true"')
+      expect(content).toContain('aria-labelledby')
+      expect(content).toContain('Escape')
+    }
+  })
+
+  it('verifies index.html has lang="en", mobile viewport meta, and charset UTF-8', () => {
+    const htmlPath = path.resolve(__dirname, '../src/renderer/index.html')
+    const html = fs.readFileSync(htmlPath, 'utf8')
+
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain('charset="UTF-8"')
+    expect(html).toContain('viewport-fit=cover')
+  })
+
+  it('verifies all inputs across UI components have accessible labels', () => {
+    const componentsDir = path.resolve(__dirname, '../src/renderer/src/components')
+    const files = fs.readdirSync(componentsDir).filter((f) => f.endsWith('.tsx'))
+
+    const unlabeled: string[] = []
+    for (const f of files) {
+      const content = fs.readFileSync(path.join(componentsDir, f), 'utf8')
+      const matches = content.matchAll(/<input[^>]+>/gs)
+      for (const m of matches) {
+        const tag = m[0]
+        if (!tag.includes('aria-label') && !tag.includes('id=') && !tag.includes('aria-labelledby')) {
+          unlabeled.push(`${f}: ${tag.slice(0, 60)}`)
+        }
+      }
+    }
+
+    expect(unlabeled).toEqual([])
+  })
+
+  it('verifies all image tags across UI components have alt text attributes', () => {
+    const componentsDir = path.resolve(__dirname, '../src/renderer/src/components')
+    const files = fs.readdirSync(componentsDir).filter((f) => f.endsWith('.tsx'))
+
+    const uncaptioned: string[] = []
+    for (const f of files) {
+      const content = fs.readFileSync(path.join(componentsDir, f), 'utf8')
+      const matches = content.matchAll(/<img[^>]+>/gs)
+      for (const m of matches) {
+        const tag = m[0]
+        if (!tag.includes('alt=')) {
+          uncaptioned.push(`${f}: ${tag.slice(0, 60)}`)
+        }
+      }
+    }
+
+    expect(uncaptioned).toEqual([])
+  })
+
+  it('verifies TradingFleetModal has id="trading-fleet-title" and explicit aria-labels on controls', () => {
+    const filePath = path.resolve(__dirname, '../src/renderer/src/components/TradingFleetModal.tsx')
+    const content = fs.readFileSync(filePath, 'utf8')
+
+    expect(content).toContain('id="trading-fleet-title"')
+    expect(content).toContain('aria-label="Dismiss notice"')
+    expect(content).toContain('aria-label="Trade order amount in USD"')
+    expect(content).toContain('aria-label="Cancel Trading View"')
+  })
+})

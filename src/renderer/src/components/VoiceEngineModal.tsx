@@ -84,7 +84,7 @@ export const VoiceEngineModal: React.FC<{
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
+          <button onClick={onClose} aria-label="Close voice engine modal" className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -129,6 +129,7 @@ export const VoiceEngineModal: React.FC<{
               </div>
               <input
                 type="range"
+                aria-label="Voice Activity Detection threshold"
                 min="0.1"
                 max="0.9"
                 step="0.05"
@@ -145,6 +146,7 @@ export const VoiceEngineModal: React.FC<{
               </div>
               <input
                 type="range"
+                aria-label="Barge-in interruption sensitivity"
                 min="0.3"
                 max="0.95"
                 step="0.05"

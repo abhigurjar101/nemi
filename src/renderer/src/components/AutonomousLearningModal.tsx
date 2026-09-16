@@ -136,6 +136,14 @@ export default function AutonomousLearningModal({
     return CURRICULA.find((c) => c.id === selectedCurriculumId) || CURRICULA[0]
   }, [selectedCurriculumId])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   const stats: SwarmMasteryStats = useMemo(() => {
     return calculateSwarmMastery(memories)
   }, [memories])
@@ -208,7 +216,12 @@ export default function AutonomousLearningModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="autonomous-learning-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6"
+        >
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -234,7 +247,7 @@ export default function AutonomousLearningModal({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
-                    <h2 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                    <h2 id="autonomous-learning-title" className="text-sm sm:text-base font-bold text-white tracking-wide">
                       NEMI Neural Training &amp; Learning Hub
                     </h2>
                     <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-semibold bg-cyan-400/20 text-cyan-300 border border-cyan-400/30 flex items-center gap-1">

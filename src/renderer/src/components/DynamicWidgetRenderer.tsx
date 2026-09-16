@@ -44,6 +44,7 @@ export const DynamicWidgetRenderer: React.FC<DynamicWidgetProps> = ({
               </div>
               <input
                 type="range"
+                aria-label={key.replace(/([A-Z])/g, ' $1')}
                 min={key === 'maxTokens' ? 256 : 0}
                 max={key === 'maxTokens' ? 8192 : 1}
                 step={key === 'maxTokens' ? 256 : 0.05}

@@ -677,6 +677,7 @@ export default function ChatPanel({
                         {/* Hidden File Input */}
                         <input
                           type="file"
+                          aria-label="Upload file attachment"
                           ref={fileInputRef}
                           onChange={handleFileSelect}
                           multiple
@@ -812,6 +813,7 @@ export default function ChatPanel({
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30" />
                       <input
                         type="text"
+                        aria-label="Search learned memories"
                         value={memorySearch}
                         onChange={(e) => setMemorySearch(e.target.value)}
                         placeholder="Search learned memories..."
@@ -824,12 +826,14 @@ export default function ChatPanel({
                       <div className="flex gap-1.5">
                         <input
                           type="text"
+                          aria-label="Add new memory fact"
                           value={newMemContent}
                           onChange={(e) => setNewMemContent(e.target.value)}
                           placeholder="Add new memory fact..."
                           className="flex-1 px-2.5 py-1 text-xs bg-white/5 border border-white/8 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-purple-400/40"
                         />
                         <select
+                          aria-label="Memory category"
                           value={newMemCategory}
                           onChange={(e) => setNewMemCategory(e.target.value as any)}
                           className="px-2 py-1 text-[10px] bg-slate-900 border border-white/10 rounded-xl text-white/80 focus:outline-none"
@@ -922,6 +926,7 @@ export default function ChatPanel({
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30" />
                       <input
                         type="text"
+                        aria-label="Search conversation history"
                         value={historySearch}
                         onChange={(e) => setHistorySearch(e.target.value)}
                         placeholder="Search conversations..."

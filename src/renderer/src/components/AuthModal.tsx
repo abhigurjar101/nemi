@@ -853,6 +853,7 @@ export default function AuthModal({
                       <div>
                         <input
                           type="email"
+                          aria-label="Google Account Email or Phone"
                           required
                           autoFocus
                           value={googleEmailInput}

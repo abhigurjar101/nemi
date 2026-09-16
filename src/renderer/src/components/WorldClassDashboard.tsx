@@ -375,6 +375,7 @@ export const WorldClassDashboard: React.FC<WorldClassDashboardProps> = ({
                   {/* Volume slider */}
                   <input
                     type="range"
+                    aria-label="Nature soundscape volume"
                     min="0"
                     max="1"
                     step="0.05"

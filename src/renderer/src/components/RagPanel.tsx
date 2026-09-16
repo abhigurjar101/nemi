@@ -553,7 +553,7 @@ Architecture & Key Capabilities:
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="text-[10px] text-white/35">{totalChunks} chunks</div>
-                <button onClick={onClose} className="icon-btn ml-1">
+                <button onClick={onClose} aria-label="Close knowledge base panel" className="icon-btn ml-1">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -595,6 +595,7 @@ Architecture & Key Capabilities:
                 </div>
                 <input
                   ref={fileInputRef}
+                  aria-label="Upload knowledge files"
                   type="file"
                   multiple
                   accept=".txt,.md,.csv,.py,.js,.ts,.json,.html,.xml,.yaml,.yml,.rst,.tex"

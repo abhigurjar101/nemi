@@ -171,6 +171,7 @@ export const UniversalCommandPalette: React.FC<{
             ref={inputRef}
             type="text"
             id="universal-palette-title"
+            aria-label="Type a command, feature, or natural language action"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
