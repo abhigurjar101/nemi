@@ -26,10 +26,13 @@ vector chunks + graph facts + provenance
 ## Run locally
 
 ```bash
-npm install
+npm ci
+python3 -m venv venv
 cp .env.example .env
 npm run dev
 ```
+
+Install Ollama and pull a supported local model before using local chat. Python 3.11+ is needed for the RAG service. The minimal RAG service uses a TF-IDF fallback; optional `sentence-transformers` enables neural embeddings and may download model weights.
 
 To enable the Neo4j mirror:
 
@@ -57,5 +60,18 @@ npm test
 npm run build
 ./venv/bin/python3 -m unittest discover tests -v
 ```
+
+## Portfolio scope
+
+This repository demonstrates hybrid retrieval and graph provenance. No benchmark establishes that it outperforms vector-only RAG on multi-hop queries. Neo4j is optional; JSON graph storage and heuristic extraction provide a fallback. Local operation depends on the selected provider and configuration: optional cloud providers and initial model downloads can use the network.
+
+For focused, standard-library RAG checks:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_graph_rag_domain.py' -v
+python3 -m unittest discover -s tests -p 'test_rag_persistence.py' -v
+```
+
+These checks cover graph evidence and persistence. They do not validate the complete Electron interface, cloud providers, voice pipeline, or a live Neo4j instance.
 
 The RAG service exposes additive graph fields through `/health`, `/upload`, `/query`, and `/graph/query`. Neo4j credentials stay in the main process environment and are never exposed to the renderer.
